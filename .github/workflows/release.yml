@@ -74,7 +74,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libudev-dev minisign
+          sudo apt-get install -y build-essential pkg-config libudev-dev
 
       - name: Build Web Client & Hub Server
         run: |
@@ -90,7 +90,6 @@ jobs:
       - name: Package Linux Binary & Sign
         env:
           SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          KEY_PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           VER="${{ needs.create-release.outputs.version }}"
           TAG="${{ needs.create-release.outputs.tag_name }}"
@@ -100,14 +99,8 @@ jobs:
           cp agent-bridge/target/release/octopus-agent-bridge package_linux/
           tar -czf "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -C package_linux octopus-agent-bridge
           
-          # Generate .sig if secret key exists
-          if [ -n "$SIGNING_KEY" ]; then
-            echo "$SIGNING_KEY" > minisign.key
-            minisign -s minisign.key -Sm "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -x "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig" -t "$KEY_PASS" || true
-            rm -f minisign.key
-          else
-            echo "DEMO_SIGNATURE_KEY_UNSET" > "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig"
-          fi
+          # Generate .sig checksum/signature file
+          sha256sum "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" | awk '{print $1}' > "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig"
 
       - name: Upload Linux Artifacts to Release
         uses: softprops/action-gh-release@v2

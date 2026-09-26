@@ -1,4 +1,6 @@
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 
 export interface DeviceInfo {
@@ -29,6 +31,11 @@ const connectedBridges = new Map<string, BridgeNode>();
 const fleetDevices = new Map<string, DeviceInfo>();
 const uiClients = new Set<WebSocket>();
 
+// Locate static dist folder
+const clientDistPath = fs.existsSync(path.resolve(process.cwd(), 'web-hub/client/dist'))
+  ? path.resolve(process.cwd(), 'web-hub/client/dist')
+  : path.resolve(process.cwd(), '../client/dist');
+
 const server = http.createServer((req, res) => {
   // Simple REST endpoint for health / debug
   if (req.url === '/api/fleet') {
@@ -39,9 +46,43 @@ const server = http.createServer((req, res) => {
     }));
     return;
   }
+
+  // Serve static files for Web UI
+  if (fs.existsSync(clientDistPath)) {
+    let reqPath = req.url?.split('?')[0] || '/';
+    if (reqPath === '/') reqPath = '/index.html';
+    let filePath = path.join(clientDistPath, reqPath);
+
+    if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+      filePath = path.join(clientDistPath, 'index.html');
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.js': 'text/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.woff2': 'font/woff2',
+    };
+
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    try {
+      const content = fs.readFileSync(filePath);
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content);
+      return;
+    } catch {
+      // Fallback
+    }
+  }
   
   res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
-  res.end('Octopus Fleet Hub Server Running\n');
+  res.end('Octopus Fleet Hub Running. (Build client dist to enable UI)\n');
 });
 
 const wss = new WebSocketServer({ server });

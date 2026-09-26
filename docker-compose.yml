@@ -1,0 +1,12 @@
+services:
+  web-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: octopus-web-hub
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
