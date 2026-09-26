@@ -1,0 +1,146 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { DeviceItem } from './useFlashKitSort';
+
+export interface BridgeInfo {
+  pcId: string;
+  os: 'ubuntu' | 'windows' | 'linux';
+  ip: string;
+  connectedAt: number;
+}
+
+export interface LogEntry {
+  pcId: string;
+  deviceId?: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  timestamp: number;
+}
+
+export function useFleetWebSocket() {
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [bridges, setBridges] = useState<BridgeInfo[]>([]);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+
+  const connect = useCallback(() => {
+    // Determine ws endpoint
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.port === '3000' ? `${window.location.hostname}:4000` : window.location.host;
+    const url = `${protocol}//${host}/ws/ui`;
+
+    try {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        console.log('[Fleet WS] Connected to Hub Server');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case 'FLEET_SYNC': {
+              setBridges(msg.payload.bridges || []);
+              setDevices(msg.payload.devices || []);
+              break;
+            }
+
+            case 'DEVICE_PROGRESS_UPDATE': {
+              const updatedDev: DeviceItem = msg.payload;
+              setDevices((prev) =>
+                prev.map((d) => (d.pcId === updatedDev.pcId && d.id === updatedDev.id ? updatedDev : d))
+              );
+              break;
+            }
+
+            case 'LOG_EVENT': {
+              const log: LogEntry = msg.payload;
+              setLogs((prev) => [...prev.slice(-300), log]); // Keep latest 300 logs
+              break;
+            }
+          }
+        } catch (e) {
+          console.error('[Fleet WS Msg Parse Error]', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        // Exponential backoff reconnect
+        reconnectTimeoutRef.current = window.setTimeout(connect, 2000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('[Fleet WS Error]', err);
+        ws.close();
+      };
+    } catch (e) {
+      console.error('[Fleet WS Connect Failed]', e);
+      reconnectTimeoutRef.current = window.setTimeout(connect, 2000);
+    }
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, [connect]);
+
+  const dispatchAction = useCallback((targetPcId: string, deviceId: string, action: string, params: any = {}) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'DISPATCH_ACTION',
+          payload: { targetPcId, deviceId, action, params },
+        })
+      );
+    }
+  }, []);
+
+  // Simulated triggers for web testing
+  const simulateAction = useCallback((targetPcId: string, deviceId: string, action: string) => {
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (d.pcId === targetPcId && d.id === deviceId) {
+          if (action === 'flash') {
+            return { ...d, status: 'Flashing...', progress: 10, currentTask: 'Sending Odin BL/AP...' };
+          }
+          if (action === 'suw_bypass') {
+            return { ...d, currentTask: 'Executing SUW Bypass script...', status: 'Ready' };
+          }
+          if (action === 'at_exploit') {
+            return { ...d, currentTask: 'Modem AT+KSUCON sent', status: 'Ready' };
+          }
+        }
+        return d;
+      })
+    );
+
+    setLogs((prev) => [
+      ...prev,
+      {
+        pcId: targetPcId,
+        deviceId,
+        level: 'info',
+        message: `[Dispatch] Action ${action.toUpperCase()} started on device ${deviceId} via ${targetPcId}`,
+        timestamp: Date.now(),
+      },
+    ]);
+  }, []);
+
+  return {
+    devices,
+    bridges,
+    isConnected,
+    logs,
+    dispatchAction,
+    simulateAction,
+    setDevices,
+  };
+}

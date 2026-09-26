@@ -1,0 +1,18 @@
+{
+  "name": "octopus",
+  "version": "1.0.0",
+  "description": "Distributed Fleet Web-Managed Provisioning Suite with Rust Agent Bridge",
+  "private": true,
+  "scripts": {
+    "dev:server": "cd web-hub/server && npm run dev",
+    "dev:client": "cd web-hub/client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:client": "cd web-hub/client && npm run build",
+    "build:server": "cd web-hub/server && npm run build",
+    "build:bridge": "cd agent-bridge && cargo build --release",
+    "build": "npm run build:client && npm run build:server && npm run build:bridge"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

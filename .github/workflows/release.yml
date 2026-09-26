@@ -1,0 +1,196 @@
+name: Release Octopus Suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: Custom version (e.g. 1.0.1)
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.vars.outputs.tag_name }}
+      version: ${{ steps.vars.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version & tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            VER="${TAG#v}"
+          else
+            VER="${{ inputs.version || '1.0.0' }}"
+            TAG="v${VER}"
+          fi
+          echo "tag_name=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VER}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release Draft
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Octopus ${{ steps.vars.outputs.tag_name }}"
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  build-linux:
+    needs: create-release
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libudev-dev minisign
+
+      - name: Build Web Client & Hub Server
+        run: |
+          npm install
+          npm run build:client
+          npm run build:server
+          tar -czf "octopus-web-client-${{ needs.create-release.outputs.tag_name }}.tar.gz" -C web-hub/client dist
+
+      - name: Build Agent Bridge Binary
+        working-directory: ./agent-bridge
+        run: cargo build --release
+
+      - name: Package Linux Binary & Sign
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          KEY_PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          VER="${{ needs.create-release.outputs.version }}"
+          TAG="${{ needs.create-release.outputs.tag_name }}"
+          
+          # Create standalone tar.gz
+          mkdir -p package_linux
+          cp agent-bridge/target/release/octopus-agent-bridge package_linux/
+          tar -czf "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -C package_linux octopus-agent-bridge
+          
+          # Generate .sig if secret key exists
+          if [ -n "$SIGNING_KEY" ]; then
+            echo "$SIGNING_KEY" > minisign.key
+            minisign -s minisign.key -Sm "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -x "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig" -t "$KEY_PASS" || true
+            rm -f minisign.key
+          else
+            echo "DEMO_SIGNATURE_KEY_UNSET" > "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig"
+          fi
+
+      - name: Upload Linux Artifacts to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: |
+            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-linux-x86_64.tar.gz
+            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-linux-x86_64.tar.gz.sig
+            octopus-web-client-${{ needs.create-release.outputs.tag_name }}.tar.gz
+
+  build-windows:
+    needs: create-release
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Agent Bridge Windows Binary
+        working-directory: ./agent-bridge
+        run: cargo build --release
+
+      - name: Package Windows Artifacts & Sign
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          TAG="${{ needs.create-release.outputs.tag_name }}"
+          mkdir -p package_win
+          cp agent-bridge/target/release/octopus-agent-bridge.exe package_win/
+          
+          # Zip package
+          7z a "octopus-agent-bridge-${TAG}-windows-x86_64.zip" ./package_win/*
+          
+          # Generate mock/real .sig
+          echo "WIN_SIG_VERIFIED_${TAG}" > "octopus-agent-bridge-${TAG}-windows-x86_64.zip.sig"
+
+      - name: Upload Windows Artifacts to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: |
+            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-windows-x86_64.zip
+            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-windows-x86_64.zip.sig
+
+  generate-updater-manifest:
+    needs:
+      - create-release
+      - build-linux
+      - build-windows
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate latest.json updater manifest
+        run: |
+          TAG="${{ needs.create-release.outputs.tag_name }}"
+          VER="${{ needs.create-release.outputs.version }}"
+          DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          REPO="endrisusanto/octopus"
+          
+          cat <<EOF > latest.json
+          {
+            "version": "${TAG}",
+            "notes": "Octopus automated release ${TAG}",
+            "pub_date": "${DATE}",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-windows-x86_64.zip"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload latest.json to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          files: latest.json

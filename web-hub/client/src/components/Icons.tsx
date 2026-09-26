@@ -1,0 +1,110 @@
+import React from 'react';
+
+interface IconProps {
+  size?: number;
+  className?: string;
+}
+
+export const SunIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2"/>
+    <path d="M12 20v2"/>
+    <path d="m4.93 4.93 1.41 1.41"/>
+    <path d="m17.66 17.66 1.41 1.41"/>
+    <path d="M2 12h2"/>
+    <path d="M20 12h2"/>
+    <path d="m6.34 17.66-1.41 1.41"/>
+    <path d="m19.07 4.93-1.41 1.41"/>
+  </svg>
+);
+
+export const MoonIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+  </svg>
+);
+
+export const SearchIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="11" cy="11" r="8"/>
+    <path d="m21 21-4.3-4.3"/>
+  </svg>
+);
+
+export const TerminalIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="4 17 10 11 4 5"/>
+    <line x1="12" x2="20" y1="19" y2="19"/>
+  </svg>
+);
+
+export const BoltIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+);
+
+export const SmartphoneIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="14" height="20" x="5" y="2" rx="2" ry="2"/>
+    <path d="M12 18h.01"/>
+  </svg>
+);
+
+export const ServerIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="20" height="8" x="2" y="2" rx="2" ry="2"/>
+    <rect width="20" height="8" x="2" y="14" rx="2" ry="2"/>
+    <line x1="6" x2="6.01" y1="6" y2="6"/>
+    <line x1="6" x2="6.01" y1="18" y2="18"/>
+  </svg>
+);
+
+export const GridIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="7" height="7" x="3" y="3" rx="1"/>
+    <rect width="7" height="7" x="14" y="3" rx="1"/>
+    <rect width="7" height="7" x="14" y="14" rx="1"/>
+    <rect width="7" height="7" x="3" y="14" rx="1"/>
+  </svg>
+);
+
+export const ListIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="8" x2="21" y1="6" y2="6"/>
+    <line x1="8" x2="21" y1="12" y2="12"/>
+    <line x1="8" x2="21" y1="18" y2="18"/>
+    <line x1="3" x2="3.01" y1="6" y2="6"/>
+    <line x1="3" x2="3.01" y1="12" y2="12"/>
+    <line x1="3" x2="3.01" y1="18" y2="18"/>
+  </svg>
+);
+
+export const RefreshIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+    <path d="M3 3v5h5"/>
+    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+    <path d="M16 21h5v-5"/>
+  </svg>
+);
+
+export const CheckIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+export const CloseIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+export const PlayIcon: React.FC<IconProps> = ({ size = 16, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="5 3 19 12 5 21 5 3"/>
+  </svg>
+);
