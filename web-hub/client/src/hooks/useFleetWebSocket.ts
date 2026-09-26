@@ -16,9 +16,17 @@ export interface LogEntry {
   timestamp: number;
 }
 
+export interface BinaryItem {
+  filename: string;
+  path: string;
+  sizeBytes: number;
+  pcId: string;
+}
+
 export function useFleetWebSocket() {
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [bridges, setBridges] = useState<BridgeInfo[]>([]);
+  const [binaries, setBinaries] = useState<BinaryItem[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -46,6 +54,14 @@ export function useFleetWebSocket() {
             case 'FLEET_SYNC': {
               setBridges(msg.payload.bridges || []);
               setDevices(msg.payload.devices || []);
+              if (msg.payload.binaries) {
+                setBinaries(msg.payload.binaries);
+              }
+              break;
+            }
+
+            case 'BINARIES_SYNC': {
+              setBinaries(msg.payload.binaries || []);
               break;
             }
 
@@ -137,6 +153,7 @@ export function useFleetWebSocket() {
   return {
     devices,
     bridges,
+    binaries,
     isConnected,
     logs,
     dispatchAction,

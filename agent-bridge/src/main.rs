@@ -53,16 +53,26 @@ async fn run_bridge_worker(hub_url: String, pc_id: String, os_type: String) {
                     let _ = write.send(Message::Text(json.into())).await;
                 }
 
-                // 2. Spawn device scanner loop
+                // 2. Spawn device & local binary scanner loop
                 let (tx, mut rx) = tokio::sync::mpsc::channel::<OutgoingMessage>(32);
 
                 let scanner_handle = tokio::spawn(async move {
+                    let mut tick_count: u32 = 0;
                     loop {
                         let devices = scanner::scan_all_devices();
                         let update = OutgoingMessage::DeviceList { devices };
                         if tx.send(update).await.is_err() {
                             break;
                         }
+
+                        // Scan local binaries every 10 seconds (5 ticks)
+                        if tick_count % 5 == 0 {
+                            let binaries = scanner::scan_local_binaries(None);
+                            let bin_update = OutgoingMessage::BinaryList { binaries };
+                            let _ = tx.send(bin_update).await;
+                        }
+                        tick_count = tick_count.wrapping_add(1);
+
                         sleep(Duration::from_secs(2)).await;
                     }
                 });

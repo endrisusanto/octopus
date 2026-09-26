@@ -13,6 +13,14 @@ pub struct DeviceInfo {
     pub battery_level: Option<u32>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BinaryFileInfo {
+    pub filename: String,
+    pub path: String,
+    #[serde(rename = "sizeBytes")]
+    pub size_bytes: u64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", rename_all = "camelCase")]
 pub enum OutgoingMessage {
@@ -24,6 +32,8 @@ pub enum OutgoingMessage {
     },
     #[serde(rename = "DEVICE_LIST_UPDATE")]
     DeviceList { devices: Vec<DeviceInfo> },
+    #[serde(rename = "BINARY_LIST_UPDATE")]
+    BinaryList { binaries: Vec<BinaryFileInfo> },
     #[serde(rename = "DEVICE_PROGRESS")]
     DeviceProgress {
         #[serde(rename = "deviceId")]

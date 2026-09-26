@@ -12,7 +12,7 @@ import { BinarySelectModal } from './components/BinarySelectModal';
 import { SearchIcon, GridIcon, ListIcon, PlayIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
-  const { devices, bridges, isConnected, logs, dispatchAction, simulateAction } = useFleetWebSocket();
+  const { devices, bridges, binaries, isConnected, logs, dispatchAction, simulateAction } = useFleetWebSocket();
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,6 +95,12 @@ export const App: React.FC = () => {
       dispatchAction(b.pcId, 'system', 'SELF_UPDATE', { targetVersion: 'latest' });
     }
     setLogDrawerState({ isOpen: true });
+  };
+
+  const handleRefreshBinaries = () => {
+    for (const b of bridges) {
+      dispatchAction(b.pcId, 'system', 'SCAN_BINARIES', {});
+    }
   };
 
   return (
@@ -276,6 +282,8 @@ export const App: React.FC = () => {
         isOpen={isBinaryModalOpen}
         onClose={() => setIsBinaryModalOpen(false)}
         currentBinary={workflowConfig.binaryFile}
+        binaries={binaries}
+        onRefreshBinaries={handleRefreshBinaries}
         onSave={(binary) => setWorkflowConfig((prev) => ({ ...prev, binaryFile: binary }))}
       />
 

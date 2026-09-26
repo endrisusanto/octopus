@@ -1,5 +1,78 @@
-use crate::protocol::DeviceInfo;
+use crate::protocol::{BinaryFileInfo, DeviceInfo};
+use std::path::PathBuf;
 use std::process::Command;
+
+// ponytail: Scan local binary / firmware directory on Bridge PC
+pub fn scan_local_binaries(custom_dir: Option<&str>) -> Vec<BinaryFileInfo> {
+    let mut results = Vec::new();
+    let mut candidate_dirs: Vec<PathBuf> = Vec::new();
+
+    if let Some(dir) = custom_dir {
+        candidate_dirs.push(PathBuf::from(dir));
+    }
+
+    if let Ok(env_dir) = std::env::var("OCTOPUS_FIRMWARE_DIR") {
+        candidate_dirs.push(PathBuf::from(env_dir));
+    }
+
+    // Default system search paths
+    #[cfg(target_os = "windows")]
+    {
+        candidate_dirs.push(PathBuf::from(r"C:\FlashKit\Firmware"));
+        candidate_dirs.push(PathBuf::from(r"C:\Octopus\Firmware"));
+        candidate_dirs.push(PathBuf::from(r"D:\Firmware"));
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            candidate_dirs.push(PathBuf::from(userprofile).join("Downloads"));
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        candidate_dirs.push(PathBuf::from("/opt/flashkit/firmware"));
+        candidate_dirs.push(PathBuf::from("/opt/octopus/firmware"));
+        candidate_dirs.push(PathBuf::from("./firmware"));
+        if let Ok(home) = std::env::var("HOME") {
+            candidate_dirs.push(PathBuf::from(home).join("Downloads"));
+        }
+    }
+
+    let valid_extensions = ["tar", "md5", "bin", "img", "lz4", "zip"];
+
+    for dir in candidate_dirs {
+        if dir.exists() && dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        let ext = path.extension().unwrap_or_default().to_string_lossy().to_lowercase();
+                        
+                        let is_ap_or_fw = filename.starts_with("AP_") 
+                            || filename.starts_with("BL_")
+                            || filename.starts_with("CP_")
+                            || filename.starts_with("CSC_")
+                            || valid_extensions.contains(&ext.as_str())
+                            || filename.ends_with(".tar.md5");
+
+                        if is_ap_or_fw {
+                            let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                            results.push(BinaryFileInfo {
+                                filename,
+                                path: path.to_string_lossy().to_string(),
+                                size_bytes,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Deduplicate by path
+    results.sort_by(|a, b| a.filename.cmp(&b.filename));
+    results.dedup_by(|a, b| a.path == b.path);
+    results
+}
 
 // ponytail: Scan ADB devices using standard native CLI
 pub fn scan_adb_devices() -> Vec<DeviceInfo> {

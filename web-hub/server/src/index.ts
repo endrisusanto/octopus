@@ -18,6 +18,13 @@ export interface DeviceInfo {
   lastSeen: number;
 }
 
+export interface BinaryInfo {
+  filename: string;
+  path: string;
+  sizeBytes: number;
+  pcId: string;
+}
+
 export interface BridgeNode {
   pcId: string;
   os: 'ubuntu' | 'windows' | 'linux';
@@ -26,10 +33,19 @@ export interface BridgeNode {
   ws?: WebSocket;
 }
 
-// ponytail: Memory-efficient fleet registry
+// ponytail: Memory-efficient fleet & binary registry
 const connectedBridges = new Map<string, BridgeNode>();
 const fleetDevices = new Map<string, DeviceInfo>();
+const bridgeBinaries = new Map<string, BinaryInfo[]>();
 const uiClients = new Set<WebSocket>();
+
+function getAllBinaries(): BinaryInfo[] {
+  const list: BinaryInfo[] = [];
+  for (const bins of bridgeBinaries.values()) {
+    list.push(...bins);
+  }
+  return list;
+}
 
 // Locate static dist folder
 const clientDistPath = fs.existsSync(path.resolve(process.cwd(), 'web-hub/client/dist'))
@@ -43,7 +59,14 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       bridges: Array.from(connectedBridges.values()).map(b => ({ pcId: b.pcId, os: b.os, ip: b.ip })),
       devices: Array.from(fleetDevices.values()),
+      binaries: getAllBinaries(),
     }));
+    return;
+  }
+
+  if (req.url === '/api/binaries') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ binaries: getAllBinaries() }));
     return;
   }
 
@@ -131,6 +154,21 @@ wss.on('connection', (ws, req) => {
             });
             console.log(`[Bridge Connected] PC: ${bridgePcId} (${msg.payload.os}) from ${ip}`);
             broadcastFleetState();
+            break;
+          }
+
+          case 'BINARY_LIST_UPDATE': {
+            if (!bridgePcId) break;
+            const rawBins = msg.payload.binaries || [];
+            const mapped: BinaryInfo[] = rawBins.map((b: any) => ({
+              filename: b.filename,
+              path: b.path,
+              sizeBytes: b.sizeBytes || 0,
+              pcId: bridgePcId,
+            }));
+            bridgeBinaries.set(bridgePcId, mapped);
+            console.log(`[Binaries Scanned] PC: ${bridgePcId} reported ${mapped.length} firmware binaries`);
+            broadcastToUI('BINARIES_SYNC', { binaries: getAllBinaries() });
             break;
           }
 
