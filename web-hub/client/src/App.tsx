@@ -12,7 +12,7 @@ import { BinarySelectModal } from './components/BinarySelectModal';
 import { SearchIcon, GridIcon, ListIcon, PlayIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
-  const { devices, bridges, binaries, isConnected, logs, dispatchAction, simulateAction } = useFleetWebSocket();
+  const { devices, bridges, binaries, isConnected, logs, dispatchAction } = useFleetWebSocket();
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,14 +62,12 @@ export const App: React.FC = () => {
 
   const handleDeviceAction = (pcId: string, deviceId: string, action: string) => {
     dispatchAction(pcId, deviceId, action, { apFilename: workflowConfig.binaryFile });
-    simulateAction(pcId, deviceId, action);
   };
 
   const handleExecuteBatch = (action: string, params: { apFilename?: string; command?: string }) => {
     const selectedDevices = devices.filter((d) => selectedIds.includes(d.id));
     for (const dev of selectedDevices) {
       dispatchAction(dev.pcId, dev.id, action, params);
-      simulateAction(dev.pcId, dev.id, action);
     }
   };
 
@@ -85,7 +83,6 @@ export const App: React.FC = () => {
         wifiSsid: workflowConfig.wifiSsid,
         wifiPassword: workflowConfig.wifiPassword,
       });
-      simulateAction(dev.pcId, dev.id, 'flash');
     }
     setLogDrawerState({ isOpen: true });
   };

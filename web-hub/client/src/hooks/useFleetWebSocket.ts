@@ -119,37 +119,6 @@ export function useFleetWebSocket() {
     }
   }, []);
 
-  // Simulated triggers for web testing
-  const simulateAction = useCallback((targetPcId: string, deviceId: string, action: string) => {
-    setDevices((prev) =>
-      prev.map((d) => {
-        if (d.pcId === targetPcId && d.id === deviceId) {
-          if (action === 'flash') {
-            return { ...d, status: 'Flashing...', progress: 10, currentTask: 'Sending Odin BL/AP...' };
-          }
-          if (action === 'suw_bypass') {
-            return { ...d, currentTask: 'Executing SUW Bypass script...', status: 'Ready' };
-          }
-          if (action === 'at_exploit') {
-            return { ...d, currentTask: 'Modem AT+KSUCON sent', status: 'Ready' };
-          }
-        }
-        return d;
-      })
-    );
-
-    setLogs((prev) => [
-      ...prev,
-      {
-        pcId: targetPcId,
-        deviceId,
-        level: 'info',
-        message: `[Dispatch] Action ${action.toUpperCase()} started on device ${deviceId} via ${targetPcId}`,
-        timestamp: Date.now(),
-      },
-    ]);
-  }, []);
-
   return {
     devices,
     bridges,
@@ -157,7 +126,5 @@ export function useFleetWebSocket() {
     isConnected,
     logs,
     dispatchAction,
-    simulateAction,
-    setDevices,
   };
 }
