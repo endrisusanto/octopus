@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useFleetWebSocket } from './hooks/useFleetWebSocket';
 import { useFlashKitSort, isFirmwareForModel } from './hooks/useFlashKitSort';
 import { FleetHeader } from './components/FleetHeader';
+import { WorkflowStepper } from './components/WorkflowStepper';
 import { DeviceCard } from './components/DeviceCard';
 import { DeviceTableView } from './components/DeviceTableView';
 import { LogDrawer } from './components/LogDrawer';
@@ -73,6 +74,16 @@ export const App: React.FC = () => {
         devices={devices}
         isConnected={isConnected}
         onRefresh={handleTriggerAgentUpdate}
+      />
+
+      <WorkflowStepper
+        bridgesCount={bridges.length}
+        devices={devices}
+        selectedIds={selectedIds}
+        apFilename={apFilename}
+        onSelectAll={handleSelectAll}
+        onOpenBatchModal={() => setIsBatchModalOpen(true)}
+        onOpenLogs={() => setLogDrawerState({ isOpen: true })}
       />
 
       <main className="main-content">
