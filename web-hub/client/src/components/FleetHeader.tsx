@@ -27,16 +27,16 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <img
             src="/logo-accent.png"
-            alt="Octopus Character Logo"
+            alt="Octopus Mascot"
             style={{
-              width: '32px',
-              height: '32px',
+              width: '42px',
+              height: '42px',
               objectFit: 'contain',
               display: 'block',
             }}
           />
           <div>
-            <h1 className="brand-title">OCTOPUS FLEET HUB</h1>
+            <h1 className="brand-title" style={{ fontSize: '1.25rem', letterSpacing: '0.05em' }}>OCTOPUS FLEET HUB</h1>
             <div className="brand-subtitle">Distributed Web-Managed Provisioning Suite</div>
           </div>
         </div>

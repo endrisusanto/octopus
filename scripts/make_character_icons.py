@@ -19,7 +19,8 @@ char_w, char_h = char_crop.size
 
 # High-res supersampled canvas (1024x1024)
 CANVAS_SIZE = 1024
-PADDING = 128
+# ponytail: tight padding (4%) so the mascot is large and clear at small sizes (favicon, tray, shortcuts)
+PADDING = 40
 target_h = CANVAS_SIZE - 2 * PADDING
 target_w = int(char_w * (target_h / char_h))
 
@@ -27,7 +28,6 @@ resized_char = char_crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
 char_gray = resized_char.convert("L")
 
 # Generate smooth alpha mask: black ink (value 0) -> alpha 255, white bg (value 255) -> alpha 0
-# Create custom lookup table for smooth anti-aliased edges
 alpha_mask = Image.eval(char_gray, lambda v: 255 - v if v < 235 else 0)
 alpha_mask = alpha_mask.filter(ImageFilter.SMOOTH_MORE)
 
@@ -58,10 +58,9 @@ dark_logo_1024 = make_square(dark_char)
 light_logo_1024 = make_square(light_char)
 accent_logo_1024 = make_square(accent_char)
 
-# 4. App Icon with sleek dark squircle background for Desktop Shortcuts
+# 4. App Icon with sleek dark background for Desktop Shortcuts (fills 92% of frame)
 app_icon_1024 = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (13, 17, 23, 255))
-# Paste light character with 15% inner padding
-logo_scale = 0.8
+logo_scale = 0.95
 scaled_w = int(target_w * logo_scale)
 scaled_h = int(target_h * logo_scale)
 scaled_char = light_char.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS)
