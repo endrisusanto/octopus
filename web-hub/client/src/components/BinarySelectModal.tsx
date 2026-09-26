@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { CloseIcon, FileCodeIcon, RefreshIcon, CheckIcon } from './Icons';
 import { BinaryItem } from '../hooks/useFleetWebSocket';
+import { extractModelFromFirmware } from '../hooks/useFlashKitSort';
 
 interface BinarySelectModalProps {
   isOpen: boolean;
@@ -29,18 +30,43 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
 }) => {
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedPc, setSelectedPc] = useState('all');
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [customBinary, setCustomBinary] = useState(currentBinary);
 
   if (!isOpen) return null;
 
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
 
+  // Extract model frequency counts from all available binaries
+  const { modelCounts, availableModels } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const b of binaries) {
+      const model = extractModelFromFirmware(b.filename);
+      if (model) {
+        counts[model] = (counts[model] || 0) + 1;
+      }
+    }
+    const models = Object.keys(counts).sort((a, b) => {
+      // Sort by frequency descending, then alphabetical
+      if (counts[b] !== counts[a]) return counts[b] - counts[a];
+      return a.localeCompare(b);
+    });
+    return { modelCounts: counts, availableModels: models };
+  }, [binaries]);
+
   const filteredBinaries = binaries.filter((b) => {
     const matchSearch =
       b.filename.toLowerCase().includes(searchFilter.toLowerCase()) ||
       b.path.toLowerCase().includes(searchFilter.toLowerCase());
     const matchPc = selectedPc === 'all' || b.pcId === selectedPc;
-    return matchSearch && matchPc;
+    
+    let matchModel = true;
+    if (selectedModel) {
+      const detected = extractModelFromFirmware(b.filename);
+      matchModel = detected === selectedModel || b.filename.toUpperCase().includes(selectedModel.toUpperCase());
+    }
+
+    return matchSearch && matchPc && matchModel;
   });
 
   const handleSelectBinary = (filename: string) => {
@@ -115,6 +141,37 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Model Filter Chips */}
+        {availableModels.length > 0 && (
+          <div className="binary-modal-chips-wrapper">
+            <div className="binary-modal-chips-row">
+              <button
+                type="button"
+                onClick={() => setSelectedModel(null)}
+                className={`binary-chip-btn ${!selectedModel ? 'active' : ''}`}
+              >
+                <span>Semua Model</span>
+                <span className="binary-chip-count">{binaries.length}</span>
+              </button>
+              {availableModels.map((model) => {
+                const count = modelCounts[model];
+                const isActive = selectedModel === model;
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => setSelectedModel((prev) => (prev === model ? null : model))}
+                    className={`binary-chip-btn ${isActive ? 'active' : ''}`}
+                  >
+                    <span>{model}</span>
+                    <span className="binary-chip-count">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Binary List */}
         <div

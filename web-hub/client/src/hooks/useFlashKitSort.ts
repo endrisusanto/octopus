@@ -32,23 +32,32 @@ export function extractCoreModel(name: string | undefined): string {
     .trim();
 }
 
-// Extract model code from Samsung AP/Firmware filename (e.g. "ALL_OXM_S926BXXSHDZI1..." -> "S926B")
+// Extract model code from Samsung AP/Firmware filename (e.g. "ALL_ODM_A266BXXUCDZI1..." -> "A266B", "ALL_OXM_S926BXXSHDZI1..." -> "S926B")
 export function extractModelFromFirmware(filename: string | undefined): string {
   if (!filename) return '';
   const upper = filename.toUpperCase();
 
-  // Pattern 1: Match standard prefix + model code (e.g. ALL_OXM_S926B, AP_A065F, BL_S947B, SM-S926B)
-  const match = upper.match(/(?:ALL_[A-Z0-9]+_|AP_|BL_|CP_|CSC_|HOME_CSC_|USERDATA_)?(?:SM[-_])?([A-Z][0-9]{3}[A-Z0-9]?)(?=[A-Z0-9_.-]|$)/i);
-  if (match && match[1]) {
-    return match[1].toUpperCase();
+  // Pattern 1: Scan tokens for Samsung standard model code format (e.g. A266B, A065F, S926B, F741B, S721B)
+  const tokens = upper.split(/[_\-.\s/\\()]+/);
+  for (const token of tokens) {
+    if (['ALL', 'ODM', 'OLE', 'OXM', 'OJM', 'OYN', 'OWO', 'AP', 'BL', 'CP', 'CSC', 'HOME', 'USERDATA', 'USER', 'SHIP', 'MULTI', 'CERT', 'META', 'REV00', 'REV01', 'REV02', 'LOW'].includes(token)) {
+      continue;
+    }
+    const tokenMatch = token.match(/^(?:SM[-_]?)?([ASFMNGTXZEWY][0-9]{3}[A-Z0-9])/i);
+    if (tokenMatch && tokenMatch[1]) {
+      const res = tokenMatch[1].toUpperCase();
+      if (!['USER', 'SHIP', 'CERT', 'META'].includes(res)) {
+        return res;
+      }
+    }
   }
 
-  // Pattern 2: Standalone alphanumeric model token (e.g. A065F, S926B, A276B, F741B)
-  const tokens = upper.split(/[_\-.\s]+/);
-  for (const token of tokens) {
-    const tokenMatch = token.match(/^(?:SM)?([A-Z][0-9]{3}[A-Z0-9]?)$/i);
-    if (tokenMatch && tokenMatch[1]) {
-      return tokenMatch[1].toUpperCase();
+  // Pattern 2: Search anywhere in filename after prefix
+  const match = upper.match(/(?:ALL_[A-Z0-9]{3,4}_|AP_|BL_|CP_|CSC_|HOME_CSC_|USERDATA_|SM[-_])([ASFMNGTXZEWY][0-9]{3}[A-Z0-9])/i);
+  if (match && match[1]) {
+    const res = match[1].toUpperCase();
+    if (!['USER', 'SHIP', 'CERT', 'META'].includes(res)) {
+      return res;
     }
   }
 

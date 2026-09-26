@@ -61,6 +61,13 @@
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+
+  /* Primary Brand / Accent */
+  --accent-primary: #0969da;
+  --accent-hover: #0858b8;
+  --accent-subtle: #ddf4ff;
+  --accent-border: #54aeff;
+  --accent-text: #0969da;
 }
 
 /* Dark Theme Tokens */
@@ -106,4 +113,11 @@
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+
+  /* Primary Brand / Accent */
+  --accent-primary: #2f81f7;
+  --accent-hover: #58a6ff;
+  --accent-subtle: #112338;
+  --accent-border: #388bfd;
+  --accent-text: #58a6ff;
 }
