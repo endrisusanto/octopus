@@ -24,21 +24,17 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   return (
     <header className="header-bar">
       <div className="brand-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <img
+            src="/logo.png"
+            alt="Octopus Logo"
             style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: '#0969da',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
+              width: '32px',
+              height: '32px',
+              objectFit: 'contain',
+              display: 'block',
             }}
-          >
-            <ServerIcon size={16} />
-          </div>
+          />
           <div>
             <h1 className="brand-title">OCTOPUS FLEET HUB</h1>
             <div className="brand-subtitle">Distributed Web-Managed Provisioning Suite</div>
