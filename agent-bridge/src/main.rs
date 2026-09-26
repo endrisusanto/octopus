@@ -1,10 +1,13 @@
 mod protocol;
 mod scanner;
 mod updater;
+mod verifier;
+mod workflow;
 
 use futures_util::{SinkExt, StreamExt};
 use protocol::{DeviceInfo, IncomingMessage, OutgoingMessage};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -144,7 +147,9 @@ async fn run_bridge_worker(state: AppState) {
 
                 // 2. Spawn device & binary scanner loop
                 let (tx, mut rx) = tokio::sync::mpsc::channel::<OutgoingMessage>(32);
+                let active_verifications: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(HashMap::new()));
                 let scanner_state = state.clone();
+                let tx_scanner = tx.clone();
 
                 let scanner_handle = tokio::spawn(async move {
                     let mut tick: u32 = 0;
@@ -159,7 +164,7 @@ async fn run_bridge_worker(state: AppState) {
                         }
 
                         let update = OutgoingMessage::DeviceList { devices };
-                        if tx.send(update).await.is_err() {
+                        if tx_scanner.send(update).await.is_err() {
                             break;
                         }
 
@@ -171,7 +176,7 @@ async fn run_bridge_worker(state: AppState) {
                                 st.binary_count = binaries.len();
                             }
                             let bin_update = OutgoingMessage::BinaryList { binaries };
-                            let _ = tx.send(bin_update).await;
+                            let _ = tx_scanner.send(bin_update).await;
                         }
                         tick = tick.wrapping_add(1);
 
@@ -200,7 +205,7 @@ async fn run_bridge_worker(state: AppState) {
                                         match incoming {
                                             IncomingMessage::Execute(exec) => {
                                                 println!("[Command] Target Device: {}, Action: {}", exec.device_id, exec.action);
-                                                if exec.action == "SELF_UPDATE" || exec.action == "UPDATE_AGENT" {
+                                                 if exec.action == "SELF_UPDATE" || exec.action == "UPDATE_AGENT" {
                                                     let repo = "endrisusanto/octopus";
                                                     let target_ver = exec.params
                                                         .as_ref()
@@ -216,6 +221,190 @@ async fn run_bridge_worker(state: AppState) {
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
+                                                } else if exec.action == "RELOAD_DEVICES" || exec.action == "RELOAD_UDEV_AND_ADB" || exec.action == "reload_udev_and_adb" {
+                                                    let out = scanner::reload_udev_and_adb();
+                                                    let devs = scanner::scan_all_devices();
+                                                    let list_msg = OutgoingMessage::DeviceList { devices: devs };
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: None,
+                                                        level: "info".to_string(),
+                                                        message: format!("[Bridge] 🔄 Udev rules reloaded & ADB refreshed:\n{}", out.trim()),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&list_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "VERIFY_MD5" {
+                                                    let slot_key = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("slotKey"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("ap")
+                                                        .to_string();
+                                                    let file_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("path"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let filename = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("filename"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+
+                                                    // Cancel / abort previous verification task for this slot if running
+                                                    {
+                                                        let mut verifs = active_verifications.lock().unwrap();
+                                                        if let Some(prev_handle) = verifs.remove(&slot_key) {
+                                                            println!("[Verifier] Aborting previous MD5 verification for slot: {}", slot_key);
+                                                            prev_handle.abort();
+                                                        }
+                                                    }
+
+                                                    let tx_md5 = tx.clone();
+                                                    let verifs_ref = active_verifications.clone();
+                                                    let s_key = slot_key.clone();
+
+                                                    let handle = tokio::spawn(async move {
+                                                        verifier::verify_firmware_md5_task(s_key.clone(), file_path, filename, tx_md5).await;
+                                                        let mut verifs = verifs_ref.lock().unwrap();
+                                                        verifs.remove(&s_key);
+                                                    });
+
+                                                    {
+                                                        let mut verifs = active_verifications.lock().unwrap();
+                                                        verifs.insert(slot_key, handle);
+                                                    }
+                                                } else if exec.action == "WORKFLOW_PIPELINE"
+                                                    || exec.action == "suw_bypass"
+                                                    || exec.action == "setup_gba"
+                                                    || exec.action == "wifi_connect"
+                                                    || exec.action == "flash"
+                                                    || exec.action == "FLASH_ODIN"
+                                                {
+                                                    let odin_flash = if exec.action == "flash" || exec.action == "FLASH_ODIN" {
+                                                        true
+                                                    } else {
+                                                        exec.params
+                                                            .as_ref()
+                                                            .and_then(|p| {
+                                                                p.get("odinFlash")
+                                                                    .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "true" || s == "1")))
+                                                            })
+                                                            .unwrap_or(true)
+                                                    };
+                                                    let ap_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| {
+                                                            p.get("apPath")
+                                                                .or_else(|| p.get("apFilename"))
+                                                                .or_else(|| p.get("binaryFile"))
+                                                        })
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let bl_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("blPath"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let cp_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("cpPath"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let csc_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("cscPath"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let userdata_path = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("userdataPath"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+
+                                                    let skip_suw = if exec.action == "suw_bypass" {
+                                                        true
+                                                    } else {
+                                                        exec.params
+                                                            .as_ref()
+                                                            .and_then(|p| p.get("skipSuw"))
+                                                            .and_then(|v| v.as_bool())
+                                                            .unwrap_or(true)
+                                                    };
+                                                    let setup_gba = if exec.action == "setup_gba" {
+                                                        true
+                                                    } else {
+                                                        exec.params
+                                                            .as_ref()
+                                                            .and_then(|p| p.get("setupGba"))
+                                                            .and_then(|v| v.as_bool())
+                                                            .unwrap_or(true)
+                                                    };
+                                                    let wifi_enabled = if exec.action == "wifi_connect" {
+                                                        true
+                                                    } else {
+                                                        exec.params
+                                                            .as_ref()
+                                                            .and_then(|p| p.get("wifiEnabled"))
+                                                            .and_then(|v| v.as_bool())
+                                                            .unwrap_or(true)
+                                                    };
+                                                    let wifi_ssid = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("wifiSsid"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("RTT / IEEE 802.11")
+                                                        .to_string();
+                                                    let wifi_password = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("wifiPassword"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("1234qwer")
+                                                        .to_string();
+
+                                                    let device_id = exec.device_id.clone();
+                                                    // Find serial and usb port if device_id is port devnode
+                                                    let (serial_hint, port_hint, mode_hint) = {
+                                                        let st = state.status.lock().unwrap();
+                                                        let dev = st.devices.iter().find(|d| d.id == device_id || d.serial.as_deref() == Some(&device_id));
+                                                        (
+                                                            dev.and_then(|d| d.serial.clone()),
+                                                            dev.map(|d| d.port.clone()),
+                                                            dev.map(|d| d.mode.clone()),
+                                                        )
+                                                    };
+
+                                                    let tx_wf = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        workflow::execute_workflow_pipeline(
+                                                            device_id,
+                                                            serial_hint,
+                                                            port_hint,
+                                                            mode_hint,
+                                                            odin_flash,
+                                                            ap_path,
+                                                            bl_path,
+                                                            cp_path,
+                                                            csc_path,
+                                                            userdata_path,
+                                                            skip_suw,
+                                                            setup_gba,
+                                                            wifi_enabled,
+                                                            wifi_ssid,
+                                                            wifi_password,
+                                                            tx_wf,
+                                                        ).await;
+                                                    });
                                                 }
                                             }
                                         }

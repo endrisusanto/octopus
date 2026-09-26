@@ -1,14 +1,15 @@
 import React from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { TerminalIcon, BoltIcon, PlayIcon } from './Icons';
+import { ProgressRing } from './ProgressRing';
 
 interface DeviceTableViewProps {
   devices: DeviceItem[];
   selectedIds: string[];
+  sourcePcId?: string;
   onToggleSelect: (id: string) => void;
   onSelectAll: () => void;
-  onOpenLogs: (pcId: string, deviceId: string) => void;
-  onAction: (pcId: string, deviceId: string, action: string) => void;
+  onOpenLogs?: (pcId: string, deviceId: string) => void;
+  onAction?: (pcId: string, deviceId: string, action: string) => void;
   apFilename?: string;
   isFirmwareForModel: (ap?: string, model?: string) => boolean;
 }
@@ -16,14 +17,14 @@ interface DeviceTableViewProps {
 export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
   devices,
   selectedIds,
+  sourcePcId,
   onToggleSelect,
   onSelectAll,
-  onOpenLogs,
-  onAction,
   apFilename,
   isFirmwareForModel,
 }) => {
-  const allSelected = devices.length > 0 && selectedIds.length === devices.length;
+  const selectableDevices = devices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
+  const allSelected = selectableDevices.length > 0 && selectableDevices.every((d) => selectedIds.includes(d.id));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -61,22 +62,53 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
             <th>MODE</th>
             <th>STATUS</th>
             <th style={{ minWidth: '180px' }}>PROGRESS / TASK</th>
-            <th style={{ textAlign: 'right' }}>ACTIONS</th>
           </tr>
         </thead>
         <tbody>
           {devices.map((device) => {
             const isSelected = selectedIds.includes(device.id);
+            const isPcMismatch = Boolean(sourcePcId && device.pcId !== sourcePcId);
             const isMatch = isFirmwareForModel(apFilename, device.model);
+            const rawProgress = device.progress || 0;
+            const isFlashing = device.status === 'Flashing...' && typeof device.progress === 'number';
+            const isOdinStage = isFlashing && (
+              device.currentTask?.toLowerCase().includes('flashing') ||
+              rawProgress <= 50
+            );
+
+            const odinProgress = isOdinStage ? rawProgress : 100;
+            const overallProgress = isOdinStage
+              ? Math.min(Math.round(odinProgress * 0.5), 50)
+              : rawProgress;
+
+            // ponytail: Background filled loading: Hijau saat Odin Flashing, Biru saat Workflow
+            const rowBackground = isFlashing
+              ? isOdinStage
+                ? `linear-gradient(to right, rgba(16, 185, 129, 0.14) 0%, rgba(16, 185, 129, 0.14) ${odinProgress}%, transparent ${odinProgress}%)`
+                : `linear-gradient(to right, rgba(59, 130, 246, 0.14) 0%, rgba(59, 130, 246, 0.14) ${overallProgress}%, transparent ${overallProgress}%)`
+              : undefined;
 
             return (
-              <tr key={`${device.pcId}-${device.id}`} className={isSelected ? 'selected' : ''}>
+              <tr
+                key={`${device.pcId}-${device.id}`}
+                className={`${isSelected ? 'selected' : ''} ${isFlashing ? 'flashing-row' : ''}`}
+                title={isPcMismatch ? `File binary dipilih dari PC [${sourcePcId}]. Device ini berada di PC [${device.pcId}]. Checkbox dinonaktifkan.` : undefined}
+                style={{
+                  background: rowBackground,
+                  opacity: isPcMismatch ? 0.45 : 1,
+                  cursor: isPcMismatch ? 'not-allowed' : undefined,
+                  transition: 'background 0.25s linear',
+                }}
+              >
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={isSelected}
-                    onChange={() => onToggleSelect(device.id)}
-                    style={{ cursor: 'pointer' }}
+                    disabled={isPcMismatch}
+                    onChange={() => {
+                      if (!isPcMismatch) onToggleSelect(device.id);
+                    }}
+                    style={{ cursor: isPcMismatch ? 'not-allowed' : 'pointer' }}
                   />
                 </td>
                 <td>
@@ -112,14 +144,37 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                 </td>
                 <td>{getStatusBadge(device.status)}</td>
                 <td>
-                  {device.status === 'Flashing...' && typeof device.progress === 'number' ? (
-                    <div className="progress-container">
-                      <div className="progress-header">
-                        <span>{device.currentTask || 'Flashing AP...'}</span>
-                        <span>{device.progress}%</span>
-                      </div>
-                      <div className="progress-track">
-                        <div className="progress-fill" style={{ width: `${device.progress}%` }} />
+                  {isFlashing ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      {/* Differentiated Progress Rings */}
+                      {isOdinStage ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ProgressRing progress={odinProgress} size={26} strokeWidth={2.5} color="var(--accent-green, #10b981)" title={`Odin Step: ${odinProgress}%`} />
+                          <ProgressRing progress={overallProgress} size={26} strokeWidth={2.5} color="#60a5fa" title={`Overall Workflow: ${overallProgress}%`} />
+                        </div>
+                      ) : (
+                        <ProgressRing progress={overallProgress} size={26} strokeWidth={2.5} color="#60a5fa" title={`Overall Workflow: ${overallProgress}%`} />
+                      )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: isOdinStage ? 'var(--accent-green, #10b981)' : '#60a5fa',
+                          }}
+                        >
+                          {device.currentTask || (isOdinStage ? 'Flashing AP...' : 'Workflow In Progress...')}
+                        </span>
+                        <div className="progress-track" style={{ height: '3px' }}>
+                          <div
+                            className="progress-fill"
+                            style={{
+                              width: `${isOdinStage ? odinProgress : overallProgress}%`,
+                              backgroundColor: isOdinStage ? 'var(--accent-green, #10b981)' : '#3b82f6',
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -127,34 +182,6 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                       {device.currentTask || 'Idle'}
                     </span>
                   )}
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
-                    {device.mode === 'odin' && (
-                      <button
-                        onClick={() => onAction(device.pcId, device.id, 'flash')}
-                        className="btn btn-sm btn-primary"
-                        disabled={device.status === 'Flashing...'}
-                      >
-                        <PlayIcon size={12} /> Flash
-                      </button>
-                    )}
-                    {device.mode === 'adb' && (
-                      <button
-                        onClick={() => onAction(device.pcId, device.id, 'suw_bypass')}
-                        className="btn btn-sm"
-                      >
-                        <BoltIcon size={12} /> Bypass
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onOpenLogs(device.pcId, device.id)}
-                      className="btn btn-sm btn-icon"
-                      title="Logs"
-                    >
-                      <TerminalIcon size={12} />
-                    </button>
-                  </div>
                 </td>
               </tr>
             );

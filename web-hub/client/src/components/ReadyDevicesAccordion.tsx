@@ -1,0 +1,327 @@
+import React, { useState } from 'react';
+import { DeviceItem } from '../hooks/useFlashKitSort';
+import { WorkflowConfig } from './WorkflowStepper';
+import { DeviceTableView } from './DeviceTableView';
+import { ChevronDownIcon, ChevronUpIcon, SmartphoneIcon, PlayIcon, CheckIcon } from './Icons';
+
+interface ReadyDevicesAccordionProps {
+  devices: DeviceItem[];
+  selectedIds: string[];
+  sourcePcId?: string;
+  onToggleSelect: (deviceId: string) => void;
+  onSelectAll: (deviceIds: string[]) => void;
+  onOpenLogs: (pcId: string, deviceId: string) => void;
+  onAction: (pcId: string, deviceId: string, action: string) => void;
+  onRunAutomation?: (deviceIds: string[]) => void;
+  workflowConfig?: WorkflowConfig;
+  onUpdateWorkflowConfig?: (updater: (prev: WorkflowConfig) => WorkflowConfig) => void;
+  onOpenWifiModal?: () => void;
+  apFilename?: string;
+  isFirmwareForModel: (apFilename: string | undefined, modelName: string | undefined) => boolean;
+}
+
+export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
+  devices,
+  selectedIds,
+  sourcePcId,
+  onToggleSelect,
+  onSelectAll,
+  onOpenLogs,
+  onAction,
+  onRunAutomation,
+  workflowConfig,
+  onUpdateWorkflowConfig,
+  onOpenWifiModal,
+  apFilename,
+  isFirmwareForModel,
+}) => {
+  const [isOpen, setIsOpen] = useState(true);
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
+
+  if (devices.length === 0) return null;
+
+  // Group summary by model
+  const modelCounts: Record<string, number> = {};
+  devices.forEach((d) => {
+    modelCounts[d.model] = (modelCounts[d.model] || 0) + 1;
+  });
+
+  // Filter devices if a model chip is active
+  const displayedDevices = modelFilter
+    ? devices.filter((d) => d.model === modelFilter)
+    : devices;
+
+  const validStandbyDevices = displayedDevices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
+  const validStandbyIds = validStandbyDevices.map((d) => d.id);
+  const selectedStandbyIds = validStandbyIds.filter((id) => selectedIds.includes(id));
+  const isAllStandbySelected = validStandbyIds.length > 0 && selectedStandbyIds.length === validStandbyIds.length;
+
+  const handleTableSelectAll = () => {
+    if (isAllStandbySelected) {
+      onSelectAll(selectedIds.filter((id) => !validStandbyIds.includes(id)));
+    } else {
+      onSelectAll(Array.from(new Set([...selectedIds, ...validStandbyIds])));
+    }
+  };
+
+  const handleChipClick = (model: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setModelFilter((prev) => (prev === model ? null : model));
+  };
+
+  const handleStepToggle = (stepKey: keyof WorkflowConfig) => {
+    if (onUpdateWorkflowConfig) {
+      onUpdateWorkflowConfig((prev) => ({
+        ...prev,
+        [stepKey]: !prev[stepKey],
+      }));
+    }
+  };
+
+  const wifiLongPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isWifiLongPressedRef = React.useRef(false);
+
+  const handleWifiTouchStart = () => {
+    isWifiLongPressedRef.current = false;
+    wifiLongPressTimerRef.current = setTimeout(() => {
+      isWifiLongPressedRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(50); } catch (_) {}
+      }
+      if (onOpenWifiModal) onOpenWifiModal();
+    }, 500);
+  };
+
+  const handleWifiTouchEnd = () => {
+    if (wifiLongPressTimerRef.current) {
+      clearTimeout(wifiLongPressTimerRef.current);
+      wifiLongPressTimerRef.current = null;
+    }
+  };
+
+  const handleWifiClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isWifiLongPressedRef.current) {
+      isWifiLongPressedRef.current = false;
+      return;
+    }
+    handleStepToggle('wifiEnabled');
+  };
+
+  return (
+    <div className="card accordion-card" style={{ marginBottom: '1rem' }}>
+      {/* Header Accordion */}
+      <div
+        className="accordion-header ready-header-layout"
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: '0.6rem',
+          padding: '0.75rem 1rem',
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        {/* Row 1: Title & Count */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+            <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0 }}>
+              {isOpen ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
+            </button>
+            <SmartphoneIcon size={15} style={{ flexShrink: 0 }} />
+            <span
+              style={{
+                fontWeight: 800,
+                fontSize: '0.85rem',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              DAFTAR PERANGKAT STANDBY ({displayedDevices.length}{modelFilter ? `/${devices.length}` : ''} Unit)
+            </span>
+          </div>
+
+          {selectedStandbyIds.length > 0 && (
+            <span
+              className="stat-pill active"
+              style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem', flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
+              {selectedStandbyIds.length}/{displayedDevices.length} Dipilih
+            </span>
+          )}
+        </div>
+
+        {/* Row 2: Conditional Workflow Automation Breadcrumb OR Model Filter Chips */}
+        {selectedStandbyIds.length > 0 && workflowConfig && onRunAutomation ? (
+          <>
+            {/* Fullwidth 1-Line Breadcrumb Steps */}
+            <div
+              className="workflow-breadcrumb-row"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '0.2rem',
+                width: '100%',
+                flexWrap: 'nowrap',
+                whiteSpace: 'nowrap',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Step 1: SKIP SUW */}
+              <button
+                type="button"
+                onClick={() => handleStepToggle('skipSuw')}
+                className={`btn-step-pill ${workflowConfig.skipSuw ? 'active-blue' : ''}`}
+                style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+                title="Lewati Setup Wizard (SUW) setelah boot"
+              >
+                <CheckIcon size={10} />
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SKIP SUW</span>
+              </button>
+
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+
+              {/* Step 2: SETUP GBA */}
+              <button
+                type="button"
+                onClick={() => handleStepToggle('setupGba')}
+                className={`btn-step-pill ${workflowConfig.setupGba ? 'active-purple' : ''}`}
+                style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+                title="Setup Google Basic Authentication"
+              >
+                <CheckIcon size={10} />
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SETUP GBA</span>
+              </button>
+
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+
+              {/* Step 3: WIFI with Long Press on Mobile & Right Click on Desktop */}
+              <button
+                type="button"
+                onTouchStart={handleWifiTouchStart}
+                onTouchEnd={handleWifiTouchEnd}
+                onTouchCancel={handleWifiTouchEnd}
+                onTouchMove={handleWifiTouchEnd}
+                onMouseDown={handleWifiTouchStart}
+                onMouseUp={handleWifiTouchEnd}
+                onMouseLeave={handleWifiTouchEnd}
+                onClick={handleWifiClick}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onOpenWifiModal) onOpenWifiModal();
+                }}
+                className={`btn-step-pill ${workflowConfig.wifiEnabled ? 'active-green' : ''}`}
+                style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+                title="Tap: Toggle Wi-Fi | Tahan / Klik Kanan: Konfigurasi SSID/Password"
+              >
+                <CheckIcon size={10} />
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>WIFI</span>
+              </button>
+            </div>
+
+            {/* Row 3: Run Automation Button on New Line */}
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => onRunAutomation(selectedStandbyIds)}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  height: '32px',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <PlayIcon size={13} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Model Summary Chips as 1-line Scrollable Filters */
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              overflowX: 'auto',
+              flexWrap: 'nowrap',
+              whiteSpace: 'nowrap',
+              scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch',
+              width: '100%',
+              paddingBottom: '2px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {modelFilter && (
+              <button
+                type="button"
+                onClick={() => setModelFilter(null)}
+                className="btn btn-sm btn-icon"
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem', height: '24px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                title="Reset Filter Model"
+              >
+                Semua
+              </button>
+            )}
+
+            {Object.entries(modelCounts).map(([model, count]) => {
+              const isActive = modelFilter === model;
+              return (
+                <button
+                  key={model}
+                  type="button"
+                  onClick={(e) => handleChipClick(model, e)}
+                  className={`stat-pill ${isActive ? 'active' : ''}`}
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '0.15rem 0.45rem',
+                    cursor: 'pointer',
+                    border: isActive ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                    backgroundColor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-subtle)',
+                    color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    fontWeight: isActive ? 700 : 500,
+                    transition: 'all 0.15s ease',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={`Filter hanya model ${model}`}
+                >
+                  {model} <strong>({count})</strong>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Body Accordion: Device Table */}
+      {isOpen && (
+        <div className="accordion-body" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <DeviceTableView
+            devices={displayedDevices}
+            selectedIds={selectedIds}
+            sourcePcId={sourcePcId}
+            onToggleSelect={onToggleSelect}
+            onSelectAll={handleTableSelectAll}
+            onOpenLogs={onOpenLogs}
+            onAction={onAction}
+            apFilename={apFilename}
+            isFirmwareForModel={isFirmwareForModel}
+          />
+        </div>
+      )}
+    </div>
+  );
+};

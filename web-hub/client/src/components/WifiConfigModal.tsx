@@ -22,6 +22,14 @@ export const WifiConfigModal: React.FC<WifiConfigModalProps> = ({
   const [localPass, setLocalPass] = useState(password);
   const [localEnabled, setLocalEnabled] = useState(enabled);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setLocalSsid(ssid || 'RTT / IEEE 802.11');
+      setLocalPass(password || '1234qwer');
+      setLocalEnabled(enabled);
+    }
+  }, [isOpen, ssid, password, enabled]);
+
   if (!isOpen) return null;
 
   const handleSave = (e: React.FormEvent) => {

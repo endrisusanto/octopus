@@ -50,6 +50,18 @@ pub enum OutgoingMessage {
         level: String,
         message: String,
     },
+    #[serde(rename = "MD5_PROGRESS")]
+    Md5Progress {
+        #[serde(rename = "slotKey")]
+        slot_key: String,
+        filename: String,
+        progress: u32,
+        status: String,
+        #[serde(rename = "calculatedMd5")]
+        calculated_md5: Option<String>,
+        #[serde(rename = "errorMessage")]
+        error_message: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

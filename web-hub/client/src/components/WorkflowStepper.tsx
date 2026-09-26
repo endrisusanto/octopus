@@ -4,6 +4,7 @@ import { CheckIcon, PlayIcon } from './Icons';
 
 export interface WorkflowConfig {
   binaryFile: string;
+  odinFlash?: boolean;
   skipSuw: boolean;
   setupGba: boolean;
   wifiEnabled: boolean;

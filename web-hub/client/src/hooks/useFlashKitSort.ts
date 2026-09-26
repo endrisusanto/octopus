@@ -15,27 +15,65 @@ export interface DeviceItem {
   lastSeen: number;
 }
 
-// FlashKit Model Normalizer
+// Normalize full model name for display (e.g. "SM-S947B")
 export function normalizeModel(model: string | undefined): string {
   if (!model) return 'UNKNOWN';
-  return model.toUpperCase().replace(/^SAMSUNG[-_ ]?/i, '').trim();
+  const clean = model.toUpperCase().replace(/^SAMSUNG[-_ ]?/i, '').trim();
+  return clean.startsWith('SM-') || clean.startsWith('SM_') ? clean.replace('_', '-') : `SM-${clean}`;
 }
 
-// FlashKit AP Firmware Matcher
-export function isFirmwareForModel(apFilename: string | undefined, modelName: string | undefined): boolean {
-  if (!apFilename || !modelName) return false;
-  
-  const cleanModel = normalizeModel(modelName);
-  const cleanAp = apFilename.toUpperCase();
+// Extract core model code without any SM/SAMSUNG prefix (e.g. "A065F", "S947B", "A276B")
+export function extractCoreModel(name: string | undefined): string {
+  if (!name) return '';
+  return name
+    .toUpperCase()
+    .replace(/^SAMSUNG[-_ ]?/i, '')
+    .replace(/^SM[-_ ]?/i, '')
+    .trim();
+}
 
-  // Strip prefixes
-  const pureAp = cleanAp
-    .replace(/^AP[_-]/i, '')
-    .replace(/^BL[_-]/i, '')
-    .replace(/^CP[_-]/i, '')
-    .replace(/^CSC[_-]/i, '');
+// Extract model code from Samsung AP/Firmware filename (e.g. "ALL_OXM_S926BXXSHDZI1..." -> "S926B")
+export function extractModelFromFirmware(filename: string | undefined): string {
+  if (!filename) return '';
+  const upper = filename.toUpperCase();
 
-  return pureAp.includes(cleanModel) || cleanModel.includes(pureAp.split('_')[0] || '---');
+  // Pattern 1: Match standard prefix + model code (e.g. ALL_OXM_S926B, AP_A065F, BL_S947B, SM-S926B)
+  const match = upper.match(/(?:ALL_[A-Z0-9]+_|AP_|BL_|CP_|CSC_|HOME_CSC_|USERDATA_)?(?:SM[-_])?([A-Z][0-9]{3}[A-Z0-9]?)(?=[A-Z0-9_.-]|$)/i);
+  if (match && match[1]) {
+    return match[1].toUpperCase();
+  }
+
+  // Pattern 2: Standalone alphanumeric model token (e.g. A065F, S926B, A276B, F741B)
+  const tokens = upper.split(/[_\-.\s]+/);
+  for (const token of tokens) {
+    const tokenMatch = token.match(/^(?:SM)?([A-Z][0-9]{3}[A-Z0-9]?)$/i);
+    if (tokenMatch && tokenMatch[1]) {
+      return tokenMatch[1].toUpperCase();
+    }
+  }
+
+  return '';
+}
+
+// Check if a firmware file is intended for a given device model
+export function isFirmwareForModel(apFilename: string | undefined, deviceModel: string | undefined): boolean {
+  if (!apFilename || !deviceModel) return false;
+
+  const fwModel = extractModelFromFirmware(apFilename);
+  const devCore = extractCoreModel(deviceModel);
+
+  if (fwModel && devCore) {
+    if (devCore.includes(fwModel) || fwModel.includes(devCore)) {
+      return true;
+    }
+  }
+
+  const cleanFw = apFilename.toUpperCase();
+  if (devCore && devCore.length >= 4 && cleanFw.includes(devCore)) {
+    return true;
+  }
+
+  return false;
 }
 
 export function useFlashKitSort(

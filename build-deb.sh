@@ -23,9 +23,15 @@ mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "${STAGE_DIR}/usr/share/icons/hicolor/32x32/apps"
 mkdir -p "${STAGE_DIR}/opt/flashkit/firmware"
 
-# 1. Copy binary
+# 1. Copy binary & assets
 cp "${ROOT_DIR}/agent-bridge/target/release/octopus-agent-bridge" "${STAGE_DIR}/usr/bin/octopus-agent-bridge"
 chmod +x "${STAGE_DIR}/usr/bin/octopus-agent-bridge"
+
+if [ -d "${ROOT_DIR}/agent-bridge/assets" ]; then
+    mkdir -p "${STAGE_DIR}/usr/share/octopus-agent-bridge/assets"
+    cp -r "${ROOT_DIR}/agent-bridge/assets/"* "${STAGE_DIR}/usr/share/octopus-agent-bridge/assets/"
+    chmod +x "${STAGE_DIR}/usr/share/octopus-agent-bridge/assets/odin4" 2>/dev/null || true
+fi
 
 # 2. Copy App Icons (Hydra Emblem)
 if [ -f "${ROOT_DIR}/agent-bridge/icons/icon.png" ]; then

@@ -33,6 +33,54 @@ export interface BridgeNode {
   ws?: WebSocket;
 }
 
+export interface FirmwareSlotState {
+  filename: string;
+  path: string;
+  sizeBytes: number;
+  pcId?: string;
+  status: 'idle' | 'verifying' | 'verified' | 'error';
+  progress: number;
+}
+
+export interface FirmwareSlotsMap {
+  bl: FirmwareSlotState;
+  ap: FirmwareSlotState;
+  cp: FirmwareSlotState;
+  csc: FirmwareSlotState;
+  userdata: FirmwareSlotState;
+}
+
+export interface WorkflowConfig {
+  binaryFile: string;
+  skipSuw: boolean;
+  setupGba: boolean;
+  wifiEnabled: boolean;
+  wifiSsid?: string;
+  wifiPassword?: string;
+  odinFlash?: boolean;
+}
+
+// Global Single Session State across all devices/clients
+let globalFirmwareSlots: FirmwareSlotsMap = {
+  bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+};
+
+let globalWorkflowConfig: WorkflowConfig = {
+  binaryFile: '',
+  odinFlash: true,
+  skipSuw: true,
+  setupGba: true,
+  wifiEnabled: true,
+  wifiSsid: 'RTT / IEEE 802.11',
+  wifiPassword: '1234qwer',
+};
+
+let globalSelectedDeviceIds: string[] = [];
+
 // ponytail: Memory-efficient fleet & binary registry
 const connectedBridges = new Map<string, BridgeNode>();
 const fleetDevices = new Map<string, DeviceInfo>();
@@ -174,25 +222,81 @@ wss.on('connection', (ws, req) => {
 
           case 'DEVICE_LIST_UPDATE': {
             if (!bridgePcId) break;
-            // Clear previous devices from this bridge
+            const incomingDevices: DeviceInfo[] = msg.payload.devices || [];
+            const newKeys = new Set<string>();
+
+            // Find all actively executing devices for this bridge
+            const activeRunning = new Map<string, DeviceInfo>();
             for (const [key, dev] of fleetDevices.entries()) {
-              if (dev.pcId === bridgePcId) {
-                fleetDevices.delete(key);
+              if (dev.pcId === bridgePcId && (dev.status === 'Flashing...' || dev.status === 'Busy')) {
+                activeRunning.set(key, dev);
               }
             }
-            // Add current devices
-            const devices: DeviceInfo[] = msg.payload.devices || [];
-            for (const d of devices) {
-              fleetDevices.set(`${bridgePcId}:${d.id}`, { ...d, pcId: bridgePcId, lastSeen: Date.now() });
+
+            for (const d of incomingDevices) {
+              // Check if this device matches any active running task (by ID, serial, or USB port)
+              let matchingActive: DeviceInfo | undefined = undefined;
+              for (const [_, runningDev] of activeRunning.entries()) {
+                if (
+                  runningDev.id === d.id ||
+                  (runningDev.serial && d.serial && runningDev.serial === d.serial) ||
+                  (runningDev.port && d.port && runningDev.port === d.port)
+                ) {
+                  matchingActive = runningDev;
+                  break;
+                }
+              }
+
+              const primaryId = matchingActive ? matchingActive.id : d.id;
+              const fullKey = `${bridgePcId}:${primaryId}`;
+              newKeys.add(fullKey);
+
+              if (matchingActive) {
+                fleetDevices.set(fullKey, {
+                  ...d,
+                  id: primaryId,
+                  pcId: bridgePcId,
+                  model: matchingActive.model && matchingActive.model !== 'SAMSUNG USB' && matchingActive.model !== 'SAMSUNG ODIN' && matchingActive.model !== 'SAMSUNG (Download Mode)' ? matchingActive.model : d.model,
+                  serial: matchingActive.serial || d.serial,
+                  status: matchingActive.status,
+                  progress: matchingActive.progress,
+                  currentTask: matchingActive.currentTask,
+                  lastSeen: Date.now(),
+                });
+              } else {
+                fleetDevices.set(fullKey, { ...d, pcId: bridgePcId, lastSeen: Date.now() });
+              }
             }
+
+            // Remove devices physically disconnected, EXCEPT those actively running a workflow!
+            for (const [key, dev] of fleetDevices.entries()) {
+              if (dev.pcId === bridgePcId && !newKeys.has(key)) {
+                // If it's running automation, keep it (it might be rebooting / switching USB mode)
+                if (dev.status === 'Flashing...' || dev.status === 'Busy') {
+                  if (Date.now() - dev.lastSeen > 300000) {
+                    fleetDevices.delete(key);
+                  }
+                } else {
+                  fleetDevices.delete(key);
+                }
+              }
+            }
+
             broadcastFleetState();
             break;
           }
 
           case 'DEVICE_PROGRESS': {
             const { deviceId, progress, status, currentTask } = msg.payload;
-            const fullKey = `${bridgePcId}:${deviceId}`;
-            const dev = fleetDevices.get(fullKey);
+            let dev = fleetDevices.get(`${bridgePcId}:${deviceId}`);
+            if (!dev) {
+              for (const [_, d] of fleetDevices.entries()) {
+                if (d.pcId === bridgePcId && (d.id === deviceId || d.serial === deviceId || d.port === deviceId)) {
+                  dev = d;
+                  break;
+                }
+              }
+            }
             if (dev) {
               dev.progress = progress;
               if (status) dev.status = status;
@@ -213,6 +317,24 @@ wss.on('connection', (ws, req) => {
             });
             break;
           }
+
+          case 'MD5_PROGRESS': {
+            if (msg.payload.slotKey) {
+              const k = msg.payload.slotKey as keyof FirmwareSlotsMap;
+              if (globalFirmwareSlots[k]) {
+                globalFirmwareSlots[k] = {
+                  ...globalFirmwareSlots[k],
+                  status: msg.payload.status,
+                  progress: msg.payload.progress,
+                };
+              }
+            }
+            broadcastToUI('MD5_PROGRESS_UPDATE', {
+              pcId: bridgePcId,
+              ...msg.payload,
+            });
+            break;
+          }
         }
       } catch (err) {
         console.error('[Bridge Msg Parse Error]', err);
@@ -223,22 +345,24 @@ wss.on('connection', (ws, req) => {
       if (bridgePcId) {
         console.log(`[Bridge Disconnected] PC: ${bridgePcId}`);
         connectedBridges.delete(bridgePcId);
-        // Mark devices as offline or remove
+        bridgeBinaries.delete(bridgePcId);
+        // Remove devices belonging to disconnected bridge
         for (const [key, dev] of fleetDevices.entries()) {
           if (dev.pcId === bridgePcId) {
             fleetDevices.delete(key);
           }
         }
         broadcastFleetState();
+        broadcastToUI('BINARIES_SYNC', { binaries: getAllBinaries() });
       }
     });
 
   } else {
-    // UI Client Connection
+    // UI Client Connection (1-Session synchronized across all devices)
     uiClients.add(ws);
     console.log(`[UI Client Connected] Active UI clients: ${uiClients.size}`);
 
-    // Send initial snapshot
+    // Send initial fleet state snapshot
     ws.send(JSON.stringify({
       type: 'FLEET_SYNC',
       payload: {
@@ -249,6 +373,18 @@ wss.on('connection', (ws, req) => {
           connectedAt: b.connectedAt,
         })),
         devices: Array.from(fleetDevices.values()),
+        binaries: getAllBinaries(),
+      },
+      timestamp: Date.now(),
+    }));
+
+    // Send initial 1-session state snapshot
+    ws.send(JSON.stringify({
+      type: 'SESSION_STATE_SYNC',
+      payload: {
+        firmwareSlots: globalFirmwareSlots,
+        workflowConfig: globalWorkflowConfig,
+        selectedDeviceIds: globalSelectedDeviceIds,
       },
       timestamp: Date.now(),
     }));
@@ -257,11 +393,48 @@ wss.on('connection', (ws, req) => {
       try {
         const msg = JSON.parse(raw.toString());
         
-        // UI Dispatching actions to specific Bridge
-        if (msg.type === 'DISPATCH_ACTION') {
+        // 1-Session state synchronization from UI clients
+        if (msg.type === 'SYNC_FIRMWARE_SLOTS') {
+          if (msg.payload?.firmwareSlots) {
+            globalFirmwareSlots = msg.payload.firmwareSlots;
+            broadcastToUI('SESSION_STATE_SYNC', {
+              firmwareSlots: globalFirmwareSlots,
+              workflowConfig: globalWorkflowConfig,
+              selectedDeviceIds: globalSelectedDeviceIds,
+            });
+          }
+        } else if (msg.type === 'SYNC_WORKFLOW_CONFIG') {
+          if (msg.payload?.workflowConfig) {
+            globalWorkflowConfig = msg.payload.workflowConfig;
+            broadcastToUI('SESSION_STATE_SYNC', {
+              firmwareSlots: globalFirmwareSlots,
+              workflowConfig: globalWorkflowConfig,
+              selectedDeviceIds: globalSelectedDeviceIds,
+            });
+          }
+        } else if (msg.type === 'SYNC_SELECTED_DEVICES') {
+          if (msg.payload?.selectedDeviceIds) {
+            globalSelectedDeviceIds = msg.payload.selectedDeviceIds;
+            broadcastToUI('SESSION_STATE_SYNC', {
+              firmwareSlots: globalFirmwareSlots,
+              workflowConfig: globalWorkflowConfig,
+              selectedDeviceIds: globalSelectedDeviceIds,
+            });
+          }
+        } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
           const bridge = connectedBridges.get(targetPcId);
           if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+            // Optimistic update state on server
+            const fullKey = `${targetPcId}:${deviceId}`;
+            const dev = fleetDevices.get(fullKey);
+            if (dev) {
+              dev.status = 'Flashing...';
+              dev.progress = 10;
+              dev.currentTask = 'Memulai Automasi...';
+              broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+            }
+
             bridge.ws.send(JSON.stringify({
               type: 'EXECUTE_COMMAND',
               payload: { deviceId, action, params },

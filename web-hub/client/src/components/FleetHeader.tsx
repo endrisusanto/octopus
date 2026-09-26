@@ -9,6 +9,7 @@ interface FleetHeaderProps {
   devices: DeviceItem[];
   isConnected: boolean;
   onRefresh?: () => void;
+  onReloadDevices?: () => void;
 }
 
 export const FleetHeader: React.FC<FleetHeaderProps> = ({
@@ -16,6 +17,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   devices,
   isConnected,
   onRefresh,
+  onReloadDevices,
 }) => {
   const odinCount = devices.filter((d) => d.mode === 'odin').length;
   const adbCount = devices.filter((d) => d.mode === 'adb').length;
@@ -24,33 +26,84 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   return (
     <header className="header-bar">
       <div className="brand-section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <img
-            src="/logo-accent.png?v=2"
-            alt="Octopus Mascot"
+        <img
+          src="/logo-accent.png?v=2"
+          alt="Octopus Mascot"
+          className="brand-logo"
+          style={{
+            width: '28px',
+            height: '28px',
+            objectFit: 'contain',
+            display: 'block',
+            flexShrink: 0,
+          }}
+        />
+        <div className="brand-text">
+          <h1 className="brand-title">OCTOPUS FLEET HUB</h1>
+          <div className="brand-subtitle">Distributed Web-Managed Provisioning Suite</div>
+        </div>
+      </div>
+
+      {/* Action Group: Online Badge, Reload, Update, ThemeToggle - 1 inline row with equal height */}
+      <div className="header-actions-row">
+        <div
+          className="stat-pill online-pill"
+          style={{
+            borderColor: isConnected ? 'var(--status-ready-border)' : 'var(--status-fail-border)',
+            color: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
+            fontSize: '0.7rem',
+            padding: '0 0.45rem',
+            height: '28px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            boxSizing: 'border-box',
+          }}
+        >
+          <span
             style={{
-              width: '42px',
-              height: '42px',
-              objectFit: 'contain',
-              display: 'block',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
+              flexShrink: 0,
             }}
           />
-          <div>
-            <h1 className="brand-title" style={{ fontSize: '1.25rem', letterSpacing: '0.05em' }}>OCTOPUS FLEET HUB</h1>
-            <div className="brand-subtitle">Distributed Web-Managed Provisioning Suite</div>
-          </div>
+          <span style={{ whiteSpace: 'nowrap' }}>{isConnected ? 'Hub Online' : 'Hub Offline'}</span>
         </div>
+
+        <button
+          type="button"
+          onClick={() => onReloadDevices && onReloadDevices()}
+          className="btn btn-header-action"
+          title="Reload udev rules dan refresh koneksi ADB pada seluruh Workstation PC"
+        >
+          Reload
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onRefresh && onRefresh()}
+          className="btn btn-header-action"
+          title="Trigger Silent Update on all connected PC Bridges"
+        >
+          Update
+        </button>
+
+        <ThemeToggle />
       </div>
 
       <div className="fleet-stats-bar">
         <div className="stat-pill active">
-          <ServerIcon size={14} />
+          <ServerIcon size={12} />
           <span>Bridges:</span>
           <span className="count">{bridges.length}</span>
         </div>
 
         <div className="stat-pill active">
-          <SmartphoneIcon size={14} />
+          <SmartphoneIcon size={12} />
           <span>Devices:</span>
           <span className="count">{devices.length}</span>
         </div>
@@ -71,36 +124,6 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
             <span className="count" style={{ color: '#d29922' }}>{activeFlashCount}</span>
           </div>
         )}
-
-        <div
-          className="stat-pill"
-          style={{
-            borderColor: isConnected ? 'var(--status-ready-border)' : 'var(--status-fail-border)',
-            color: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
-          }}
-        >
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
-            }}
-          />
-          <span>{isConnected ? 'Hub Online' : 'Hub Reconnecting'}</span>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <button
-          onClick={() => onRefresh && onRefresh()}
-          className="btn btn-sm"
-          title="Trigger Silent Update on all connected PC Bridges"
-          style={{ fontSize: '0.75rem' }}
-        >
-          Update Agent
-        </button>
-        <ThemeToggle />
       </div>
     </header>
   );

@@ -37,54 +37,149 @@ body {
 .header-bar {
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 0.85rem 1.5rem;
+  padding: 0.65rem 1.25rem;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.55rem;
   position: sticky;
   top: 0;
   z-index: 40;
 }
 
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
 .brand-section {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  min-width: 0;
 }
 
 .brand-title {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .brand-subtitle {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: nowrap;
 }
 
-/* Stats Pill Bar */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.btn-header-action {
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: all var(--duration-fast);
+}
+
+.header-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+.header-actions-row::-webkit-scrollbar {
+  display: none;
+}
+
+.header-actions-row .btn-header-action,
+.header-actions-row .btn-icon,
+.header-actions-row .online-pill {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  box-sizing: border-box;
+}
+
+.header-actions-row .btn-icon {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+
+.online-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Stats Pill Bar (Guaranteed Single-Line Horizontal Scrollable) */
 .fleet-stats-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  width: 100%;
+  padding-bottom: 2px;
+}
+
+.fleet-stats-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .stat-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  font-size: 0.775rem;
+  font-size: 0.725rem;
   font-weight: 600;
   color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stat-pill.active {
@@ -350,34 +445,103 @@ body {
   border-radius: var(--radius-md);
 }
 
-/* View Mode Toggles */
-.view-mode-group {
-  display: flex;
-  background-color: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 2px;
+.btn-outline-danger {
+  background-color: transparent;
+  color: var(--accent-red, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
-.view-mode-btn {
-  padding: 0.35rem 0.65rem;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  font-size: 0.8rem;
-  cursor: pointer;
+.btn-outline-danger:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: var(--accent-red, #ef4444);
+}
+
+/* Step Pill Buttons for Workflow Breadcrumbs */
+.btn-step-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  transition: background-color var(--duration-fast), color var(--duration-fast);
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.725rem;
+  font-weight: 700;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
 }
 
-.view-mode-btn.active {
-  background-color: var(--bg-surface);
+.btn-step-pill:hover {
+  background-color: var(--bg-hover);
   color: var(--text-primary);
-  font-weight: 600;
+}
+
+.btn-step-pill.active-amber {
+  background-color: rgba(245, 158, 11, 0.15);
+  border-color: var(--accent-amber, #f59e0b);
+  color: var(--accent-amber, #f59e0b);
+}
+
+.btn-step-pill.active-blue {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent-primary, #3b82f6);
+  color: var(--accent-primary, #3b82f6);
+}
+
+.btn-step-pill.active-purple {
+  background-color: rgba(168, 85, 247, 0.15);
+  border-color: var(--accent-purple, #a855f7);
+  color: var(--accent-purple, #a855f7);
+}
+
+.btn-step-pill.active-green {
+  background-color: rgba(16, 185, 129, 0.15);
+  border-color: var(--accent-green, #10b981);
+  color: var(--accent-green, #10b981);
+}
+
+/* Base Card & Accordion Card Styles */
+.card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+}
+
+.accordion-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.accordion-header {
+  background-color: var(--bg-surface);
+  transition: background-color var(--duration-fast);
+}
+
+.accordion-header:hover {
+  background-color: var(--bg-hover);
+}
+
+.accordion-body {
+  background-color: var(--bg-surface);
+}
+
+.suggestion-glow-card {
+  animation: pulse-glow 3s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.12);
+  }
+  100% {
+    box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
+  }
 }
 
 /* Card Grid View */
@@ -592,17 +756,18 @@ body {
   background-color: var(--bg-subtle);
   color: var(--text-secondary);
   font-weight: 600;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
   border-bottom: 1px solid var(--border-subtle);
-  white-space: nowrap;
+  white-space: nowrap !important;
   user-select: none;
 }
 
 .device-table td {
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-primary);
   vertical-align: middle;
+  white-space: nowrap !important;
 }
 
 .device-table tbody tr {
@@ -741,4 +906,175 @@ body {
   max-width: 420px;
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Mobile & Smartphone Responsive Styles (better-ui + emil-design-eng + ponytail)
+   ========================================================================== */
+
+@media (max-width: 992px) {
+  .header-bar {
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .fleet-stats-bar {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .fleet-stats-bar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    font-size: 13px;
+  }
+
+  .main-content {
+    padding: 0.65rem 0.5rem;
+  }
+
+  .header-bar {
+    padding: 0.55rem 0.75rem;
+    position: static;
+  }
+
+  .brand-title {
+    font-size: 0.95rem !important;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .header-actions .btn-header-action,
+  .header-actions .btn-icon,
+  .header-actions .online-pill {
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    font-size: 0.7rem;
+    padding: 0 0.45rem;
+  }
+
+  .header-actions .btn-icon {
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+  }
+
+  /* Controls Toolbar */
+  .toolbar-section {
+    padding: 0.65rem;
+    margin-bottom: 0.65rem;
+    border-radius: var(--radius-md);
+  }
+
+  .toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+  }
+
+  .search-input-wrapper {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .search-input {
+    font-size: 0.775rem;
+    padding: 0.5rem 0.65rem 0.5rem 2rem;
+  }
+
+  .filter-select {
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.775rem;
+  }
+
+  /* Accordion Headers & Body */
+  .accordion-header {
+    padding: 0.65rem 0.75rem !important;
+    gap: 0.45rem !important;
+  }
+
+  .accordion-body {
+    padding: 0.65rem 0.75rem !important;
+  }
+
+  /* Table Container */
+  .table-container {
+    border-radius: var(--radius-md);
+    -webkit-overflow-scrolling: touch;
+    box-shadow: none;
+    width: 100%;
+  }
+
+  .device-table th,
+  .device-table td {
+    padding: 0.45rem 0.55rem !important;
+    font-size: 0.725rem !important;
+    white-space: nowrap !important;
+  }
+
+  /* Drawer Modal */
+  .drawer-panel {
+    max-width: 100vw;
+    width: 100vw;
+    border-left: none;
+  }
+
+  .drawer-header {
+    padding: 0.65rem 0.85rem;
+  }
+
+  .drawer-content {
+    padding: 0.65rem;
+  }
+
+  .terminal-box {
+    font-size: 0.7rem;
+    padding: 0.65rem;
+  }
+
+  .modal-card {
+    padding: 1rem;
+    max-width: 95vw;
+    width: 95vw;
+    border-radius: var(--radius-md);
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 12px;
+  }
+
+  .brand-title {
+    font-size: 0.875rem !important;
+  }
+
+  .stat-pill {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.68rem;
+    gap: 0.25rem;
+  }
+
+  .btn {
+    font-size: 0.725rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .btn-step-pill {
+    padding: 0.18rem 0.4rem;
+    font-size: 0.65rem;
+    gap: 0.25rem;
+  }
 }

@@ -115,7 +115,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
             <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               <div style={{ marginBottom: '0.4rem', fontWeight: 600 }}>Belum ada binary terdeteksi di folder Bridge PC</div>
               <div style={{ fontSize: '0.75rem' }}>
-                Simpan file firmware (AP_*.tar.md5) pada folder lokal bridge (misal: <code>C:\FlashKit\Firmware</code> atau <code>/opt/flashkit/firmware</code>), atau masukkan nama file manual di bawah.
+                Simpan file firmware (AP_*.tar.md5 / .tar / .zip) pada folder lokal bridge (misal: semua partisi <code>C:\</code> s/d <code>Z:\</code> di Windows, atau <code>/run/media</code> / <code>/media</code> di Ubuntu/Linux), atau masukkan nama file manual di bawah.
               </div>
             </div>
           ) : filteredBinaries.length === 0 ? (
@@ -144,19 +144,19 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem', color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.725rem', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '-0.01em', color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {b.filename}
                       </span>
-                      {isSelected && <CheckIcon size={14} className="text-ready" />}
+                      {isSelected && <CheckIcon size={13} className="text-ready" style={{ flexShrink: 0 }} />}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '0.625rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>[{b.pcId}]</span> &bull; {b.path}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                    <span className="stat-pill" style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                    <span className="stat-pill" style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem' }}>
                       {formatBytes(b.sizeBytes)}
                     </span>
                     <button
