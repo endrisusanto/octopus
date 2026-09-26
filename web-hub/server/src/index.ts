@@ -285,30 +285,6 @@ wss.on('connection', (ws, req) => {
   }
 });
 
-// ponytail: Seed demo devices if no bridge connects after 2 seconds for instant UI preview
-setTimeout(() => {
-  if (connectedBridges.size === 0) {
-    console.log('[Seed] Populating initial multi-PC simulated fleet demo...');
-    connectedBridges.set('UBUNTU-LAB-01', { pcId: 'UBUNTU-LAB-01', os: 'ubuntu', ip: '192.168.1.101', connectedAt: Date.now() });
-    connectedBridges.set('WIN11-RIG-02', { pcId: 'WIN11-RIG-02', os: 'windows', ip: '192.168.1.102', connectedAt: Date.now() });
-    connectedBridges.set('UBUNTU-RIG-03', { pcId: 'UBUNTU-RIG-03', os: 'ubuntu', ip: '192.168.1.103', connectedAt: Date.now() });
-
-    const sampleDevices: DeviceInfo[] = [
-      { id: 'R5CW10X99AA', pcId: 'UBUNTU-LAB-01', pcOs: 'ubuntu', port: '1-3.4.1.2', serial: 'R5CW10X99AA', model: 'SM-S908B', mode: 'odin', status: 'Ready', batteryLevel: 92, lastSeen: Date.now() },
-      { id: 'R58T30Y77BB', pcId: 'UBUNTU-LAB-01', pcOs: 'ubuntu', port: '1-3.4.1.4', serial: 'R58T30Y77BB', model: 'SM-A536B', mode: 'odin', status: 'Flashing...', progress: 42, currentTask: 'Flashing AP (system.img)', batteryLevel: 78, lastSeen: Date.now() },
-      { id: 'RFCW40Z88CC', pcId: 'WIN11-RIG-02', pcOs: 'windows', port: 'COM5 (1-2.1)', serial: 'RFCW40Z88CC', model: 'SM-G998B', mode: 'adb', status: 'Ready', currentTask: 'SUW Bypassed', batteryLevel: 88, lastSeen: Date.now() },
-      { id: 'R58N60K33DD', pcId: 'WIN11-RIG-02', pcOs: 'windows', port: 'COM8 (1-2.4)', serial: 'R58N60K33DD', model: 'SM-A145F', mode: 'adb', status: 'Ready', currentTask: 'ADB Authorized', batteryLevel: 65, lastSeen: Date.now() },
-      { id: 'R5CX70M22EE', pcId: 'UBUNTU-RIG-03', pcOs: 'ubuntu', port: '1-1.3.2', serial: 'R5CX70M22EE', model: 'SM-S918B', mode: 'odin', status: 'Pass', progress: 100, currentTask: 'Flash Complete (03:12s)', batteryLevel: 98, lastSeen: Date.now() },
-      { id: 'R58P90Q11FF', pcId: 'UBUNTU-RIG-03', pcOs: 'ubuntu', port: '1-1.3.4', serial: 'R58P90Q11FF', model: 'SM-A346B', mode: 'offline', status: 'Offline', currentTask: 'Device Unplugged', lastSeen: Date.now() - 120000 },
-    ];
-
-    for (const d of sampleDevices) {
-      fleetDevices.set(`${d.pcId}:${d.id}`, d);
-    }
-    broadcastFleetState();
-  }
-}, 1500);
-
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`=========================================`);
