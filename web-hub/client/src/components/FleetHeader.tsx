@@ -26,8 +26,8 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
       <div className="brand-section">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
           <img
-            src="/logo.png"
-            alt="Octopus Logo"
+            src="/logo-accent.png"
+            alt="Octopus Character Logo"
             style={{
               width: '32px',
               height: '32px',
