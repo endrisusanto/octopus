@@ -285,6 +285,24 @@ async fn run_bridge_worker(state: AppState) {
                                                         let mut verifs = active_verifications.lock().unwrap();
                                                         verifs.insert(slot_key, (task_id, handle));
                                                     }
+                                                } else if exec.action == "CANCEL_VERIFY_MD5" || exec.action == "ABORT_MD5" {
+                                                    let slot_key = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("slotKey"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("all")
+                                                        .to_string();
+
+                                                    let mut verifs = active_verifications.lock().unwrap();
+                                                    if slot_key == "all" {
+                                                        for (k, (_, handle)) in verifs.drain() {
+                                                            println!("[Verifier] Aborting MD5 verification for slot: {}", k);
+                                                            handle.abort();
+                                                        }
+                                                    } else if let Some((_, handle)) = verifs.remove(&slot_key) {
+                                                        println!("[Verifier] Aborting MD5 verification for slot: {}", slot_key);
+                                                        handle.abort();
+                                                    }
                                                 } else if exec.action == "WORKFLOW_PIPELINE"
                                                     || exec.action == "suw_bypass"
                                                     || exec.action == "setup_gba"

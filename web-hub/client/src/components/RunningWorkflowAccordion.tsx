@@ -5,12 +5,14 @@ import { ProgressRing } from './ProgressRing';
 
 interface RunningWorkflowAccordionProps {
   devices: DeviceItem[];
+  apFilename?: string;
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
 }
 
 export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> = ({
   devices,
+  apFilename,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -206,6 +208,36 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                         Workstation: {device.pcId}
                       </span>
                     </div>
+
+                    {/* Line 5: AP Firmware Filename */}
+                    {apFilename && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          overflowX: 'auto',
+                          whiteSpace: 'nowrap',
+                          scrollbarWidth: 'none',
+                          WebkitOverflowScrolling: 'touch',
+                          cursor: 'grab',
+                          maxWidth: '100%',
+                          marginTop: '1px',
+                        }}
+                        title={apFilename}
+                      >
+                        <span
+                          style={{
+                            color: 'var(--accent-primary, #3b82f6)',
+                            fontFamily: 'var(--font-mono, monospace)',
+                            fontSize: '0.675rem',
+                            fontWeight: 600,
+                          }}
+                        >
+                          FW: {apFilename}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Right Column: Vertically Stacked Progress Rings */}

@@ -106,15 +106,20 @@ export const App: React.FC = () => {
       const key = md5Progress.slotKey as keyof FirmwareSlotsMap;
       setFirmwareSlots((prev) => {
         if (!prev[key]) return prev;
-        // If the progress message is for an older file that was replaced, discard it
-        if (md5Progress.filename && prev[key].filename && prev[key].filename !== md5Progress.filename) {
+        
+        // Anti-glitch guard: Discard progress if slot is currently empty/idle
+        if (!prev[key].filename || prev[key].filename.trim() === '') {
           return prev;
         }
+        // Anti-glitch guard: Discard progress if message is for an older or different file
+        if (md5Progress.filename && prev[key].filename !== md5Progress.filename) {
+          return prev;
+        }
+
         return {
           ...prev,
           [key]: {
             ...prev[key],
-            filename: md5Progress.filename || prev[key].filename,
             status: md5Progress.status,
             progress: md5Progress.progress,
           },
@@ -129,6 +134,7 @@ export const App: React.FC = () => {
       setFirmwareSlots((prev) => {
         const nextSlots = { ...prev };
         const verificationsToDispatch: { targetPc: string; slotKey: string; path: string; filename: string }[] = [];
+        const cancellationsToDispatch: string[] = [];
 
         for (const update of updates) {
           const { slotKey, fileItem } = update;
@@ -140,6 +146,9 @@ export const App: React.FC = () => {
               status: 'idle',
               progress: 0,
             };
+            if (slotKey === 'ap') {
+              cancellationsToDispatch.push(slotKey);
+            }
           } else {
             const isAp = slotKey === 'ap';
             nextSlots[slotKey] = {
@@ -167,7 +176,12 @@ export const App: React.FC = () => {
         // 1-Session state sync to server
         syncFirmwareSlots(nextSlots);
 
-        // Dispatch verification task(s)
+        // Cancel previous running verifications if cleared
+        for (const slotKey of cancellationsToDispatch) {
+          dispatchAction('all', 'system', 'CANCEL_VERIFY_MD5', { slotKey });
+        }
+
+        // Dispatch new verification task(s)
         for (const v of verificationsToDispatch) {
           dispatchAction(v.targetPc, 'system', 'VERIFY_MD5', {
             slotKey: v.slotKey,
@@ -187,6 +201,9 @@ export const App: React.FC = () => {
   };
 
   const handleResetAllSlots = () => {
+    // Abort active verification tasks on all bridges immediately
+    dispatchAction('all', 'system', 'CANCEL_VERIFY_MD5', { slotKey: 'all' });
+
     const emptySlots: FirmwareSlotsMap = {
       bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
       ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
@@ -454,6 +471,7 @@ export const App: React.FC = () => {
         {runningDevices.length > 0 && (
           <RunningWorkflowAccordion
             devices={runningDevices}
+            apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
             onOpenLogs={handleOpenLogs}
             onAbort={(pcId, deviceId) => dispatchAction(pcId, deviceId, 'ABORT_TASK', {})}
           />
