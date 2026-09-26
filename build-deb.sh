@@ -84,11 +84,27 @@ mkdir -p "${DIST_DIR}"
 dpkg-deb --build --root-owner-group "${STAGE_DIR}" "${DIST_DIR}/${DEB_NAME}"
 rm -rf "${STAGE_DIR}"
 
+DO_INSTALL=false
+for arg in "$@"; do
+    if [ "$arg" == "--install" ] || [ "$arg" == "-i" ]; then
+        DO_INSTALL=true
+    fi
+done
+
 echo "==> [4/4] Package built successfully!"
 echo "--------------------------------------------------------"
 echo "Package File: ${DIST_DIR}/${DEB_NAME}"
 echo "File Size:    $(du -h "${DIST_DIR}/${DEB_NAME}" | cut -f1)"
 echo "--------------------------------------------------------"
-echo "Untuk install di Ubuntu ini, jalankan:"
-echo "  sudo dpkg -i ${DIST_DIR}/${DEB_NAME}"
+
+if [ "$DO_INSTALL" = true ]; then
+    echo "==> [Auto-Install] Menginstall ${DEB_NAME} ke sistem..."
+    sudo dpkg -i "${DIST_DIR}/${DEB_NAME}"
+    echo "==> [Success] Aplikasi terinstall! Jalankan dengan perintah:"
+    echo "    octopus-agent-bridge"
+else
+    echo "Untuk install di Ubuntu ini, jalankan:"
+    echo "  sudo dpkg -i ${DIST_DIR}/${DEB_NAME}"
+    echo "Atau jalankan ulang script dengan flag: ./build-deb.sh --install"
+fi
 echo "--------------------------------------------------------"
