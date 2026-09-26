@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Octopus Agent Bridge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #0d1117; color: #f0f6fc; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; height: 100vh; user-select: none; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #30363d; padding-bottom: 0.75rem; }
+    .title { font-size: 1.1rem; font-weight: 700; color: #58a6ff; }
+    .status-badge { font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 4px; background: #122619; color: #3fb950; border: 1px solid #238636; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .meta-row { display: flex; justify-content: space-between; font-size: 0.85rem; }
+    .meta-label { color: #8b949e; }
+    .meta-value { font-family: monospace; font-weight: 600; color: #f0f6fc; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; background: #21262d; border: 1px solid #30363d; color: #f0f6fc; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+    .btn:hover { background: #30363d; }
+    .btn-primary { background: #1f6feb; border-color: #1f6feb; }
+    .btn-primary:hover { background: #388bfd; }
+    .alert { background: #1f242c; border: 1px solid #388bfd; color: #8b949e; font-size: 0.75rem; padding: 0.6rem; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">OCTOPUS AGENT BRIDGE</div>
+    <div class="status-badge" id="hub-status">ONLINE</div>
+  </div>
+
+  <div class="card">
+    <div class="meta-row">
+      <span class="meta-label">Workstation PC ID:</span>
+      <span class="meta-value" id="pc-id-label">DETECTING...</span>
+    </div>
+    <div class="meta-row">
+      <span class="meta-label">Hub Server:</span>
+      <span class="meta-value">octopus.endrisusanto.my.id</span>
+    </div>
+    <div class="meta-row">
+      <span class="meta-label">Connected Devices:</span>
+      <span class="meta-value" id="device-count-label">0</span>
+    </div>
+  </div>
+
+  <div class="alert">
+    <strong>Background Tray Active:</strong> Closing this window will minimize it to the System Tray. Devices remain connected to the Web Hub.
+  </div>
+
+  <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+    <a href="https://octopus.endrisusanto.my.id" target="_blank" class="btn btn-primary" style="flex: 1;">Open Web Hub</a>
+    <button onclick="window.__TAURI__.window.getCurrentWindow().hide()" class="btn">Hide to Tray</button>
+  </div>
+
+  <script>
+    // Update local labels
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('pc-id-label').innerText = window.__OCTOPUS_PC_ID__ || 'LOCAL-NODE';
+    });
+  </script>
+</body>
+</html>
