@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useFleetWebSocket } from './hooks/useFleetWebSocket';
 import { useFlashKitSort, isFirmwareForModel } from './hooks/useFlashKitSort';
 import { FleetHeader } from './components/FleetHeader';
-import { WorkflowStepper } from './components/WorkflowStepper';
+import { WorkflowStepper, WorkflowConfig } from './components/WorkflowStepper';
 import { DeviceCard } from './components/DeviceCard';
 import { DeviceTableView } from './components/DeviceTableView';
 import { LogDrawer } from './components/LogDrawer';
 import { BatchActionModal } from './components/BatchActionModal';
+import { WifiConfigModal } from './components/WifiConfigModal';
+import { BinarySelectModal } from './components/BinarySelectModal';
 import { SearchIcon, GridIcon, ListIcon, PlayIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
@@ -16,8 +18,17 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPcId, setSelectedPcId] = useState('all');
   const [selectedMode, setSelectedMode] = useState('all');
-  const [apFilename, setApFilename] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+
+  // Workflow Checklist State (Pilih Binary, Skip SUW, Setup GBA, Konek Wi-Fi)
+  const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig>({
+    binaryFile: '',
+    skipSuw: true,
+    setupGba: true,
+    wifiEnabled: true,
+    wifiSsid: 'PROVISION-WIFI-5G',
+    wifiPassword: '',
+  });
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -27,9 +38,11 @@ export const App: React.FC = () => {
     isOpen: false,
   });
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [isBinaryModalOpen, setIsBinaryModalOpen] = useState(false);
+  const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
 
-  // Apply FlashKit Sort Rules
-  const sortedDevices = useFlashKitSort(devices, apFilename, searchQuery, selectedPcId, selectedMode);
+  // Apply FlashKit Sort Rules using binary file as priority filter
+  const sortedDevices = useFlashKitSort(devices, workflowConfig.binaryFile, searchQuery, selectedPcId, selectedMode);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -48,7 +61,7 @@ export const App: React.FC = () => {
   };
 
   const handleDeviceAction = (pcId: string, deviceId: string, action: string) => {
-    dispatchAction(pcId, deviceId, action, { apFilename });
+    dispatchAction(pcId, deviceId, action, { apFilename: workflowConfig.binaryFile });
     simulateAction(pcId, deviceId, action);
   };
 
@@ -58,6 +71,23 @@ export const App: React.FC = () => {
       dispatchAction(dev.pcId, dev.id, action, params);
       simulateAction(dev.pcId, dev.id, action);
     }
+  };
+
+  const handleExecuteWorkflow = () => {
+    const selectedDevices = devices.filter((d) => selectedIds.includes(d.id));
+    for (const dev of selectedDevices) {
+      // Dispatch full pipeline with binary, SUW bypass, GBA profile, and Wi-Fi credentials
+      dispatchAction(dev.pcId, dev.id, 'WORKFLOW_PIPELINE', {
+        apFilename: workflowConfig.binaryFile,
+        skipSuw: workflowConfig.skipSuw,
+        setupGba: workflowConfig.setupGba,
+        wifiEnabled: workflowConfig.wifiEnabled,
+        wifiSsid: workflowConfig.wifiSsid,
+        wifiPassword: workflowConfig.wifiPassword,
+      });
+      simulateAction(dev.pcId, dev.id, 'flash');
+    }
+    setLogDrawerState({ isOpen: true });
   };
 
   const handleTriggerAgentUpdate = () => {
@@ -77,13 +107,13 @@ export const App: React.FC = () => {
       />
 
       <WorkflowStepper
-        bridgesCount={bridges.length}
         devices={devices}
         selectedIds={selectedIds}
-        apFilename={apFilename}
-        onSelectAll={handleSelectAll}
-        onOpenBatchModal={() => setIsBatchModalOpen(true)}
-        onOpenLogs={() => setLogDrawerState({ isOpen: true })}
+        config={workflowConfig}
+        onChangeConfig={(newCfg) => setWorkflowConfig((prev) => ({ ...prev, ...newCfg }))}
+        onOpenBinaryModal={() => setIsBinaryModalOpen(true)}
+        onOpenWifiModal={() => setIsWifiModalOpen(true)}
+        onExecuteWorkflow={handleExecuteWorkflow}
       />
 
       <main className="main-content">
@@ -133,9 +163,9 @@ export const App: React.FC = () => {
               type="text"
               className="search-input"
               style={{ maxWidth: '280px', paddingLeft: '0.75rem' }}
-              placeholder="AP Firmware Filter (e.g. AP_S908B...)"
-              value={apFilename}
-              onChange={(e) => setApFilename(e.target.value)}
+              placeholder="AP Firmware (e.g. AP_S908B...)"
+              value={workflowConfig.binaryFile}
+              onChange={(e) => setWorkflowConfig((prev) => ({ ...prev, binaryFile: e.target.value }))}
               title="Enter firmware filename to prioritize matching device models to top"
             />
 
@@ -202,7 +232,7 @@ export const App: React.FC = () => {
             onSelectAll={handleSelectAll}
             onOpenLogs={handleOpenLogs}
             onAction={handleDeviceAction}
-            apFilename={apFilename}
+            apFilename={workflowConfig.binaryFile}
             isFirmwareForModel={isFirmwareForModel}
           />
         ) : (
@@ -215,7 +245,7 @@ export const App: React.FC = () => {
                 onToggleSelect={handleToggleSelect}
                 onOpenLogs={handleOpenLogs}
                 onAction={handleDeviceAction}
-                isFirmwareMatch={isFirmwareForModel(apFilename, device.model)}
+                isFirmwareMatch={isFirmwareForModel(workflowConfig.binaryFile, device.model)}
               />
             ))}
           </div>
@@ -237,8 +267,33 @@ export const App: React.FC = () => {
         onClose={() => setIsBatchModalOpen(false)}
         selectedCount={selectedIds.length}
         onExecuteBatch={handleExecuteBatch}
-        currentApFilename={apFilename}
-        onSetApFilename={setApFilename}
+        currentApFilename={workflowConfig.binaryFile}
+        onSetApFilename={(name) => setWorkflowConfig((prev) => ({ ...prev, binaryFile: name }))}
+      />
+
+      {/* Binary Select Modal */}
+      <BinarySelectModal
+        isOpen={isBinaryModalOpen}
+        onClose={() => setIsBinaryModalOpen(false)}
+        currentBinary={workflowConfig.binaryFile}
+        onSave={(binary) => setWorkflowConfig((prev) => ({ ...prev, binaryFile: binary }))}
+      />
+
+      {/* Wi-Fi Config Modal */}
+      <WifiConfigModal
+        isOpen={isWifiModalOpen}
+        onClose={() => setIsWifiModalOpen(false)}
+        enabled={workflowConfig.wifiEnabled}
+        ssid={workflowConfig.wifiSsid}
+        password={workflowConfig.wifiPassword}
+        onSave={(cfg) =>
+          setWorkflowConfig((prev) => ({
+            ...prev,
+            wifiEnabled: cfg.enabled,
+            wifiSsid: cfg.ssid,
+            wifiPassword: cfg.password,
+          }))
+        }
       />
     </div>
   );

@@ -1,144 +1,147 @@
+import React from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { CheckIcon, PlayIcon } from './Icons';
 
+export interface WorkflowConfig {
+  binaryFile: string;
+  skipSuw: boolean;
+  setupGba: boolean;
+  wifiEnabled: boolean;
+  wifiSsid: string;
+  wifiPassword?: string;
+}
+
 interface WorkflowStepperProps {
-  bridgesCount: number;
   devices: DeviceItem[];
   selectedIds: string[];
-  apFilename: string;
-  onSelectAll?: () => void;
-  onOpenBatchModal?: () => void;
-  onOpenLogs?: () => void;
+  config: WorkflowConfig;
+  onChangeConfig: (newConfig: Partial<WorkflowConfig>) => void;
+  onOpenBinaryModal: () => void;
+  onOpenWifiModal: () => void;
+  onExecuteWorkflow: () => void;
 }
 
 export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
-  bridgesCount,
   devices,
   selectedIds,
-  apFilename,
-  onSelectAll,
-  onOpenBatchModal,
-  onOpenLogs,
+  config,
+  onChangeConfig,
+  onOpenBinaryModal,
+  onOpenWifiModal,
+  onExecuteWorkflow,
 }) => {
-  const totalDevices = devices.length;
   const selectedCount = selectedIds.length;
   const flashingCount = devices.filter((d) => d.status === 'Flashing...').length;
   const passedCount = devices.filter((d) => d.status === 'Pass').length;
-  const failedCount = devices.filter((d) => d.status === 'Fail').length;
 
-  // Derive workflow step states
-  // Step 1: Scan & Detect
-  const isStep1Done = totalDevices > 0;
-  
-  // Step 2: Device Selection
-  const isStep2Done = selectedCount > 0;
-  const isStep2Active = isStep1Done && !isStep2Done;
-
-  // Step 3: Payload / Firmware Setup
-  const isStep3Done = Boolean(apFilename.trim());
-  const isStep3Active = isStep2Done && !isStep3Done;
-
-  // Step 4: Batch Execution
-  const isStep4Active = flashingCount > 0;
-  const isStep4Done = !isStep4Active && (passedCount > 0 || failedCount > 0);
-
-  // Step 5: Verification & Logs
-  const isStep5Done = totalDevices > 0 && passedCount + failedCount > 0 && flashingCount === 0;
+  const isBinaryDone = Boolean(config.binaryFile.trim());
+  const isSuwDone = config.skipSuw;
+  const isGbaDone = config.setupGba;
+  const isWifiDone = config.wifiEnabled && Boolean(config.wifiSsid.trim());
 
   return (
-    <nav aria-label="Provisioning Workflow" className="workflow-stepper">
+    <section className="workflow-stepper" aria-label="Octopus Provisioning Checklist">
       <div className="stepper-track">
-        {/* Step 1: Scan & Detect */}
-        <div className={`stepper-item ${isStep1Done ? 'completed' : 'active'}`}>
+        {/* Step 1: Pilih Binary */}
+        <div
+          className={`stepper-item ${isBinaryDone ? 'completed' : 'active'} clickable`}
+          onClick={onOpenBinaryModal}
+          title="Klik untuk memilih file firmware / AP Binary"
+        >
           <div className="step-badge">
-            {isStep1Done ? <CheckIcon size={12} /> : '1'}
+            {isBinaryDone ? <CheckIcon size={12} /> : '1'}
           </div>
           <div className="step-content">
-            <span className="step-label">1. Scan & Detect</span>
-            <span className="step-meta">
-              {bridgesCount} PC{bridgesCount !== 1 ? 's' : ''} &bull; {totalDevices} Device{totalDevices !== 1 ? 's' : ''}
+            <span className="step-label">1. Pilih Binary</span>
+            <span className="step-meta" style={{ maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {isBinaryDone ? config.binaryFile : 'Pilih AP Binary...'}
             </span>
           </div>
         </div>
 
         <div className="step-divider" />
 
-        {/* Step 2: Batch Select */}
+        {/* Step 2: Skip SUW */}
         <div
-          className={`stepper-item ${isStep2Done ? 'completed' : isStep2Active ? 'active' : 'pending'} clickable`}
-          onClick={onSelectAll}
-          title="Click to toggle select all devices"
+          className={`stepper-item ${isSuwDone ? 'completed' : 'pending'} clickable`}
+          onClick={() => onChangeConfig({ skipSuw: !config.skipSuw })}
+          title="Klik untuk toggle bypass Setup Wizard (SUW)"
         >
           <div className="step-badge">
-            {isStep2Done ? <CheckIcon size={12} /> : '2'}
+            {isSuwDone ? <CheckIcon size={12} /> : '2'}
           </div>
           <div className="step-content">
-            <span className="step-label">2. Target Select</span>
+            <span className="step-label">2. Skip SUW</span>
             <span className="step-meta">
-              {selectedCount > 0 ? `${selectedCount} Selected` : 'Select targets'}
+              {isSuwDone ? 'Bypass Aktif' : 'Nonaktif (Klik ON)'}
             </span>
           </div>
         </div>
 
         <div className="step-divider" />
 
-        {/* Step 3: Payload & Config */}
+        {/* Step 3: Setup GBA */}
         <div
-          className={`stepper-item ${isStep3Done ? 'completed' : isStep3Active ? 'active' : 'pending'} clickable`}
-          onClick={onOpenBatchModal}
-          title="Click to configure firmware / payload"
+          className={`stepper-item ${isGbaDone ? 'completed' : 'pending'} clickable`}
+          onClick={() => onChangeConfig({ setupGba: !config.setupGba })}
+          title="Klik untuk toggle Google Basic Apps (GBA) Profile Setup"
         >
           <div className="step-badge">
-            {isStep3Done ? <CheckIcon size={12} /> : '3'}
+            {isGbaDone ? <CheckIcon size={12} /> : '3'}
           </div>
           <div className="step-content">
-            <span className="step-label">3. Payload Config</span>
-            <span className="step-meta" style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {isStep3Done ? apFilename : 'Set AP / Command'}
+            <span className="step-label">3. Setup GBA</span>
+            <span className="step-meta">
+              {isGbaDone ? 'GBA Aktif' : 'Nonaktif (Klik ON)'}
             </span>
           </div>
         </div>
 
         <div className="step-divider" />
 
-        {/* Step 4: Batch Execute */}
+        {/* Step 4: Konek Wi-Fi */}
         <div
-          className={`stepper-item ${isStep4Done ? 'completed' : isStep4Active ? 'active flashing' : 'pending'} clickable`}
-          onClick={onOpenBatchModal}
-          title="Click to trigger batch execution"
+          className={`stepper-item ${isWifiDone ? 'completed' : 'pending'} clickable`}
+          onClick={onOpenWifiModal}
+          title="Klik untuk atur SSID & Password Wi-Fi otomatis"
         >
           <div className="step-badge">
-            {isStep4Done ? <CheckIcon size={12} /> : isStep4Active ? <PlayIcon size={12} /> : '4'}
+            {isWifiDone ? <CheckIcon size={12} /> : '4'}
           </div>
           <div className="step-content">
-            <span className="step-label">4. Flash Execute</span>
-            <span className="step-meta">
-              {flashingCount > 0 ? `${flashingCount} Flashing...` : 'Ready to run'}
+            <span className="step-label">4. Konek Wi-Fi</span>
+            <span className="step-meta" style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {isWifiDone ? config.wifiSsid : 'Atur Wi-Fi...'}
             </span>
           </div>
         </div>
 
         <div className="step-divider" />
 
-        {/* Step 5: Verify & Logs */}
-        <div
-          className={`stepper-item ${isStep5Done ? 'completed' : 'pending'} clickable`}
-          onClick={onOpenLogs}
-          title="Click to open global logs drawer"
-        >
-          <div className="step-badge">
-            {isStep5Done ? <CheckIcon size={12} /> : '5'}
-          </div>
-          <div className="step-content">
-            <span className="step-label">5. Verify & Pass</span>
-            <span className="step-meta">
-              {passedCount > 0 || failedCount > 0
-                ? `${passedCount} Pass / ${failedCount} Fail`
-                : 'Pending results'}
+        {/* Step 5: Eksekusi Workflow */}
+        <div className="stepper-action" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          {flashingCount > 0 && (
+            <span className="stat-pill" style={{ borderColor: 'var(--status-flashing-border)', color: '#d29922' }}>
+              {flashingCount} Flashing...
             </span>
-          </div>
+          )}
+          {passedCount > 0 && (
+            <span className="stat-pill" style={{ borderColor: '#2ea043', color: '#3fb950' }}>
+              {passedCount} Pass
+            </span>
+          )}
+
+          <button
+            onClick={onExecuteWorkflow}
+            className="btn btn-primary btn-sm"
+            disabled={selectedCount === 0}
+            title={selectedCount === 0 ? 'Pilih minimal 1 device' : `Jalankan workflow provisioning pada ${selectedCount} devices`}
+            style={{ fontWeight: 700, padding: '0.4rem 0.85rem' }}
+          >
+            <PlayIcon size={13} /> Run Workflow ({selectedCount})
+          </button>
         </div>
       </div>
-    </nav>
+    </section>
   );
 };
