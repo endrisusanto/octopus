@@ -12,7 +12,7 @@ on:
           - minor
           - major
       version:
-        description: Custom version (e.g. 1.0.1)
+        description: Custom version (e.g. 1.0.4)
         required: false
         type: string
   push:
@@ -65,8 +65,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -74,13 +72,20 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libudev-dev
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libudev-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
 
       - name: Build Web Client & Hub Server
         run: |
-          npm install
-          npm run build:client
-          npm run build:server
+          cd web-hub/client && npm install && npm run build
+          cd ../server && npm install && npm run build
+          cd ../..
           tar -czf "octopus-web-client-${{ needs.create-release.outputs.tag_name }}.tar.gz" -C web-hub/client dist
 
       - name: Build Agent Bridge Binary
@@ -88,10 +93,7 @@ jobs:
         run: cargo build --release
 
       - name: Package Linux Binary & Sign
-        env:
-          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          VER="${{ needs.create-release.outputs.version }}"
           TAG="${{ needs.create-release.outputs.tag_name }}"
           
           # Create standalone tar.gz
@@ -99,7 +101,7 @@ jobs:
           cp agent-bridge/target/release/octopus-agent-bridge package_linux/
           tar -czf "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -C package_linux octopus-agent-bridge
           
-          # Generate .sig checksum/signature file
+          # Generate .sig checksum file
           sha256sum "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" | awk '{print $1}' > "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig"
 
       - name: Upload Linux Artifacts to Release
@@ -127,8 +129,6 @@ jobs:
 
       - name: Package Windows Artifacts & Sign
         shell: bash
-        env:
-          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           TAG="${{ needs.create-release.outputs.tag_name }}"
           mkdir -p package_win
@@ -137,8 +137,8 @@ jobs:
           # Zip package
           7z a "octopus-agent-bridge-${TAG}-windows-x86_64.zip" ./package_win/*
           
-          # Generate mock/real .sig
-          echo "WIN_SIG_VERIFIED_${TAG}" > "octopus-agent-bridge-${TAG}-windows-x86_64.zip.sig"
+          # Generate .sig checksum file
+          sha256sum "octopus-agent-bridge-${TAG}-windows-x86_64.zip" | awk '{print $1}' > "octopus-agent-bridge-${TAG}-windows-x86_64.zip.sig"
 
       - name: Upload Windows Artifacts to Release
         uses: softprops/action-gh-release@v2
