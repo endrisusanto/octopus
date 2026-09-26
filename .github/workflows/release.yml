@@ -12,7 +12,7 @@ on:
           - minor
           - major
       version:
-        description: Custom version (e.g. 1.0.4)
+        description: Custom version (e.g. 1.0.5)
         required: false
         type: string
   push:
@@ -85,33 +85,41 @@ jobs:
         run: |
           cd web-hub/client && npm install && npm run build
           cd ../server && npm install && npm run build
-          cd ../..
-          tar -czf "octopus-web-client-${{ needs.create-release.outputs.tag_name }}.tar.gz" -C web-hub/client dist
 
-      - name: Build Agent Bridge Binary
+      - name: Build Direct Linux Installer & Binary
         working-directory: ./agent-bridge
-        run: cargo build --release
-
-      - name: Package Linux Binary & Sign
         run: |
+          npx -y @tauri-apps/cli build --bundles deb,appimage || cargo build --release
+
+      - name: Stage Direct Linux Installers & Generate .sig
+        run: |
+          VER="${{ needs.create-release.outputs.version }}"
           TAG="${{ needs.create-release.outputs.tag_name }}"
           
-          # Create standalone tar.gz
-          mkdir -p package_linux
-          cp agent-bridge/target/release/octopus-agent-bridge package_linux/
-          tar -czf "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" -C package_linux octopus-agent-bridge
+          mkdir -p release_artifacts
           
-          # Generate .sig checksum file
-          sha256sum "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz" | awk '{print $1}' > "octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz.sig"
+          # Copy standalone direct binary
+          cp agent-bridge/target/release/octopus-agent-bridge "release_artifacts/octopus-agent-bridge-${TAG}-linux-x86_64"
+          
+          # Copy .deb installer if built
+          find agent-bridge/target/release/bundle/deb -name "*.deb" -exec cp {} release_artifacts/ \; 2>/dev/null || true
+          
+          # Copy .AppImage if built
+          find agent-bridge/target/release/bundle/appimage -name "*.AppImage" -exec cp {} release_artifacts/ \; 2>/dev/null || true
 
-      - name: Upload Linux Artifacts to Release
+          # Generate .sig checksums for all installer files
+          cd release_artifacts
+          for f in *; do
+            if [ -f "$f" ] && [[ "$f" != *.sig ]]; then
+              sha256sum "$f" | awk '{print $1}' > "${f}.sig"
+            fi
+          done
+
+      - name: Upload Linux Direct Installers to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
-          files: |
-            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-linux-x86_64.tar.gz
-            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-linux-x86_64.tar.gz.sig
-            octopus-web-client-${{ needs.create-release.outputs.tag_name }}.tar.gz
+          files: release_artifacts/*
 
   build-windows:
     needs: create-release
@@ -123,30 +131,37 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Build Agent Bridge Windows Binary
+      - name: Build Direct Windows NSIS Installer & Binary
         working-directory: ./agent-bridge
-        run: cargo build --release
+        run: |
+          npx -y @tauri-apps/cli build --bundles nsis || cargo build --release
 
-      - name: Package Windows Artifacts & Sign
+      - name: Stage Direct Windows Installers & Generate .sig
         shell: bash
         run: |
           TAG="${{ needs.create-release.outputs.tag_name }}"
-          mkdir -p package_win
-          cp agent-bridge/target/release/octopus-agent-bridge.exe package_win/
           
-          # Zip package
-          7z a "octopus-agent-bridge-${TAG}-windows-x86_64.zip" ./package_win/*
+          mkdir -p release_win_artifacts
           
-          # Generate .sig checksum file
-          sha256sum "octopus-agent-bridge-${TAG}-windows-x86_64.zip" | awk '{print $1}' > "octopus-agent-bridge-${TAG}-windows-x86_64.zip.sig"
+          # Copy standalone direct executable .exe
+          cp agent-bridge/target/release/octopus-agent-bridge.exe "release_win_artifacts/octopus-agent-bridge-${TAG}-windows-x86_64.exe"
+          
+          # Copy NSIS Setup .exe installer if built
+          find agent-bridge/target/release/bundle/nsis -name "*.exe" -exec cp {} release_win_artifacts/ \; 2>/dev/null || true
 
-      - name: Upload Windows Artifacts to Release
+          # Generate .sig checksums for all windows installer files
+          cd release_win_artifacts
+          for f in *; do
+            if [ -f "$f" ] && [[ "$f" != *.sig ]]; then
+              sha256sum "$f" | awk '{print $1}' > "${f}.sig"
+            fi
+          done
+
+      - name: Upload Windows Direct Installers to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag_name }}
-          files: |
-            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-windows-x86_64.zip
-            octopus-agent-bridge-${{ needs.create-release.outputs.tag_name }}-windows-x86_64.zip.sig
+          files: release_win_artifacts/*
 
   generate-updater-manifest:
     needs:
@@ -157,7 +172,7 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - name: Generate latest.json updater manifest
+      - name: Generate latest.json updater manifest for direct installers
         run: |
           TAG="${{ needs.create-release.outputs.tag_name }}"
           VER="${{ needs.create-release.outputs.version }}"
@@ -172,11 +187,11 @@ jobs:
             "platforms": {
               "linux-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-linux-x86_64.tar.gz"
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-linux-x86_64"
               },
               "windows-x86_64": {
                 "signature": "",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-windows-x86_64.zip"
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/octopus-agent-bridge-${TAG}-windows-x86_64.exe"
               }
             }
           }
