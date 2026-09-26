@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFleetWebSocket, BinaryItem } from './hooks/useFleetWebSocket';
 import { useFlashKitSort, isFirmwareForModel, extractModelFromFirmware } from './hooks/useFlashKitSort';
 import { FleetHeader } from './components/FleetHeader';
@@ -107,13 +107,14 @@ export const App: React.FC = () => {
       setFirmwareSlots((prev) => {
         if (!prev[key]) return prev;
         // If the progress message is for an older file that was replaced, discard it
-        if (md5Progress.filename && prev[key].filename !== md5Progress.filename) {
+        if (md5Progress.filename && prev[key].filename && prev[key].filename !== md5Progress.filename) {
           return prev;
         }
         return {
           ...prev,
           [key]: {
             ...prev[key],
+            filename: md5Progress.filename || prev[key].filename,
             status: md5Progress.status,
             progress: md5Progress.progress,
           },
@@ -122,48 +123,76 @@ export const App: React.FC = () => {
     }
   }, [md5Progress]);
 
-  // Handle Slot Update with real bridge MD5 verification
+  // Atomic batch slot update with MD5 verification dispatch
+  const handleUpdateSlotsBatch = useCallback(
+    (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => {
+      setFirmwareSlots((prev) => {
+        const nextSlots = { ...prev };
+        const verificationsToDispatch: { targetPc: string; slotKey: string; path: string; filename: string }[] = [];
+
+        for (const update of updates) {
+          const { slotKey, fileItem } = update;
+          if (!fileItem) {
+            nextSlots[slotKey] = {
+              filename: '',
+              path: '',
+              sizeBytes: 0,
+              status: 'idle',
+              progress: 0,
+            };
+          } else {
+            const isAp = slotKey === 'ap';
+            nextSlots[slotKey] = {
+              filename: fileItem.filename,
+              path: fileItem.path,
+              sizeBytes: fileItem.sizeBytes,
+              pcId: fileItem.pcId,
+              status: isAp ? 'verifying' : 'verified',
+              progress: isAp ? 0 : 100,
+            };
+
+            if (isAp) {
+              const targetPc =
+                fileItem.pcId && fileItem.pcId !== 'local' ? fileItem.pcId : bridges[0]?.pcId || 'system';
+              verificationsToDispatch.push({
+                targetPc,
+                slotKey,
+                path: fileItem.path,
+                filename: fileItem.filename,
+              });
+            }
+          }
+        }
+
+        // 1-Session state sync to server
+        syncFirmwareSlots(nextSlots);
+
+        // Dispatch verification task(s)
+        for (const v of verificationsToDispatch) {
+          dispatchAction(v.targetPc, 'system', 'VERIFY_MD5', {
+            slotKey: v.slotKey,
+            path: v.path,
+            filename: v.filename,
+          });
+        }
+
+        return nextSlots;
+      });
+    },
+    [bridges, dispatchAction, syncFirmwareSlots]
+  );
+
   const handleUpdateSlot = (slotKey: keyof FirmwareSlotsMap, fileItem: BinaryItem | null) => {
-    if (!fileItem) {
-      const newSlots = {
-        ...firmwareSlots,
-        [slotKey]: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
-      };
-      setFirmwareSlots(newSlots);
-      syncFirmwareSlots(newSlots);
-      return;
-    }
-
-    const newSlots = {
-      ...firmwareSlots,
-      [slotKey]: {
-        filename: fileItem.filename,
-        path: fileItem.path,
-        sizeBytes: fileItem.sizeBytes,
-        pcId: fileItem.pcId,
-        status: 'verifying' as const,
-        progress: 0,
-      },
-    };
-    setFirmwareSlots(newSlots);
-    syncFirmwareSlots(newSlots);
-
-    // Dispatch real MD5 computation task to target bridge workstation
-    const targetPc = fileItem.pcId && fileItem.pcId !== 'local' ? fileItem.pcId : (bridges[0]?.pcId || 'system');
-    dispatchAction(targetPc, 'system', 'VERIFY_MD5', {
-      slotKey,
-      path: fileItem.path,
-      filename: fileItem.filename,
-    });
+    handleUpdateSlotsBatch([{ slotKey, fileItem }]);
   };
 
   const handleResetAllSlots = () => {
-    const emptySlots = {
-      bl: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
-      ap: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
-      cp: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
-      csc: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
-      userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle' as const, progress: 0 },
+    const emptySlots: FirmwareSlotsMap = {
+      bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
     };
     setFirmwareSlots(emptySlots);
     syncFirmwareSlots(emptySlots);
@@ -385,10 +414,10 @@ export const App: React.FC = () => {
 
             <button
               onClick={() => setLogDrawerState({ isOpen: true })}
-              className="btn btn-sm"
+              className="btn btn-sm btn-toolbar-terminal"
               title="Buka Terminal Live Logs"
             >
-              <TerminalIcon size={14} /> Terminal Logs
+              <TerminalIcon size={15} /> Terminal Logs
             </button>
           </div>
         </section>
@@ -397,6 +426,7 @@ export const App: React.FC = () => {
         <FirmwareAccordion
           slots={firmwareSlots}
           onUpdateSlot={handleUpdateSlot}
+          onUpdateSlotsBatch={handleUpdateSlotsBatch}
           onResetAll={handleResetAllSlots}
           binaries={binaries}
           onRefreshBinaries={handleRefreshBinaries}

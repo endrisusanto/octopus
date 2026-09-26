@@ -322,6 +322,10 @@ wss.on('connection', (ws, req) => {
             if (msg.payload.slotKey) {
               const k = msg.payload.slotKey as keyof FirmwareSlotsMap;
               if (globalFirmwareSlots[k]) {
+                // If globalFirmwareSlots has a different filename than msg.payload.filename, ignore stale progress
+                if (msg.payload.filename && globalFirmwareSlots[k].filename && globalFirmwareSlots[k].filename !== msg.payload.filename) {
+                  break;
+                }
                 globalFirmwareSlots[k] = {
                   ...globalFirmwareSlots[k],
                   status: msg.payload.status,

@@ -58,68 +58,88 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+      <div
+        className="modal-card binary-select-modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '1100px', width: '92vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+      >
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileCodeIcon size={18} />
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Pilih Binary dari Bridge PC Workstations</h3>
+        <div className="binary-modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.65rem', borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+            <FileCodeIcon size={20} className="binary-modal-icon" />
+            <h3 className="binary-modal-title" style={{ fontWeight: 700, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Pilih Binary Firmware
+            </h3>
           </div>
-          <button onClick={onClose} className="btn btn-icon">
+          <button onClick={onClose} className="btn btn-icon" style={{ flexShrink: 0 }}>
             <CloseIcon size={16} />
           </button>
         </div>
 
         {/* Filter Toolbar */}
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
+        <div className="binary-modal-toolbar">
           <input
             type="text"
-            className="search-input"
-            style={{ flex: 1, minWidth: '200px', paddingLeft: '0.75rem' }}
+            className="search-input binary-modal-search"
             placeholder="Cari file binary (.tar.md5, AP_...)"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
           />
 
-          {uniquePcs.length > 0 && (
-            <select
-              className="filter-select"
-              value={selectedPc}
-              onChange={(e) => setSelectedPc(e.target.value)}
-              style={{ minWidth: '150px' }}
-            >
-              <option value="all">Semua PC ({binaries.length} files)</option>
-              {uniquePcs.map((pc) => (
-                <option key={pc} value={pc}>
-                  {pc} ({binaries.filter((b) => b.pcId === pc).length})
-                </option>
-              ))}
-            </select>
-          )}
+          <div className="binary-modal-actions-row">
+            {uniquePcs.length > 0 && (
+              <select
+                className="filter-select binary-modal-select"
+                value={selectedPc}
+                onChange={(e) => setSelectedPc(e.target.value)}
+              >
+                <option value="all">Semua Workstation PC ({binaries.length})</option>
+                {uniquePcs.map((pc) => (
+                  <option key={pc} value={pc}>
+                    {pc} ({binaries.filter((b) => b.pcId === pc).length})
+                  </option>
+                ))}
+              </select>
+            )}
 
-          {onRefreshBinaries && (
-            <button
-              type="button"
-              onClick={onRefreshBinaries}
-              className="btn btn-sm"
-              title="Minta semua PC bridge untuk scan ulang folder lokal firmware"
-            >
-              <RefreshIcon size={14} /> Scan Ulang
-            </button>
-          )}
+            {onRefreshBinaries && (
+              <button
+                type="button"
+                onClick={onRefreshBinaries}
+                className="btn btn-sm binary-modal-scan-btn"
+                title="Scan ulang folder lokal firmware di semua PC bridge"
+              >
+                <RefreshIcon size={14} />
+                <span className="binary-modal-scan-text">Scan Ulang</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Binary List */}
-        <div style={{ flex: 1, overflowY: 'auto', marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', paddingRight: '0.25rem' }}>
+        <div
+          className="binary-modal-list"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            marginTop: '0.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.45rem',
+            maxHeight: '560px',
+            minHeight: '200px',
+            paddingRight: '0.25rem',
+          }}
+        >
           {binaries.length === 0 ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <div style={{ marginBottom: '0.4rem', fontWeight: 600 }}>Belum ada binary terdeteksi di folder Bridge PC</div>
-              <div style={{ fontSize: '0.75rem' }}>
+            <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+              <div style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>Belum ada binary terdeteksi di folder Bridge PC</div>
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
                 Simpan file firmware (AP_*.tar.md5 / .tar / .zip) pada folder lokal bridge (misal: semua partisi <code>C:\</code> s/d <code>Z:\</code> di Windows, atau <code>/run/media</code> / <code>/media</code> di Ubuntu/Linux), atau masukkan nama file manual di bawah.
               </div>
             </div>
           ) : filteredBinaries.length === 0 ? (
-            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               Tidak ada file binary yang cocok dengan pencarian.
             </div>
           ) : (
@@ -129,40 +149,50 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
                 <div
                   key={`${b.pcId}-${b.path}`}
                   onClick={() => handleSelectBinary(b.filename)}
-                  className={`device-row ${isSelected ? 'selected' : ''}`}
+                  className={`device-row binary-item-row ${isSelected ? 'selected' : ''}`}
                   style={{
-                    padding: '0.65rem 0.85rem',
                     borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-subtle)',
+                    border: `1px solid ${isSelected ? 'var(--border-active)' : 'var(--border-subtle)'}`,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '0.75rem',
+                    gap: '0.65rem',
                     backgroundColor: isSelected ? 'var(--bg-subtle)' : 'var(--bg-surface)',
                     transition: 'border-color 0.15s, background-color 0.15s',
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.725rem', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '-0.01em', color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
+                      <span
+                        className="binary-item-filename"
+                        style={{
+                          fontWeight: 700,
+                          fontFamily: 'var(--font-mono, monospace)',
+                          letterSpacing: '-0.01em',
+                          color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'block',
+                        }}
+                      >
                         {b.filename}
                       </span>
-                      {isSelected && <CheckIcon size={13} className="text-ready" style={{ flexShrink: 0 }} />}
+                      {isSelected && <CheckIcon size={14} className="text-ready" style={{ flexShrink: 0 }} />}
                     </div>
-                    <div style={{ fontSize: '0.625rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>[{b.pcId}]</span> &bull; {b.path}
+                    <div className="binary-item-meta" style={{ color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>[{b.pcId}]</span> &bull; {b.path}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                    <span className="stat-pill" style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
+                    <span className="stat-pill binary-item-size" style={{ fontWeight: 700 }}>
                       {formatBytes(b.sizeBytes)}
                     </span>
                     <button
                       type="button"
-                      className={`btn btn-sm ${isSelected ? 'btn-primary' : ''}`}
-                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                      className={`btn btn-sm binary-item-btn ${isSelected ? 'btn-primary' : ''}`}
                     >
                       {isSelected ? 'Terpilih' : 'Pilih'}
                     </button>
@@ -174,16 +204,16 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
         </div>
 
         {/* Custom / Manual Input Form */}
-        <form onSubmit={handleSaveCustom} style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <form onSubmit={handleSaveCustom} className="binary-manual-form" style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <input
             type="text"
-            className="search-input"
+            className="search-input binary-manual-input"
             style={{ flex: 1, paddingLeft: '0.75rem' }}
             placeholder="Atau ketik nama binary manual (e.g. AP_S908BXXU2AVF1...)"
             value={customBinary}
             onChange={(e) => setCustomBinary(e.target.value)}
           />
-          <button type="submit" className="btn btn-sm">
+          <button type="submit" className="btn btn-sm binary-manual-submit-btn" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
             Set Manual
           </button>
         </form>

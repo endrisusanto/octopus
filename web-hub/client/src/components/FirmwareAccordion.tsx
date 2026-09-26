@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, RotateCcwIcon, CheckIcon, CloseIcon, FileCodeIcon } from './Icons';
 import { BinaryItem } from '../hooks/useFleetWebSocket';
 import { BinarySelectModal } from './BinarySelectModal';
+import { ProgressRing } from './ProgressRing';
 
 export interface FirmwareSlotState {
   filename: string;
@@ -22,7 +23,8 @@ export interface FirmwareSlotsMap {
 
 interface FirmwareAccordionProps {
   slots: FirmwareSlotsMap;
-  onUpdateSlot: (slotKey: keyof FirmwareSlotsMap, file: BinaryItem | null) => void;
+  onUpdateSlot?: (slotKey: keyof FirmwareSlotsMap, file: BinaryItem | null) => void;
+  onUpdateSlotsBatch: (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => void;
   onResetAll: () => void;
   binaries: BinaryItem[];
   onRefreshBinaries?: () => void;
@@ -32,13 +34,13 @@ const SLOT_CONFIGS: { key: keyof FirmwareSlotsMap; label: string; name: string; 
   { key: 'bl', label: 'BL', name: 'Bootloader', color: 'var(--accent-amber, #f59e0b)', bg: 'rgba(245, 158, 11, 0.1)' },
   { key: 'ap', label: 'AP', name: 'System / PDA', color: 'var(--accent-primary, #3b82f6)', bg: 'rgba(59, 130, 246, 0.1)' },
   { key: 'cp', label: 'CP', name: 'Phone / Modem', color: 'var(--accent-purple, #a855f7)', bg: 'rgba(168, 85, 247, 0.1)' },
-  { key: 'csc', label: 'CSC', name: 'Consumer Software Customization', color: 'var(--accent-green, #10b981)', bg: 'rgba(16, 185, 129, 0.1)' },
+  { key: 'csc', label: 'CSC', name: 'Consumer Customization', color: 'var(--accent-green, #10b981)', bg: 'rgba(16, 185, 129, 0.1)' },
   { key: 'userdata', label: 'USERDATA', name: 'Userdata Storage', color: 'var(--accent-red, #ef4444)', bg: 'rgba(239, 68, 68, 0.1)' },
 ];
 
 export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
   slots,
-  onUpdateSlot,
+  onUpdateSlotsBatch,
   onResetAll,
   binaries,
   onRefreshBinaries,
@@ -58,7 +60,9 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
       pcId: 'local',
     };
 
-    onUpdateSlot(slotKey, selectedItem);
+    const updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[] = [
+      { slotKey, fileItem: selectedItem },
+    ];
 
     // Auto-populate companion slots if AP is picked
     if (slotKey === 'ap') {
@@ -67,85 +71,18 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
 
       ['bl', 'cp', 'csc', 'userdata'].forEach((k) => {
         const key = k as keyof FirmwareSlotsMap;
-        if (!slots[key].filename) {
-          const companion = binaries.find((b) => {
-            const prefix = key.toUpperCase() + '_';
-            const inSameDir = baseDir ? b.path.startsWith(baseDir) : true;
-            return inSameDir && b.filename.toUpperCase().startsWith(prefix);
-          });
-          if (companion) {
-            onUpdateSlot(key, companion);
-          }
+        const companion = binaries.find((b) => {
+          const prefix = key.toUpperCase() + '_';
+          const inSameDir = baseDir ? b.path.startsWith(baseDir) : true;
+          return inSameDir && b.filename.toUpperCase().startsWith(prefix);
+        });
+        if (companion) {
+          updates.push({ slotKey: key, fileItem: companion });
         }
       });
     }
-  };
 
-  const renderBuildTypeBadge = (filename: string) => {
-    if (!filename) return null;
-    const lower = filename.toLowerCase();
-    if (lower.includes('userdebug')) {
-      return (
-        <span
-          className="badge"
-          style={{
-            backgroundColor: 'rgba(245, 158, 11, 0.12)',
-            color: 'var(--accent-amber, #f59e0b)',
-            border: '1.5px solid var(--accent-amber, #f59e0b)',
-            fontSize: '0.625rem',
-            padding: '0.08rem 0.38rem',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-            borderRadius: '4px',
-          }}
-        >
-          USERDEBUG
-        </span>
-      );
-    }
-    if (lower.includes('user') || lower.includes('_ship') || lower.includes('official')) {
-      return (
-        <span
-          className="badge"
-          style={{
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            color: 'var(--accent-green, #10b981)',
-            border: '1.5px solid var(--accent-green, #10b981)',
-            fontSize: '0.625rem',
-            padding: '0.08rem 0.38rem',
-            fontWeight: 800,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-            borderRadius: '4px',
-          }}
-        >
-          USER
-        </span>
-      );
-    }
-    return (
-      <span
-        className="badge"
-        style={{
-          backgroundColor: 'rgba(59, 130, 246, 0.12)',
-          color: 'var(--accent-primary, #3b82f6)',
-          border: '1.5px solid var(--accent-primary, #3b82f6)',
-          fontSize: '0.625rem',
-          padding: '0.08rem 0.38rem',
-          fontWeight: 700,
-          flexShrink: 0,
-          whiteSpace: 'nowrap',
-          borderRadius: '4px',
-        }}
-      >
-        AP READY
-      </span>
-    );
+    onUpdateSlotsBatch(updates);
   };
 
   return (
@@ -158,28 +95,32 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
-          gap: '0.35rem',
-          padding: '0.65rem 0.85rem',
+          gap: '0.45rem',
           cursor: 'pointer',
           userSelect: 'none',
         }}
       >
-        {/* Row 1: Title, Build Type Badge, and Reset Button */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-            <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0, width: '22px', height: '22px' }}>
-              {isOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+        {/* Row 1: Title, Progress Ring, and Reset Button */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+            <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0, width: '26px', height: '26px' }}>
+              {isOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
             </button>
 
-            <span style={{ fontWeight: 800, fontSize: '0.825rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              FIRMWARE BINARY
+            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              FIRMWARE
             </span>
 
-            {isApVerified && renderBuildTypeBadge(slots.ap.filename)}
             {isApVerifying && (
-              <span className="badge badge-flashing" style={{ fontSize: '0.625rem', padding: '0.08rem 0.35rem', whiteSpace: 'nowrap' }}>
-                Verifying {slots.ap.progress}%
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', marginLeft: '0.35rem' }}>
+                <ProgressRing
+                  progress={slots.ap.progress}
+                  size={24}
+                  strokeWidth={2.5}
+                  color="var(--accent-primary, #3b82f6)"
+                  title={`Verifikasi AP MD5: ${slots.ap.progress}%`}
+                />
+              </div>
             )}
           </div>
 
@@ -190,10 +131,10 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                 type="button"
                 onClick={onResetAll}
                 className="btn btn-sm btn-outline-danger"
-                style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.3rem', height: '26px', padding: '0 0.5rem', whiteSpace: 'nowrap' }}
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', height: '30px', padding: '0 0.65rem', whiteSpace: 'nowrap' }}
                 title="Reset seluruh file slot firmware"
               >
-                <RotateCcwIcon size={11} /> Reset File
+                <RotateCcwIcon size={13} /> Reset File
               </button>
             </div>
           )}
@@ -209,7 +150,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
               scrollbarWidth: 'none',
               WebkitOverflowScrolling: 'touch',
               cursor: 'grab',
-              padding: '0.1rem 0',
+              padding: '0.15rem 0',
             }}
             onClick={(e) => e.stopPropagation()}
             title="Scroll/Drag horizontal untuk melihat nama file lengkap"
@@ -217,7 +158,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.725rem',
+                fontSize: '0.8rem',
                 fontWeight: 600,
                 color: 'var(--accent-primary)',
                 letterSpacing: '-0.01em',
@@ -235,7 +176,6 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
         <div
           className="accordion-body"
           style={{
-            padding: '1rem 1.25rem',
             borderTop: '1px solid var(--border-subtle)',
             display: 'flex',
             flexDirection: 'column',
@@ -251,11 +191,16 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
             return (
               <div
                 key={slot.key}
+                className="firmware-slot-row ifta-slot-row"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
-                  padding: '0.65rem 0.85rem',
+                  padding: '0.4rem 0.85rem',
+                  height: '54px',
+                  minHeight: '54px',
+                  maxHeight: '54px',
+                  boxSizing: 'border-box',
                   borderRadius: 'var(--radius-md)',
                   border: `1px solid ${isVerifying ? slot.color : isFilled ? slot.color : 'var(--border-subtle)'}`,
                   backgroundColor: isFilled ? 'var(--bg-surface)' : 'var(--bg-subtle)',
@@ -266,42 +211,36 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
               >
                 {/* Background Fill Loading Bar when Verifying */}
                 {isVerifying && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      bottom: 0,
-                      width: `${data.progress}%`,
-                      backgroundColor: slot.bg,
-                      transition: 'width 0.15s ease-out',
-                      zIndex: 0,
-                      pointerEvents: 'none',
-                      borderRight: `2px solid ${slot.color}`,
-                    }}
-                  />
+                  <>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        width: `${data.progress}%`,
+                        backgroundColor: slot.bg,
+                        transition: 'width 0.15s ease-out',
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        height: '3px',
+                        width: `${data.progress}%`,
+                        backgroundColor: slot.color,
+                        transition: 'width 0.15s ease-out',
+                        zIndex: 2,
+                      }}
+                    />
+                  </>
                 )}
 
-                {/* Slot Badge */}
-                <div
-                  style={{
-                    width: '75px',
-                    fontWeight: 800,
-                    fontSize: '0.8rem',
-                    color: slot.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    flexShrink: 0,
-                    position: 'relative',
-                    zIndex: 1,
-                  }}
-                >
-                  <FileCodeIcon size={15} />
-                  <span>{slot.label}</span>
-                </div>
-
-                {/* Slot Content or Input Click Area */}
+                {/* Ifta Content Area: Stacked Floating Label Top + Input Value Bottom */}
                 <div
                   onClick={() => setActiveSlotModal(slot.key)}
                   style={{
@@ -313,10 +252,34 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                     justifyContent: 'center',
                     position: 'relative',
                     zIndex: 1,
+                    gap: '0.12rem',
                   }}
                 >
+                  {/* Ifta In-Field Floating Label */}
+                  <div
+                    className="ifta-slot-label"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      color: slot.color,
+                      fontSize: '0.675rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      lineHeight: 1,
+                    }}
+                  >
+                    <FileCodeIcon size={12} style={{ flexShrink: 0 }} />
+                    <span>{slot.label}</span>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.625rem', textTransform: 'none' }}>
+                      &bull; {slot.name}
+                    </span>
+                  </div>
+
+                  {/* Value / Filename / Placeholder */}
                   {isFilled ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, width: '100%' }}>
                       <div
                         style={{
                           overflowX: 'auto',
@@ -326,13 +289,12 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                           cursor: 'grab',
                           flex: 1,
                           minWidth: 0,
-                          padding: '0.1rem 0',
                         }}
                         title={data.filename}
                       >
                         <span
+                          className="firmware-slot-filename"
                           style={{
-                            fontSize: '0.675rem',
                             fontFamily: 'var(--font-mono, monospace)',
                             fontWeight: 600,
                             color: 'var(--text-primary)',
@@ -343,41 +305,17 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                           {data.filename}
                         </span>
                       </div>
-                      {isVerified && <CheckIcon size={14} className="text-ready" style={{ flexShrink: 0 }} />}
+                      {isVerifying && (
+                        <span style={{ fontSize: '0.725rem', color: slot.color, fontWeight: 700, flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
+                          MD5: {data.progress}%
+                        </span>
+                      )}
+                      {isVerified && <CheckIcon size={15} className="text-ready" style={{ flexShrink: 0 }} />}
                     </div>
                   ) : (
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Klik untuk pilih file {slot.label} ({slot.name})...
+                    <span className="firmware-slot-placeholder" style={{ color: 'var(--text-muted)' }}>
+                      Pilih file binary {slot.label}...
                     </span>
-                  )}
-
-                  {/* Verification Progress Bar & Info */}
-                  {isVerifying && (
-                    <div style={{ marginTop: '0.35rem', width: '100%', maxWidth: '380px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: slot.color, marginBottom: '0.2rem', fontWeight: 600 }}>
-                        <span>Memverifikasi MD5 Binary...</span>
-                        <span>{data.progress}%</span>
-                      </div>
-                      <div
-                        style={{
-                          height: '6px',
-                          backgroundColor: 'var(--bg-base)',
-                          borderRadius: 'var(--radius-full)',
-                          overflow: 'hidden',
-                          border: '1px solid var(--border-subtle)',
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: '100%',
-                            width: `${data.progress}%`,
-                            backgroundColor: slot.color,
-                            borderRadius: 'var(--radius-full)',
-                            transition: 'width 0.15s ease-out',
-                          }}
-                        />
-                      </div>
-                    </div>
                   )}
                 </div>
 
@@ -386,8 +324,17 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveSlotModal(slot.key)}
-                    className="btn btn-sm"
-                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+                    className="btn btn-sm btn-slot-pick"
+                    style={{
+                      fontSize: '0.825rem',
+                      height: '32px',
+                      minHeight: '32px',
+                      padding: '0 0.85rem',
+                      fontWeight: 700,
+                      backgroundColor: slot.bg,
+                      color: slot.color,
+                      border: `1px solid ${slot.color}`,
+                    }}
                   >
                     {isFilled ? 'Ganti' : 'Pilih'}
                   </button>
@@ -397,12 +344,13 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onUpdateSlot(slot.key, null);
+                        onUpdateSlotsBatch([{ slotKey: slot.key, fileItem: null }]);
                       }}
                       className="btn btn-icon btn-sm"
+                      style={{ height: '32px', minHeight: '32px', width: '32px', padding: 0 }}
                       title={`Hapus file ${slot.label}`}
                     >
-                      <CloseIcon size={13} />
+                      <CloseIcon size={14} />
                     </button>
                   )}
                 </div>

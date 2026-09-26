@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { ChevronDownIcon, ChevronUpIcon, BoltIcon, TerminalIcon, CloseIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon } from './Icons';
 import { ProgressRing } from './ProgressRing';
 
 interface RunningWorkflowAccordionProps {
   devices: DeviceItem[];
-  onOpenLogs: (pcId: string, deviceId: string) => void;
+  onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
 }
 
 export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> = ({
   devices,
-  onOpenLogs,
-  onAbort,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -27,7 +25,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
         backgroundColor: 'var(--bg-surface)',
       }}
     >
-      {/* Header Accordion */}
+      {/* Header Accordion without Bolt Icon */}
       <div
         className="accordion-header"
         onClick={() => setIsOpen(!isOpen)}
@@ -47,7 +45,6 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BoltIcon size={16} className="text-pass" />
             <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
               WORKFLOW SEDANG BERJALAN ({devices.length} Unit)
             </span>
@@ -61,13 +58,21 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
 
       {/* Body Accordion */}
       {isOpen && (
-        <div className="accordion-body" style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div
+          className="accordion-body"
+          style={{
+            padding: '0.75rem 1.25rem',
+            borderTop: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          }}
+        >
           {devices.map((device) => {
             const rawProgress = device.progress || 0;
-            const isOdinStage = device.status === 'Flashing...' && (
-              device.currentTask?.toLowerCase().includes('flashing') ||
-              rawProgress <= 50
-            );
+            const isOdinStage =
+              device.status === 'Flashing...' &&
+              (device.currentTask?.toLowerCase().includes('flashing') || rawProgress <= 50);
 
             // Odin file/binary progress (0-100%)
             const odinProgress = isOdinStage ? rawProgress : 100;
@@ -77,13 +82,17 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
               ? Math.min(Math.round(odinProgress * 0.5), 50)
               : rawProgress;
 
+            const taskDescription =
+              device.currentTask || (isOdinStage ? 'Flashing Firmware...' : 'Processing Workflow...');
+
             return (
               <div
                 key={`${device.pcId}-${device.id}`}
+                className="workflow-device-card"
                 style={{
                   position: 'relative',
                   overflow: 'hidden',
-                  padding: '0.75rem 1rem',
+                  padding: '0.65rem 0.95rem',
                   borderRadius: 'var(--radius-md)',
                   border: '1px solid var(--border-subtle)',
                   backgroundColor: 'var(--bg-subtle)',
@@ -92,7 +101,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                   gap: '0.45rem',
                 }}
               >
-                {/* ponytail: Background filled loading overlay: Hijau saat Odin Flashing, Biru saat Workflow */}
+                {/* ponytail: Background filled loading overlay */}
                 <div
                   style={{
                     position: 'absolute',
@@ -101,115 +110,181 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                     bottom: 0,
                     width: `${isOdinStage ? odinProgress : overallProgress}%`,
                     backgroundColor: isOdinStage ? 'rgba(16, 185, 129, 0.18)' : 'rgba(59, 130, 246, 0.18)',
-                    borderRight: (isOdinStage ? odinProgress : overallProgress) > 0 && (isOdinStage ? odinProgress : overallProgress) < 100
-                      ? `2px solid ${isOdinStage ? 'var(--accent-green, #10b981)' : '#3b82f6'}`
-                      : 'none',
+                    borderRight:
+                      (isOdinStage ? odinProgress : overallProgress) > 0 &&
+                      (isOdinStage ? odinProgress : overallProgress) < 100
+                        ? `2px solid ${isOdinStage ? 'var(--accent-green, #10b981)' : '#3b82f6'}`
+                        : 'none',
                     transition: 'width 0.25s linear',
                     pointerEvents: 'none',
                     zIndex: 0,
                   }}
                 />
 
-                <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontWeight: 700 }}>{device.model}</span>
-                    <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
-                      SN: {device.serial || device.id}
-                    </span>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                      [{device.pcId} &bull; {device.port}]
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span
+                {/* Main Content Row */}
+                <div
+                  className="workflow-device-content-row"
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {/* Left Column: Device Info & Task Info */}
+                  <div
+                    className="workflow-device-info-col"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.2rem',
+                      minWidth: 0,
+                      flex: 1,
+                    }}
+                  >
+                    {/* Line 1: Model Name & Status */}
+                    <div
                       style={{
-                        fontWeight: 600,
-                        color: isOdinStage ? 'var(--accent-green, #10b981)' : '#60a5fa',
-                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      {device.currentTask || (isOdinStage ? 'Flashing Firmware...' : 'Processing Workflow...')}
-                    </span>
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          fontSize: '0.875rem',
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        {device.model}
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: isOdinStage ? 'var(--accent-green, #10b981)' : '#60a5fa',
+                          fontSize: '0.75rem',
+                          backgroundColor: isOdinStage ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                          padding: '0.08rem 0.4rem',
+                          borderRadius: '4px',
+                          border: isOdinStage
+                            ? '1px solid rgba(16, 185, 129, 0.25)'
+                            : '1px solid rgba(59, 130, 246, 0.25)',
+                        }}
+                      >
+                        {taskDescription}
+                      </span>
+                    </div>
 
-                    {/* Dual Progress: Odin Step & Overall Workflow */}
-                    {isOdinStage ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        {/* Odin Flash Progress Ring */}
-                        <div
-                          title={`Odin Flashing Step: ${odinProgress}%`}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                          }}
-                        >
-                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--accent-green, #10b981)' }}>Odin</span>
-                          <ProgressRing progress={odinProgress} size={28} strokeWidth={2.5} color="var(--accent-green, #10b981)" />
-                        </div>
+                    {/* Line 2: Serial Number */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span
+                        style={{
+                          color: 'var(--text-muted)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '0.75rem',
+                          letterSpacing: '0.02em',
+                        }}
+                      >
+                        SN: {device.serial || device.id}
+                      </span>
+                    </div>
 
-                        {/* Overall Workflow Ring */}
-                        <div
-                          title={`Progres Keseluruhan Workflow: ${overallProgress}%`}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                            padding: '0.15rem 0.45rem',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid rgba(59, 130, 246, 0.25)',
-                          }}
-                        >
-                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa' }}>Workflow</span>
-                          <ProgressRing progress={overallProgress} size={28} strokeWidth={2.5} color="#60a5fa" />
-                        </div>
-                      </div>
-                    ) : (
+                    {/* Line 3: Port */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.725rem' }}>
+                        Port: {device.port}
+                      </span>
+                    </div>
+
+                    {/* Line 4: Workstation ID */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                        Workstation: {device.pcId}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Vertically Stacked Progress Rings */}
+                  <div
+                    className="workflow-device-rings-col"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-end',
+                      gap: '0.35rem',
+                      flexShrink: 0,
+                      alignSelf: 'center',
+                    }}
+                  >
+                    {isOdinStage && (
                       <div
-                        title={`Progres Keseluruhan Workflow: ${overallProgress}%`}
+                        title={`Odin Flashing Step: ${odinProgress}%`}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.3rem',
-                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                          justifyContent: 'space-between',
+                          gap: '0.4rem',
+                          backgroundColor: 'rgba(16, 185, 129, 0.12)',
                           padding: '0.15rem 0.45rem',
                           borderRadius: 'var(--radius-sm)',
-                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          minWidth: '85px',
                         }}
                       >
-                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa' }}>Workflow</span>
-                        <ProgressRing progress={overallProgress} size={28} strokeWidth={2.5} color="#60a5fa" />
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            color: 'var(--accent-green, #10b981)',
+                          }}
+                        >
+                          Odin
+                        </span>
+                        <ProgressRing
+                          progress={odinProgress}
+                          size={24}
+                          strokeWidth={2.5}
+                          color="var(--accent-green, #10b981)"
+                        />
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => onOpenLogs(device.pcId, device.id)}
-                      className="btn btn-icon btn-sm"
-                      title="Inspect Logs"
+                    <div
+                      title={`Progres Keseluruhan Workflow: ${overallProgress}%`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.4rem',
+                        backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                        padding: '0.15rem 0.45rem',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        minWidth: '85px',
+                      }}
                     >
-                      <TerminalIcon size={13} />
-                    </button>
-                    {onAbort && (
-                      <button
-                        type="button"
-                        onClick={() => onAbort(device.pcId, device.id)}
-                        className="btn btn-icon btn-sm text-offline"
-                        title="Batalkan Proses"
-                      >
-                        <CloseIcon size={13} />
-                      </button>
-                    )}
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa' }}>
+                        Workflow
+                      </span>
+                      <ProgressRing
+                        progress={overallProgress}
+                        size={24}
+                        strokeWidth={2.5}
+                        color="#60a5fa"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Progress Bar: Hijau saat Odin Flashing, Biru saat Workflow */}
-                <div className="progress-bar-bg" style={{ position: 'relative', zIndex: 1, height: '4px' }}>
+                {/* Progress Bar Track */}
+                <div
+                  className="progress-bar-bg"
+                  style={{ position: 'relative', zIndex: 1, height: '4px', marginTop: '0.2rem' }}
+                >
                   <div
                     className="progress-bar-fill"
                     style={{

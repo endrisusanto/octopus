@@ -69,10 +69,10 @@ fn load_initial_config() -> BridgeConfig {
     let default_pc_id = if let Ok(val) = env::var("PC_ID") {
         val
     } else {
-        let os_name = if cfg!(target_os = "windows") { "WIN" } else { "UBUNTU" };
+        let os_name = if cfg!(target_os = "windows") { "win" } else { "ubuntu" };
         let host = match hostname::get() {
-            Ok(h) => h.to_string_lossy().to_string().to_uppercase(),
-            Err(_) => "NODE-01".to_string(),
+            Ok(h) => h.to_string_lossy().to_string(),
+            Err(_) => "node-01".to_string(),
         };
         format!("{}-{}", os_name, host)
     };
@@ -147,7 +147,8 @@ async fn run_bridge_worker(state: AppState) {
 
                 // 2. Spawn device & binary scanner loop
                 let (tx, mut rx) = tokio::sync::mpsc::channel::<OutgoingMessage>(32);
-                let active_verifications: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(HashMap::new()));
+                let active_verifications: Arc<Mutex<HashMap<String, (u64, tokio::task::JoinHandle<()>)>>> = Arc::new(Mutex::new(HashMap::new()));
+                let verif_counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
                 let scanner_state = state.clone();
                 let tx_scanner = tx.clone();
 
@@ -257,9 +258,10 @@ async fn run_bridge_worker(state: AppState) {
                                                         .to_string();
 
                                                     // Cancel / abort previous verification task for this slot if running
+                                                    let task_id = verif_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                                     {
                                                         let mut verifs = active_verifications.lock().unwrap();
-                                                        if let Some(prev_handle) = verifs.remove(&slot_key) {
+                                                        if let Some((_, prev_handle)) = verifs.remove(&slot_key) {
                                                             println!("[Verifier] Aborting previous MD5 verification for slot: {}", slot_key);
                                                             prev_handle.abort();
                                                         }
@@ -272,12 +274,16 @@ async fn run_bridge_worker(state: AppState) {
                                                     let handle = tokio::spawn(async move {
                                                         verifier::verify_firmware_md5_task(s_key.clone(), file_path, filename, tx_md5).await;
                                                         let mut verifs = verifs_ref.lock().unwrap();
-                                                        verifs.remove(&s_key);
+                                                        if let Some((curr_id, _)) = verifs.get(&s_key) {
+                                                            if *curr_id == task_id {
+                                                                verifs.remove(&s_key);
+                                                            }
+                                                        }
                                                     });
 
                                                     {
                                                         let mut verifs = active_verifications.lock().unwrap();
-                                                        verifs.insert(slot_key, handle);
+                                                        verifs.insert(slot_key, (task_id, handle));
                                                     }
                                                 } else if exec.action == "WORKFLOW_PIPELINE"
                                                     || exec.action == "suw_bypass"
@@ -460,7 +466,7 @@ fn save_bridge_config(
     hub_url: String,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let clean_pc = pc_id.trim().to_uppercase();
+    let clean_pc = pc_id.trim().to_string();
     let clean_url = hub_url.trim().to_string();
 
     if clean_pc.is_empty() {

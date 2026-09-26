@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
-import { ChevronDownIcon, ChevronUpIcon, PlayIcon, TerminalIcon, CheckIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon } from './Icons';
 
 interface SuggestionMatchAccordionProps {
   matchedModel: string;
@@ -14,7 +14,7 @@ interface SuggestionMatchAccordionProps {
   onRunAutomation: (deviceIds: string[]) => void;
   workflowConfig: WorkflowConfig;
   onUpdateWorkflowConfig: (updater: (prev: WorkflowConfig) => WorkflowConfig) => void;
-  onOpenLogs: (pcId: string, deviceId: string) => void;
+  onOpenLogs?: (pcId: string, deviceId: string) => void;
   onOpenWifiModal?: () => void;
 }
 
@@ -29,7 +29,6 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
   onRunAutomation,
   workflowConfig,
   onUpdateWorkflowConfig,
-  onOpenLogs,
   onOpenWifiModal,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -168,199 +167,323 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
         className="accordion-header suggestion-header-layout"
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-          gap: '0.5rem',
-          padding: '0.65rem 0.85rem',
           cursor: 'pointer',
           userSelect: 'none',
           backgroundColor: 'rgba(59, 130, 246, 0.04)',
         }}
       >
-        {/* Row 1: Title & Model Name on Left, Stacked Badge & Unit on Right */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', minWidth: 0, flex: 1, overflow: 'hidden' }}>
-            <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0, width: '22px', height: '22px', marginTop: '2px' }}>
-              {isOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+        {/* =========================================================================
+            DESKTOP HEADER LAYOUT (Screens >= 768px): Original Clean Single-Row Design
+            ========================================================================= */}
+        <div
+          className="suggestion-desktop-header"
+          style={{
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            gap: '1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+            <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0, width: '26px', height: '26px' }}>
+              {isOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
             </button>
-            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, overflow: 'hidden' }}>
-              {/* Line 1: Title without Emoji */}
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span
-                  style={{
-                    fontWeight: 800,
-                    fontSize: '0.75rem',
-                    color: 'var(--accent-primary)',
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  SUGGESTION MODEL
-                </span>
-              </div>
-
-              {/* Line 2: Prominent Model Name below title */}
-              <span
-                style={{
-                  fontWeight: 800,
-                  fontSize: '0.925rem',
-                  color: 'var(--text-primary)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  lineHeight: 1.25,
-                  marginTop: '1px',
-                }}
-                title={matchedModel}
-              >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--accent-primary)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                SUGGESTION MODEL
+              </span>
+              <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                 {matchedModel}
               </span>
-
-              {/* Line 3: Full Firmware Filename with horizontal touch drag */}
+              {renderBuildBadge()}
+              <span className="stat-pill active" style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem', whiteSpace: 'nowrap' }}>
+                {selectedMatchedIds.length}/{devices.length} Unit
+              </span>
               {apFilename && (
-                <div
+                <span
                   style={{
-                    overflowX: 'auto',
+                    fontSize: '0.725rem',
+                    color: 'var(--text-muted)',
+                    fontFamily: 'var(--font-mono)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
-                    scrollbarWidth: 'none',
-                    WebkitOverflowScrolling: 'touch',
-                    cursor: 'grab',
-                    marginTop: '2px',
-                    maxWidth: '100%',
+                    maxWidth: '260px',
+                    marginLeft: '0.25rem',
                   }}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Scroll/Drag horizontal untuk melihat nama firmware"
+                  title={apFilename}
                 >
-                  <span
-                    style={{
-                      fontSize: '0.625rem',
-                      color: 'var(--text-muted)',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    FW: {apFilename}
-                  </span>
-                </div>
+                  ({apFilename})
+                </span>
               )}
             </div>
           </div>
 
-          {/* Right: Stacked Build Badge (Top) + Total Unit Pill (Bottom) */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', flexShrink: 0 }}>
-            {renderBuildBadge()}
-            <span
-              className="stat-pill active"
-              style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', whiteSpace: 'nowrap' }}
+          {/* Stepper Pills & Automation Button Inline on Desktop */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <button
+                type="button"
+                onClick={() => handleStepToggle('odinFlash')}
+                className={`btn-step-pill ${workflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
+                title="Flash Firmware AP/BL/CP/CSC via Odin"
+              >
+                <CheckIcon size={12} /> ODIN FLASH
+              </button>
+              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
+              <button
+                type="button"
+                onClick={() => handleStepToggle('skipSuw')}
+                className={`btn-step-pill ${workflowConfig.skipSuw ? 'active-blue' : ''}`}
+                title="Lewati Setup Wizard"
+              >
+                <CheckIcon size={12} /> SKIP SUW
+              </button>
+              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
+              <button
+                type="button"
+                onClick={() => handleStepToggle('setupGba')}
+                className={`btn-step-pill ${workflowConfig.setupGba ? 'active-purple' : ''}`}
+                title="Setup Google Basic Authentication"
+              >
+                <CheckIcon size={12} /> SETUP GBA
+              </button>
+              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStepToggle('wifiEnabled');
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onOpenWifiModal) onOpenWifiModal();
+                }}
+                className={`btn-step-pill ${workflowConfig.wifiEnabled ? 'active-green' : ''}`}
+                title="Klik: Toggle Wi-Fi | Klik Kanan: Konfigurasi SSID/Password"
+              >
+                <CheckIcon size={12} /> WIFI
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onRunAutomation(selectedMatchedIds.length > 0 ? selectedMatchedIds : validMatchedDeviceIds)}
+              className="btn btn-primary"
+              style={{
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.35rem 0.85rem',
+                height: '32px',
+                whiteSpace: 'nowrap',
+              }}
+              disabled={devices.length === 0}
             >
-              {selectedMatchedIds.length}/{devices.length} Unit
-            </span>
+              <PlayIcon size={14} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+            </button>
           </div>
         </div>
 
-        {/* Row 2: Fullwidth 1-Line Inline Breadcrumb Workflow Checklist */}
+        {/* =========================================================================
+            MOBILE HEADER LAYOUT (Screens < 768px): Touch-Optimized Stacked Rows
+            ========================================================================= */}
         <div
-          className="workflow-breadcrumb-row"
+          className="suggestion-mobile-header"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.2rem',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            gap: '0.5rem',
             width: '100%',
-            flexWrap: 'nowrap',
-            whiteSpace: 'nowrap',
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          {/* Step 1: ODIN FLASH */}
-          <button
-            type="button"
-            onClick={() => handleStepToggle('odinFlash')}
-            className={`btn-step-pill ${workflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
-            style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
-            title="Flash Firmware AP/BL/CP/CSC via Odin (Klik untuk Toggle)"
-          >
-            <CheckIcon size={10} />
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>ODIN FLASH</span>
-          </button>
+          {/* Row 1: Title & Model Name on Left, Stacked Badge & Unit on Right */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+              <button type="button" className="btn btn-icon" style={{ padding: 0, flexShrink: 0, width: '22px', height: '22px', marginTop: '2px' }}>
+                {isOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                {/* Line 1: Title (Prominent, matching Firmware accordion size) */}
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      fontSize: '0.95rem',
+                      color: 'var(--accent-primary)',
+                      letterSpacing: '0.02em',
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    SUGGESTION MODEL
+                  </span>
+                </div>
 
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+                {/* Line 2: Model Name below title (Smaller subtitle size) */}
+                <span
+                  style={{
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    lineHeight: 1.25,
+                    marginTop: '1px',
+                  }}
+                  title={matchedModel}
+                >
+                  {matchedModel}
+                </span>
 
-          {/* Step 2: SKIP SUW */}
-          <button
-            type="button"
-            onClick={() => handleStepToggle('skipSuw')}
-            className={`btn-step-pill ${workflowConfig.skipSuw ? 'active-blue' : ''}`}
-            style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
-            title="Lewati Setup Wizard (SUW) setelah boot"
-          >
-            <CheckIcon size={10} />
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SKIP SUW</span>
-          </button>
+                {/* Line 3: Full Firmware Filename with horizontal touch drag */}
+                {apFilename && (
+                  <div
+                    style={{
+                      overflowX: 'auto',
+                      whiteSpace: 'nowrap',
+                      scrollbarWidth: 'none',
+                      WebkitOverflowScrolling: 'touch',
+                      cursor: 'grab',
+                      marginTop: '2px',
+                      maxWidth: '100%',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Scroll/Drag horizontal untuk melihat nama firmware"
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.625rem',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      FW: {apFilename}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+            {/* Right: Stacked Build Badge (Top) + Total Unit Pill (Bottom) */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', flexShrink: 0 }}>
+              {renderBuildBadge()}
+              <span
+                className="stat-pill active"
+                style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', whiteSpace: 'nowrap' }}
+              >
+                {selectedMatchedIds.length}/{devices.length} Unit
+              </span>
+            </div>
+          </div>
 
-          {/* Step 3: SETUP GBA */}
-          <button
-            type="button"
-            onClick={() => handleStepToggle('setupGba')}
-            className={`btn-step-pill ${workflowConfig.setupGba ? 'active-purple' : ''}`}
-            style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
-            title="Setup Google Basic Authentication"
-          >
-            <CheckIcon size={10} />
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SETUP GBA</span>
-          </button>
-
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
-
-          {/* Step 4: WIFI with Long Press on Mobile */}
-          <button
-            type="button"
-            onTouchStart={handleWifiTouchStart}
-            onTouchEnd={handleWifiTouchEnd}
-            onTouchCancel={handleWifiTouchEnd}
-            onTouchMove={handleWifiTouchEnd}
-            onMouseDown={handleWifiTouchStart}
-            onMouseUp={handleWifiTouchEnd}
-            onMouseLeave={handleWifiTouchEnd}
-            onClick={handleWifiClick}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (onOpenWifiModal) onOpenWifiModal();
-            }}
-            className={`btn-step-pill ${workflowConfig.wifiEnabled ? 'active-green' : ''}`}
-            style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
-            title="Tap: Toggle Wi-Fi | Tahan / Klik Kanan: Konfigurasi SSID/Password"
-          >
-            <CheckIcon size={10} />
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>WIFI</span>
-          </button>
-        </div>
-
-        {/* Row 3: Fullwidth Jalankan Automasi Button */}
-        <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
-          <button
-            type="button"
-            onClick={() => onRunAutomation(selectedMatchedIds.length > 0 ? selectedMatchedIds : validMatchedDeviceIds)}
-            className="btn btn-primary"
+          {/* Row 2: Fullwidth 1-Line Inline Breadcrumb Workflow Checklist */}
+          <div
+            className="workflow-breadcrumb-row"
             style={{
-              width: '100%',
-              height: '32px',
-              fontWeight: 700,
-              fontSize: '0.75rem',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.35rem',
-              borderRadius: 'var(--radius-md)',
+              justifyContent: 'space-between',
+              gap: '0.2rem',
+              width: '100%',
+              flexWrap: 'nowrap',
+              whiteSpace: 'nowrap',
             }}
-            disabled={devices.length === 0}
+            onClick={(e) => e.stopPropagation()}
           >
-            <PlayIcon size={13} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
-          </button>
+            {/* Step 1: ODIN FLASH */}
+            <button
+              type="button"
+              onClick={() => handleStepToggle('odinFlash')}
+              className={`btn-step-pill ${workflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
+              style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+              title="Flash Firmware AP/BL/CP/CSC via Odin (Klik untuk Toggle)"
+            >
+              <CheckIcon size={10} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>ODIN FLASH</span>
+            </button>
+
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+
+            {/* Step 2: SKIP SUW */}
+            <button
+              type="button"
+              onClick={() => handleStepToggle('skipSuw')}
+              className={`btn-step-pill ${workflowConfig.skipSuw ? 'active-blue' : ''}`}
+              style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+              title="Lewati Setup Wizard (SUW) setelah boot"
+            >
+              <CheckIcon size={10} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SKIP SUW</span>
+            </button>
+
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+
+            {/* Step 3: SETUP GBA */}
+            <button
+              type="button"
+              onClick={() => handleStepToggle('setupGba')}
+              className={`btn-step-pill ${workflowConfig.setupGba ? 'active-purple' : ''}`}
+              style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+              title="Setup Google Basic Authentication"
+            >
+              <CheckIcon size={10} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>SETUP GBA</span>
+            </button>
+
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', flexShrink: 0 }}>&rsaquo;</span>
+
+            {/* Step 4: WIFI with Long Press on Mobile */}
+            <button
+              type="button"
+              onTouchStart={handleWifiTouchStart}
+              onTouchEnd={handleWifiTouchEnd}
+              onTouchCancel={handleWifiTouchEnd}
+              onTouchMove={handleWifiTouchEnd}
+              onMouseDown={handleWifiTouchStart}
+              onMouseUp={handleWifiTouchEnd}
+              onMouseLeave={handleWifiTouchEnd}
+              onClick={handleWifiClick}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onOpenWifiModal) onOpenWifiModal();
+              }}
+              className={`btn-step-pill ${workflowConfig.wifiEnabled ? 'active-green' : ''}`}
+              style={{ flex: 1, minWidth: 0, padding: '0.18rem 0.25rem', fontSize: '0.65rem', justifyContent: 'center' }}
+              title="Tap: Toggle Wi-Fi | Tahan / Klik Kanan: Konfigurasi SSID/Password"
+            >
+              <CheckIcon size={10} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>WIFI</span>
+            </button>
+          </div>
+
+          {/* Row 3: Fullwidth Jalankan Automasi Button on Mobile */}
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+            <button
+              type="button"
+              onClick={() => onRunAutomation(selectedMatchedIds.length > 0 ? selectedMatchedIds : validMatchedDeviceIds)}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                height: '32px',
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                borderRadius: 'var(--radius-md)',
+              }}
+              disabled={devices.length === 0}
+            >
+              <PlayIcon size={13} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -376,19 +499,20 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
             </div>
           ) : (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.3rem 0.4rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '0.4rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0.85rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '0.65rem', fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', fontWeight: 600 }}>
                   <input
                     type="checkbox"
                     checked={isAllSelected}
                     onChange={handleToggleSelectAll}
                     className="custom-checkbox"
+                    style={{ width: '16px', height: '16px' }}
                   />
                   <span>Pilih Semua Unit {matchedModel}</span>
                 </label>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {devices.map((device) => {
                   const isSelected = selectedIds.includes(device.id);
                   const isPcMismatch = Boolean(sourcePcId && device.pcId !== sourcePcId);
@@ -406,19 +530,25 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        padding: '0.4rem 0.6rem',
-                        borderRadius: 'var(--radius-sm)',
-                        border: `1px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                        backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-surface)',
+                        padding: '0 1rem',
+                        height: '48px',
+                        minHeight: '48px',
+                        maxHeight: '48px',
+                        boxSizing: 'border-box',
+                        borderRadius: 'var(--radius-md)',
+                        border: isSelected ? '1px solid var(--border-active)' : '1px solid var(--border-subtle)',
+                        boxShadow: 'none',
+                        backgroundColor: isSelected ? 'rgba(9, 105, 218, 0.08)' : 'var(--bg-surface)',
                         cursor: isPcMismatch ? 'not-allowed' : 'pointer',
                         opacity: isPcMismatch ? 0.45 : 1,
-                        gap: '0.5rem',
-                        fontSize: '0.75rem',
+                        gap: '0.75rem',
+                        fontSize: '0.85rem',
                         overflowX: 'auto',
                         whiteSpace: 'nowrap',
+                        transition: 'border-color 0.15s, background-color 0.15s, box-shadow 0.15s',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flexShrink: 0, whiteSpace: 'nowrap' }}>
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -428,39 +558,27 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                           }}
                           onClick={(e) => e.stopPropagation()}
                           className="custom-checkbox"
-                          style={{ cursor: isPcMismatch ? 'not-allowed' : 'pointer' }}
+                          style={{ cursor: isPcMismatch ? 'not-allowed' : 'pointer', width: '16px', height: '16px' }}
                         />
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{device.model}</span>
-                        <span className="pc-badge" style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', whiteSpace: 'nowrap' }}>{device.pcId}</span>
-                        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{device.model}</span>
+                        <span className="pc-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>{device.pcId}</span>
+                        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           SN: {device.serial || device.id}
                         </span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           {device.port}
                         </span>
                         {isPcMismatch && (
-                          <span className="badge" style={{ fontSize: '0.6rem', padding: '0.05rem 0.3rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red, #ef4444)', border: '1px solid var(--accent-red, #ef4444)' }}>
+                          <span className="badge" style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red, #ef4444)', border: '1px solid var(--accent-red, #ef4444)' }}>
                             PC Berbeda ({device.pcId})
                           </span>
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                        <span className={`badge ${device.status === 'Ready' ? 'badge-ready' : 'badge-offline'}`} style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        <span className={`badge ${device.status === 'Ready' ? 'badge-ready' : 'badge-offline'}`} style={{ fontSize: '0.725rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>
                           {device.status}
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenLogs(device.pcId, device.id);
-                          }}
-                          className="btn btn-icon btn-sm"
-                          style={{ height: '24px', width: '24px', padding: 0 }}
-                          title="Inspect Live Log"
-                        >
-                          <TerminalIcon size={12} />
-                        </button>
                       </div>
                     </div>
                   );

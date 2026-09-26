@@ -70,6 +70,9 @@ pub async fn verify_firmware_md5_task(
     }).await;
 
     loop {
+        // Yield to allow instant cancellation on abort
+        tokio::task::yield_now().await;
+
         match reader.read(&mut buffer) {
             Ok(0) => break,
             Ok(n) => {
@@ -77,7 +80,7 @@ pub async fn verify_firmware_md5_task(
                 bytes_read_total += n as u64;
 
                 let pct = ((bytes_read_total as f64 / total_size as f64) * 100.0) as u32;
-                if pct != last_reported_pct && (pct % 3 == 0 || pct == 100) {
+                if pct != last_reported_pct && (pct % 2 == 0 || pct == 100) {
                     last_reported_pct = pct;
                     let _ = tx.send(OutgoingMessage::Md5Progress {
                         slot_key: slot_key.clone(),
@@ -87,7 +90,6 @@ pub async fn verify_firmware_md5_task(
                         calculated_md5: None,
                         error_message: None,
                     }).await;
-                    tokio::task::yield_now().await;
                 }
             }
             Err(e) => {

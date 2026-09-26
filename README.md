@@ -6,12 +6,14 @@ Distributed Fleet Web-Managed Provisioning Suite with Lightweight Native Rust Ag
 
 ## Key Highlights
 
-- **Centralized Web UI & Control Hub**: Manage, flash, bypass SUW, and run AT exploits across all remote PC nodes from a single modern browser interface.
-- **Better UI & Emil Kowalski Design Eng**:
-  - Industrial density, responsive Table Matrix view & Card Grid view.
-  - Zero gradients (100% solid flat palette with curated contrast).
-  - Zero decorative emojis (clean, monochromatic 16x16 SVG icon system).
-  - Dark Mode & Light Mode support with smooth 200ms spring transitions and `localStorage` persistence.
+- **Centralized Web UI & Control Hub**: Manage, flash, bypass SUW, configure Wi-Fi, and run AT exploits across all remote PC nodes from a single modern browser interface.
+- **Better UI & Ponytail Design Engineering**:
+  - **Ifta Label Firmware Input System**: In-field floating slot labels (`BL`, `AP`, `CP`, `CSC`, `USERDATA`) maximizing 100% horizontal filename width.
+  - **Clean Monochromatic Minimal Aesthetics**: Zero decorative emojis, uncluttered headers, and high-contrast status pills.
+  - **Responsive Dual-Tier Progress Rings**: Vertical-stacked progress badges (`Odin` flash phase & `Workflow` overall) in running workflow view.
+  - **Mobile-Optimized Modal File Picker**: Compact viewport layout with side-by-side workstation selector and icon-only rescan action.
+  - Industrial density Table Matrix view & Card Grid view with zero layout shifts.
+  - Dark Mode & Light Mode support with smooth spring transitions and `localStorage` persistence.
   - Physical micro-interactions: card hover lift, button scale feedback (`active: scale(0.97)`), slide-over live terminal drawer.
 - **FlashKit Multi-Tier Sorting Rules**:
   1. **AP Firmware Model Matching**: Prioritizes matching target models to the top when AP firmware filename is entered.
@@ -20,6 +22,7 @@ Distributed Fleet Web-Managed Provisioning Suite with Lightweight Native Rust Ag
 - **Lightweight Rust Agent Bridge (`agent-bridge`)**:
   - Memory footprint < 15MB.
   - Native hardware detection (ADB + Odin / USB devnodes / Windows COM ports).
+  - Preserves exact user-defined Workstation ID without forced case transformation.
   - Real-time WebSocket connection to Web Hub.
 
 ---

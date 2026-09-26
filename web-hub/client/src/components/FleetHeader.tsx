@@ -44,6 +44,37 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         </div>
       </div>
 
+      <div className="fleet-stats-bar">
+        <div className="stat-pill active">
+          <ServerIcon size={14} />
+          <span>Bridges:</span>
+          <span className="count">{bridges.length}</span>
+        </div>
+
+        <div className="stat-pill active">
+          <SmartphoneIcon size={14} />
+          <span>Devices:</span>
+          <span className="count">{devices.length}</span>
+        </div>
+
+        <div className="stat-pill">
+          <span>Odin:</span>
+          <span className="count" style={{ color: '#0969da' }}>{odinCount}</span>
+        </div>
+
+        <div className="stat-pill">
+          <span>ADB:</span>
+          <span className="count" style={{ color: '#1a7f37' }}>{adbCount}</span>
+        </div>
+
+        {activeFlashCount > 0 && (
+          <div className="stat-pill" style={{ borderColor: 'var(--status-flashing-border)' }}>
+            <span>Flashing:</span>
+            <span className="count" style={{ color: '#d29922' }}>{activeFlashCount}</span>
+          </div>
+        )}
+      </div>
+
       {/* Action Group: Online Badge, Reload, Update, ThemeToggle - 1 inline row with equal height */}
       <div className="header-actions-row">
         <div
@@ -51,27 +82,18 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
           style={{
             borderColor: isConnected ? 'var(--status-ready-border)' : 'var(--status-fail-border)',
             color: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
-            fontSize: '0.7rem',
-            padding: '0 0.45rem',
-            height: '28px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-            boxSizing: 'border-box',
           }}
         >
           <span
             style={{
-              width: '6px',
-              height: '6px',
+              width: '7px',
+              height: '7px',
               borderRadius: '50%',
               backgroundColor: isConnected ? 'var(--status-ready-text)' : 'var(--status-fail-text)',
               flexShrink: 0,
             }}
           />
-          <span style={{ whiteSpace: 'nowrap' }}>{isConnected ? 'Hub Online' : 'Hub Offline'}</span>
+          <span>{isConnected ? 'Hub Online' : 'Hub Offline'}</span>
         </div>
 
         <button
@@ -93,37 +115,6 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         </button>
 
         <ThemeToggle />
-      </div>
-
-      <div className="fleet-stats-bar">
-        <div className="stat-pill active">
-          <ServerIcon size={12} />
-          <span>Bridges:</span>
-          <span className="count">{bridges.length}</span>
-        </div>
-
-        <div className="stat-pill active">
-          <SmartphoneIcon size={12} />
-          <span>Devices:</span>
-          <span className="count">{devices.length}</span>
-        </div>
-
-        <div className="stat-pill">
-          <span>Odin:</span>
-          <span className="count" style={{ color: '#0969da' }}>{odinCount}</span>
-        </div>
-
-        <div className="stat-pill">
-          <span>ADB:</span>
-          <span className="count" style={{ color: '#1a7f37' }}>{adbCount}</span>
-        </div>
-
-        {activeFlashCount > 0 && (
-          <div className="stat-pill" style={{ borderColor: 'var(--status-flashing-border)' }}>
-            <span>Flashing:</span>
-            <span className="count" style={{ color: '#d29922' }}>{activeFlashCount}</span>
-          </div>
-        )}
       </div>
     </header>
   );
