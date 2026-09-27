@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { DeviceItem } from '../hooks/useFlashKitSort';
+import { DeviceItem, isFirmwareForModel } from '../hooks/useFlashKitSort';
+import { BinaryItem } from '../hooks/useFleetWebSocket';
 import { ChevronDownIcon, ChevronUpIcon } from './Icons';
 import { ProgressRing } from './ProgressRing';
 
 interface RunningWorkflowAccordionProps {
   devices: DeviceItem[];
   apFilename?: string;
+  lastFlashedAp?: string;
   deviceApMap?: Record<string, string>;
+  binaries?: BinaryItem[];
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
 }
@@ -14,7 +17,9 @@ interface RunningWorkflowAccordionProps {
 export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> = ({
   devices,
   apFilename,
+  lastFlashedAp,
   deviceApMap,
+  binaries,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -89,7 +94,20 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
             const taskDescription =
               device.currentTask || (isOdinStage ? 'Flashing Firmware...' : 'Processing Workflow...');
 
-            const apVersion = deviceApMap?.[device.id] || apFilename;
+            // Multi-tier AP resolution to ensure Line 5 AP filename always renders accurately
+            let apVersion = deviceApMap?.[device.id];
+            if (!apVersion && apFilename && apFilename.trim()) {
+              apVersion = apFilename;
+            }
+            if (!apVersion && lastFlashedAp && lastFlashedAp.trim()) {
+              apVersion = lastFlashedAp;
+            }
+            if (!apVersion && binaries && binaries.length > 0) {
+              const matched = binaries.find((b) => isFirmwareForModel(b.filename, device.model));
+              if (matched) {
+                apVersion = matched.filename;
+              }
+            }
 
             return (
               <div
