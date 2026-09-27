@@ -1,6 +1,6 @@
 {
   "name": "octopus-hub-server",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Central WebSocket & REST Server for Octopus Fleet Web Hub",
   "main": "src/index.ts",
   "scripts": {
