@@ -1,60 +1,79 @@
-# Octopus 🐙
+# Octopus
 
-Distributed Fleet Web-Managed Provisioning Suite with Lightweight Native Rust Agent Bridge for Linux (Ubuntu) & Windows.
+Distributed fleet firmware flashing and provisioning suite for Samsung Android devices across remote Linux (Ubuntu) and Windows workstation nodes.
 
----
-
-## Key Highlights
-
-- **Centralized Web UI & Control Hub**: Manage, flash, bypass SUW, configure Wi-Fi, and run AT exploits across all remote PC nodes from a single modern browser interface.
-- **Better UI & Ponytail Design Engineering**:
-  - **Ifta Label Firmware Input System**: In-field floating slot labels (`BL`, `AP`, `CP`, `CSC`, `USERDATA`) maximizing 100% horizontal filename width.
-  - **Clean Monochromatic Minimal Aesthetics**: Zero decorative emojis, uncluttered headers, and high-contrast status pills.
-  - **Responsive Dual-Tier Progress Rings**: Vertical-stacked progress badges (`Odin` flash phase & `Workflow` overall) in running workflow view.
-  - **Mobile-Optimized Modal File Picker**: Compact viewport layout with side-by-side workstation selector and icon-only rescan action.
-  - Industrial density Table Matrix view & Card Grid view with zero layout shifts.
-  - Dark Mode & Light Mode support with smooth spring transitions and `localStorage` persistence.
-  - Physical micro-interactions: card hover lift, button scale feedback (`active: scale(0.97)`), slide-over live terminal drawer.
-- **FlashKit Multi-Tier Sorting Rules**:
-  1. **AP Firmware Model Matching**: Prioritizes matching target models to the top when AP firmware filename is entered.
-  2. **Status Weight Ranking**: `Ready` (Weight 3) > `Flashing...` / `Pass` (Weight 2) > `Busy` / `Offline` / `Fail` (Weight 1).
-  3. **Deterministic Fallback**: Alphanumeric sort by `PC ID` $\rightarrow$ `Port / DevNode` $\rightarrow$ `Device ID`.
-- **Lightweight Rust Agent Bridge (`agent-bridge`)**:
-  - Memory footprint < 15MB.
-  - Native hardware detection (ADB + Odin / USB devnodes / Windows COM ports).
-  - Preserves exact user-defined Workstation ID without forced case transformation.
-  - Real-time WebSocket connection to Web Hub.
+![Octopus Fleet Hub Dashboard](docs/screenshots/dashboard.png)
 
 ---
 
-## Directory Structure
+## Features
+
+### Central Web Hub & Dashboard
+- **Fleet Management**: Monitor connected devices across multiple bridge PCs simultaneously with real-time status updates via WebSockets.
+- **Firmware Slots**: Slot ingestion for `BL`, `AP`, `CP`, `CSC`, and `USERDATA` binaries with automated MD5 verification and background progress tracking.
+- **Model Matching**: Automatically matches target devices to uploaded firmware and highlights suggested batches for instant execution.
+- **Model Chip Filters**: Quick model filter chips sorted in ascending order, with a thin blue hairline indicator for models currently connected and ready on the bench.
+- **Workflow Pipeline Tracking**: Live progress monitoring with dual-ring progress indicators (Odin flash stage and overall workflow progress), per-device AP firmware version display, and live terminal drawer logs.
+- **Standby Device Matrix**: Clean table view with sorting, filtering, and model badge indicators.
+- **Design**: Minimal interface adhering to antislop and ponytail guidelines, featuring high-contrast light and dark themes with zero layout shifts.
+
+### Native Rust Agent Bridge
+- **Ultra-Lightweight**: Native Rust binary with memory footprint under 15MB.
+- **Cross-Platform**: Runs on Linux (Ubuntu Debian package / standalone binary) and Windows (NSIS installer / portable executable).
+- **Hardware Detection**: Native detection for Odin mode devnodes, ADB endpoints, and Windows COM ports.
+- **Silent Auto-Update**: Background self-update support via GitHub Releases and signed manifests.
+
+---
+
+## Architecture
 
 ```
 octopus/
 ├── web-hub/
-│   ├── client/          # Modern React + Vite + TypeScript Frontend
-│   └── server/          # Node.js + WebSocket Fleet Hub Server
-├── agent-bridge/        # Native Rust Client Daemon (Linux & Windows)
-└── package.json         # Unified task orchestration
+│   ├── client/          # React, Vite, and TypeScript frontend
+│   └── server/          # Node.js and WebSocket fleet hub server
+├── agent-bridge/        # Native Rust client daemon (Linux and Windows)
+├── docs/                # Documentation and screenshots
+└── package.json         # Workspace scripts and task orchestration
 ```
 
 ---
 
-## Running Locally
+## Getting Started
 
-### 1. Start Central Web Hub & UI
+### 1. Run Central Web Hub with Docker
 ```bash
+docker compose up -d
+```
+- **Web App UI**: `http://localhost:4000` (or `http://localhost:3000` in dev mode)
+- **Hub WebSocket Server**: `ws://localhost:4000/ws/ui` and `ws://localhost:4000/ws/bridge`
+
+### 2. Run Local Development Server
+```bash
+# Install dependencies
+npm install
+
+# Start both client and server concurrently
 npm run dev
 ```
-- **Web App UI**: `http://localhost:3000`
-- **Hub WebSocket Server**: `ws://localhost:4000`
 
-### 2. Run Rust Agent Bridge on Worker PC (Ubuntu / Windows)
+### 3. Run Agent Bridge on Worker PC
 ```bash
 cd agent-bridge
 cargo run
 ```
-To connect to a remote hub or set custom PC ID:
+
+To connect to a specific remote hub and set a custom workstation name:
 ```bash
-HUB_URL=ws://192.168.1.50:4000/ws/bridge PC_ID=WIN11-WORKSTATION-01 cargo run
+HUB_URL=ws://192.168.1.50:4000/ws/bridge PC_ID=WORKSTATION-01 cargo run
 ```
+
+---
+
+## Release Pipeline
+
+To build and dispatch cross-platform release artifacts (Linux `.deb` & `.rpm`, Windows `.exe`, and update manifest):
+```bash
+./release.sh
+```
+Builds are signed and published via GitHub Actions to the [Releases](https://github.com/endrisusanto/octopus/releases) repository.
