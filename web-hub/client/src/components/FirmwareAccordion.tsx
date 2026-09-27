@@ -53,7 +53,12 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
 
   const hasAnyFile = Object.values(slots).some((s) => s.filename.length > 0);
   const isApVerified = slots.ap.status === 'verified';
-  const isApVerifying = slots.ap.status === 'verifying';
+  const isAnyVerifying = Object.values(slots).some((s) => s.status === 'verifying');
+  const overallProgress = (() => {
+    const active = Object.values(slots).filter((s) => s.status === 'verifying');
+    if (active.length === 0) return 100;
+    return Math.round(active.reduce((acc, curr) => acc + (curr.progress || 0), 0) / active.length);
+  })();
 
   const handlePickBinary = (slotKey: keyof FirmwareSlotsMap, filename: string) => {
     const selectedItem = binaries.find((b) => b.filename === filename) || {
@@ -114,14 +119,14 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
               FIRMWARE
             </span>
 
-            {isApVerifying && (
+            {isAnyVerifying && (
               <div style={{ display: 'flex', alignItems: 'center', marginLeft: '0.35rem' }}>
                 <ProgressRing
-                  progress={slots.ap.progress}
+                  progress={overallProgress}
                   size={24}
                   strokeWidth={2.5}
                   color="var(--accent-primary, #3b82f6)"
-                  title={`Verifikasi AP MD5: ${slots.ap.progress}%`}
+                  title={`Verifikasi MD5: ${overallProgress}%`}
                 />
               </div>
             )}
