@@ -2212,7 +2212,7 @@ dependencies = [
 
 [[package]]
 name = "octopus-agent-bridge"
-version = "1.0.12"
+version = "1.0.16"
 dependencies = [
  "futures-util",
  "hostname",
