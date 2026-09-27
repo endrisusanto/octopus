@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, RotateCcwIcon, CheckIcon, CloseIcon, FileCodeIcon } from './Icons';
 import { BinaryItem } from '../hooks/useFleetWebSocket';
+import { DeviceItem } from '../hooks/useFlashKitSort';
 import { BinarySelectModal } from './BinarySelectModal';
 import { ProgressRing } from './ProgressRing';
 
@@ -27,6 +28,7 @@ interface FirmwareAccordionProps {
   onUpdateSlotsBatch: (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => void;
   onResetAll: () => void;
   binaries: BinaryItem[];
+  devices?: DeviceItem[];
   onRefreshBinaries?: () => void;
 }
 
@@ -43,6 +45,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
   onUpdateSlotsBatch,
   onResetAll,
   binaries,
+  devices,
   onRefreshBinaries,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
@@ -367,6 +370,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
           onClose={() => setActiveSlotModal(null)}
           currentBinary={slots[activeSlotModal].filename}
           binaries={binaries}
+          devices={devices}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);
             setActiveSlotModal(null);

@@ -61,6 +61,7 @@ export const App: React.FC = () => {
     isOpen: false,
   });
   const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
+  const [deviceApMap, setDeviceApMap] = useState<Record<string, string>>({});
 
   // Sync server session state into local state
   useEffect(() => {
@@ -258,6 +259,12 @@ export const App: React.FC = () => {
       !matchedDevices.some((m) => m.id === d.id)
   );
 
+  // Check if any firmware slot is verifying MD5
+  const isMd5Verifying = Object.values(firmwareSlots).some((s) => s.status === 'verifying');
+  const md5VerifyProgress = firmwareSlots.ap.status === 'verifying'
+    ? (firmwareSlots.ap.progress || 0)
+    : (Object.values(firmwareSlots).find((s) => s.status === 'verifying')?.progress || 0);
+
   // Reset Completed Device Status back to Standby
   const handleResetDeviceStatus = (deviceId: string) => {
     setDevices((prev) =>
@@ -302,8 +309,12 @@ export const App: React.FC = () => {
   };
 
   const handleDeviceAction = (pcId: string, deviceId: string, action: string) => {
+    const apToUse = firmwareSlots.ap.filename || workflowConfig.binaryFile;
+    if (apToUse) {
+      setDeviceApMap((prev) => ({ ...prev, [deviceId]: apToUse }));
+    }
     dispatchAction(pcId, deviceId, action, {
-      apFilename: firmwareSlots.ap.filename || workflowConfig.binaryFile,
+      apFilename: apToUse,
       apPath: firmwareSlots.ap.path || firmwareSlots.ap.filename || workflowConfig.binaryFile,
       blPath: firmwareSlots.bl.path || firmwareSlots.bl.filename,
       cpPath: firmwareSlots.cp.path || firmwareSlots.cp.filename,
@@ -322,6 +333,17 @@ export const App: React.FC = () => {
   const handleRunAutomation = (targetDeviceIds: string[]) => {
     const targetDevices = devices.filter((d) => targetDeviceIds.includes(d.id));
     if (targetDevices.length === 0) return;
+
+    const apToUse = firmwareSlots.ap.filename || workflowConfig.binaryFile;
+    if (apToUse) {
+      setDeviceApMap((prev) => {
+        const next = { ...prev };
+        targetDevices.forEach((d) => {
+          next[d.id] = apToUse;
+        });
+        return next;
+      });
+    }
 
     // Optimistically update device states so they appear in RunningWorkflowAccordion immediately
     setDevices((prev) =>
@@ -342,13 +364,13 @@ export const App: React.FC = () => {
 
     for (const dev of targetDevices) {
       dispatchAction(dev.pcId, dev.id, 'WORKFLOW_PIPELINE', {
-        apFilename: firmwareSlots.ap.filename || workflowConfig.binaryFile,
+        apFilename: apToUse,
         apPath: firmwareSlots.ap.path || firmwareSlots.ap.filename || workflowConfig.binaryFile,
         blPath: firmwareSlots.bl.path || firmwareSlots.bl.filename,
         cpPath: firmwareSlots.cp.path || firmwareSlots.cp.filename,
         cscPath: firmwareSlots.csc.path || firmwareSlots.csc.filename,
         userdataPath: firmwareSlots.userdata.path || firmwareSlots.userdata.filename,
-        odinFlash: workflowConfig.odinFlash !== false && Boolean(firmwareSlots.ap.filename || workflowConfig.binaryFile),
+        odinFlash: workflowConfig.odinFlash !== false && Boolean(apToUse),
         skipSuw: workflowConfig.skipSuw,
         setupGba: workflowConfig.setupGba,
         wifiEnabled: workflowConfig.wifiEnabled,
@@ -446,6 +468,7 @@ export const App: React.FC = () => {
           onUpdateSlotsBatch={handleUpdateSlotsBatch}
           onResetAll={handleResetAllSlots}
           binaries={binaries}
+          devices={devices}
           onRefreshBinaries={handleRefreshBinaries}
         />
 
@@ -464,6 +487,8 @@ export const App: React.FC = () => {
             onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
             onOpenLogs={handleOpenLogs}
             onOpenWifiModal={() => setIsWifiModalOpen(true)}
+            isMd5Verifying={isMd5Verifying}
+            md5VerifyProgress={md5VerifyProgress}
           />
         )}
 
@@ -472,6 +497,7 @@ export const App: React.FC = () => {
           <RunningWorkflowAccordion
             devices={runningDevices}
             apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
+            deviceApMap={deviceApMap}
             onOpenLogs={handleOpenLogs}
             onAbort={(pcId, deviceId) => dispatchAction(pcId, deviceId, 'ABORT_TASK', {})}
           />
@@ -511,6 +537,8 @@ export const App: React.FC = () => {
             onOpenWifiModal={() => setIsWifiModalOpen(true)}
             apFilename={workflowConfig.binaryFile}
             isFirmwareForModel={isFirmwareForModel}
+            isMd5Verifying={isMd5Verifying}
+            md5VerifyProgress={md5VerifyProgress}
           />
         )}
       </main>

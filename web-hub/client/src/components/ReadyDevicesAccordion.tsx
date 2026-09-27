@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
 import { DeviceTableView } from './DeviceTableView';
-import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon, RefreshIcon } from './Icons';
 
 interface ReadyDevicesAccordionProps {
   devices: DeviceItem[];
@@ -18,6 +18,8 @@ interface ReadyDevicesAccordionProps {
   onOpenWifiModal?: () => void;
   apFilename?: string;
   isFirmwareForModel: (apFilename: string | undefined, modelName: string | undefined) => boolean;
+  isMd5Verifying?: boolean;
+  md5VerifyProgress?: number;
 }
 
 export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
@@ -34,6 +36,8 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
   onOpenWifiModal,
   apFilename,
   isFirmwareForModel,
+  isMd5Verifying = false,
+  md5VerifyProgress = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [modelFilter, setModelFilter] = useState<string | null>(null);
@@ -222,6 +226,8 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                 onClick={() => onRunAutomation(selectedStandbyIds)}
                 className="btn btn-primary"
                 style={{
+                  position: 'relative',
+                  overflow: 'hidden',
                   fontWeight: 700,
                   fontSize: '0.8rem',
                   display: 'flex',
@@ -230,9 +236,35 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                   padding: '0.35rem 0.85rem',
                   height: '32px',
                   whiteSpace: 'nowrap',
+                  cursor: isMd5Verifying ? 'not-allowed' : 'pointer',
                 }}
+                disabled={isMd5Verifying}
+                title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
               >
-                <PlayIcon size={14} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
+                {isMd5Verifying && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      bottom: 0,
+                      width: `${md5VerifyProgress}%`,
+                      backgroundColor: 'rgba(59, 130, 246, 0.45)',
+                      transition: 'width 0.2s linear',
+                      pointerEvents: 'none',
+                      zIndex: 0,
+                    }}
+                  />
+                )}
+                {isMd5Verifying ? (
+                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <RefreshIcon size={14} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
+                  </span>
+                ) : (
+                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <PlayIcon size={14} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
+                  </span>
+                )}
               </button>
             </div>
           )}
@@ -357,6 +389,8 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                   onClick={() => onRunAutomation(selectedStandbyIds)}
                   className="btn btn-primary"
                   style={{
+                    position: 'relative',
+                    overflow: 'hidden',
                     width: '100%',
                     height: '32px',
                     fontWeight: 700,
@@ -366,9 +400,35 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                     justifyContent: 'center',
                     gap: '0.35rem',
                     borderRadius: 'var(--radius-md)',
+                    cursor: isMd5Verifying ? 'not-allowed' : 'pointer',
                   }}
+                  disabled={isMd5Verifying}
+                  title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
                 >
-                  <PlayIcon size={13} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
+                  {isMd5Verifying && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        width: `${md5VerifyProgress}%`,
+                        backgroundColor: 'rgba(59, 130, 246, 0.45)',
+                        transition: 'width 0.2s linear',
+                        pointerEvents: 'none',
+                        zIndex: 0,
+                      }}
+                    />
+                  )}
+                  {isMd5Verifying ? (
+                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <RefreshIcon size={13} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
+                    </span>
+                  ) : (
+                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <PlayIcon size={13} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
+                    </span>
+                  )}
                 </button>
               </div>
             </>

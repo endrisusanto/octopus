@@ -1085,6 +1085,24 @@ body {
   border-color: transparent;
 }
 
+/* Connected / Ready Model on Workstation (Hairline Blue Outline) */
+.binary-chip-btn.is-connected:not(.active) {
+  border: 1px solid var(--accent-primary, #0969da);
+  color: var(--accent-text, #0969da);
+  background-color: var(--accent-subtle, rgba(9, 105, 218, 0.08));
+}
+
+.binary-chip-btn.is-connected:not(.active) .binary-chip-count {
+  border-color: var(--accent-border, #54aeff);
+  color: var(--accent-text, #0969da);
+  background-color: var(--bg-surface);
+}
+
+.binary-chip-btn.is-connected:not(.active):hover {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-hover, #0858b8);
+}
+
 .binary-item-row {
   padding: 0.75rem 1rem;
 }
@@ -1558,9 +1576,22 @@ body {
     padding: 0.35rem 0.6rem;
   }
 
-  .btn-step-pill {
+    .btn-step-pill {
     padding: 0.18rem 0.4rem;
     font-size: 0.65rem;
     gap: 0.25rem;
   }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
 }

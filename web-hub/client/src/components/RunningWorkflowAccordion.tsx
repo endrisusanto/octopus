@@ -6,6 +6,7 @@ import { ProgressRing } from './ProgressRing';
 interface RunningWorkflowAccordionProps {
   devices: DeviceItem[];
   apFilename?: string;
+  deviceApMap?: Record<string, string>;
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
 }
@@ -13,6 +14,7 @@ interface RunningWorkflowAccordionProps {
 export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> = ({
   devices,
   apFilename,
+  deviceApMap,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -86,6 +88,8 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
 
             const taskDescription =
               device.currentTask || (isOdinStage ? 'Flashing Firmware...' : 'Processing Workflow...');
+
+            const apVersion = deviceApMap?.[device.id] || apFilename;
 
             return (
               <div
@@ -209,32 +213,29 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                       </span>
                     </div>
 
-                    {/* Line 5: AP Firmware Filename */}
-                    {apFilename && (
+                    {/* Line 5: AP Firmware Filename Version */}
+                    {apVersion && (
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          overflowX: 'auto',
-                          whiteSpace: 'nowrap',
-                          scrollbarWidth: 'none',
-                          WebkitOverflowScrolling: 'touch',
-                          cursor: 'grab',
-                          maxWidth: '100%',
+                          width: '100%',
+                          wordBreak: 'break-all',
                           marginTop: '1px',
+                          display: 'flex',
+                          alignItems: 'flex-start',
                         }}
-                        title={apFilename}
+                        title={`AP Firmware: ${apVersion}`}
                       >
                         <span
                           style={{
-                            color: 'var(--accent-primary, #3b82f6)',
+                            color: 'var(--text-muted)',
                             fontFamily: 'var(--font-mono, monospace)',
-                            fontSize: '0.675rem',
-                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                            lineHeight: 1.35,
+                            wordBreak: 'break-all',
+                            whiteSpace: 'normal',
                           }}
                         >
-                          FW: {apFilename}
+                          AP: {apVersion}
                         </span>
                       </div>
                     )}

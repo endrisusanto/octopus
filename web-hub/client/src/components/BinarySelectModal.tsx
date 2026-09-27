@@ -1,13 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { CloseIcon, FileCodeIcon, RefreshIcon, CheckIcon } from './Icons';
 import { BinaryItem } from '../hooks/useFleetWebSocket';
-import { extractModelFromFirmware } from '../hooks/useFlashKitSort';
+import { extractModelFromFirmware, extractCoreModel, DeviceItem } from '../hooks/useFlashKitSort';
 
 interface BinarySelectModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentBinary: string;
   binaries: BinaryItem[];
+  devices?: DeviceItem[];
   onSave: (binaryFile: string) => void;
   onRefreshBinaries?: () => void;
 }
@@ -25,6 +26,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   onClose,
   currentBinary,
   binaries,
+  devices,
   onSave,
   onRefreshBinaries,
 }) => {
@@ -37,6 +39,32 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
 
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
 
+  // Set of connected models currently online/ready in the fleet
+  const connectedModelSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!devices) return set;
+    for (const d of devices) {
+      if (d.mode === 'offline' || d.status === 'Offline') continue;
+      const core = extractCoreModel(d.model);
+      if (core && core.length >= 3 && core !== 'ODIN' && core !== 'DEVICE' && core !== 'UNKNOWN') {
+        set.add(core.toUpperCase());
+      }
+    }
+    return set;
+  }, [devices]);
+
+  const isModelConnected = (model: string): boolean => {
+    if (connectedModelSet.size === 0) return false;
+    const cleanChip = extractCoreModel(model).toUpperCase();
+    if (!cleanChip) return false;
+    for (const connected of connectedModelSet) {
+      if (connected.includes(cleanChip) || cleanChip.includes(connected)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Extract model frequency counts from all available binaries
   const { modelCounts, availableModels } = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -46,11 +74,10 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
         counts[model] = (counts[model] || 0) + 1;
       }
     }
-    const models = Object.keys(counts).sort((a, b) => {
-      // Sort by frequency descending, then alphabetical
-      if (counts[b] !== counts[a]) return counts[b] - counts[a];
-      return a.localeCompare(b);
-    });
+    // Sort models ASC (e.g. A065F, A266B, F741B, S926B...)
+    const models = Object.keys(counts).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
     return { modelCounts: counts, availableModels: models };
   }, [binaries]);
 
@@ -157,12 +184,14 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
               {availableModels.map((model) => {
                 const count = modelCounts[model];
                 const isActive = selectedModel === model;
+                const isConnected = isModelConnected(model);
                 return (
                   <button
                     key={model}
                     type="button"
                     onClick={() => setSelectedModel((prev) => (prev === model ? null : model))}
-                    className={`binary-chip-btn ${isActive ? 'active' : ''}`}
+                    className={`binary-chip-btn ${isActive ? 'active' : ''} ${isConnected ? 'is-connected' : ''}`}
+                    title={isConnected ? `Model ${model} terhubung dan aktif di Workstation PC` : undefined}
                   >
                     <span>{model}</span>
                     <span className="binary-chip-count">{count}</span>

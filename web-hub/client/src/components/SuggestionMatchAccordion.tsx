@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
-import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon, RefreshIcon } from './Icons';
 
 interface SuggestionMatchAccordionProps {
   matchedModel: string;
@@ -16,6 +16,8 @@ interface SuggestionMatchAccordionProps {
   onUpdateWorkflowConfig: (updater: (prev: WorkflowConfig) => WorkflowConfig) => void;
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onOpenWifiModal?: () => void;
+  isMd5Verifying?: boolean;
+  md5VerifyProgress?: number;
 }
 
 export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> = ({
@@ -30,6 +32,8 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
   workflowConfig,
   onUpdateWorkflowConfig,
   onOpenWifiModal,
+  isMd5Verifying = false,
+  md5VerifyProgress = 0,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -272,6 +276,8 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
               onClick={() => onRunAutomation(selectedMatchedIds.length > 0 ? selectedMatchedIds : validMatchedDeviceIds)}
               className="btn btn-primary"
               style={{
+                position: 'relative',
+                overflow: 'hidden',
                 fontWeight: 700,
                 fontSize: '0.8rem',
                 display: 'flex',
@@ -280,10 +286,36 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                 padding: '0.35rem 0.85rem',
                 height: '32px',
                 whiteSpace: 'nowrap',
+                cursor: isMd5Verifying ? 'not-allowed' : devices.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: devices.length === 0 && !isMd5Verifying ? 0.6 : 1,
               }}
-              disabled={devices.length === 0}
+              disabled={devices.length === 0 || isMd5Verifying}
+              title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
             >
-              <PlayIcon size={14} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+              {isMd5Verifying && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: `${md5VerifyProgress}%`,
+                    backgroundColor: 'rgba(59, 130, 246, 0.45)',
+                    transition: 'width 0.2s linear',
+                    pointerEvents: 'none',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+              {isMd5Verifying ? (
+                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <RefreshIcon size={14} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
+                </span>
+              ) : (
+                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <PlayIcon size={14} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -469,6 +501,8 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
               onClick={() => onRunAutomation(selectedMatchedIds.length > 0 ? selectedMatchedIds : validMatchedDeviceIds)}
               className="btn btn-primary"
               style={{
+                position: 'relative',
+                overflow: 'hidden',
                 width: '100%',
                 height: '32px',
                 fontWeight: 700,
@@ -478,10 +512,36 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                 justifyContent: 'center',
                 gap: '0.35rem',
                 borderRadius: 'var(--radius-md)',
+                cursor: isMd5Verifying ? 'not-allowed' : devices.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: devices.length === 0 && !isMd5Verifying ? 0.6 : 1,
               }}
-              disabled={devices.length === 0}
+              disabled={devices.length === 0 || isMd5Verifying}
+              title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
             >
-              <PlayIcon size={13} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+              {isMd5Verifying && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: `${md5VerifyProgress}%`,
+                    backgroundColor: 'rgba(59, 130, 246, 0.45)',
+                    transition: 'width 0.2s linear',
+                    pointerEvents: 'none',
+                    zIndex: 0,
+                  }}
+                />
+              )}
+              {isMd5Verifying ? (
+                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <RefreshIcon size={13} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
+                </span>
+              ) : (
+                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <PlayIcon size={13} /> Jalankan Automasi ({selectedMatchedIds.length > 0 ? selectedMatchedIds.length : devices.length} Unit)
+                </span>
+              )}
             </button>
           </div>
         </div>
