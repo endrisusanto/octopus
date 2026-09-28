@@ -61,45 +61,46 @@ export const App: React.FC = () => {
     isOpen: false,
   });
   const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
-  const [deviceApMap, setDeviceApMap] = useState<Record<string, string>>({});
+  const [deviceApMap, setDeviceApMap] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('octopus_device_ap_map');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
-  // Sync server session state into local state
+  useEffect(() => {
+    try {
+      localStorage.setItem('octopus_device_ap_map', JSON.stringify(deviceApMap));
+    } catch (_) {}
+  }, [deviceApMap]);
+
+  // Sync server session state into local state safely without cyclic re-render echo
   useEffect(() => {
     if (serverSessionState) {
       if (serverSessionState.firmwareSlots) {
-        setFirmwareSlots(serverSessionState.firmwareSlots);
+        setFirmwareSlots((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(serverSessionState.firmwareSlots)) return prev;
+          return serverSessionState.firmwareSlots!;
+        });
       }
       if (serverSessionState.workflowConfig) {
-        setWorkflowConfig(serverSessionState.workflowConfig);
+        setWorkflowConfig((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(serverSessionState.workflowConfig)) return prev;
+          return serverSessionState.workflowConfig!;
+        });
       }
       if (serverSessionState.selectedDeviceIds) {
-        setSelectedIds(serverSessionState.selectedDeviceIds);
+        setSelectedIds((prev) => {
+          const prevStr = prev.slice().sort().join(',');
+          const nextStr = (serverSessionState.selectedDeviceIds || []).slice().sort().join(',');
+          if (prevStr === nextStr) return prev;
+          return serverSessionState.selectedDeviceIds!;
+        });
       }
     }
   }, [serverSessionState]);
-
-  // Sync AP filename to workflowConfig.binaryFile
-  useEffect(() => {
-    if (firmwareSlots.ap.filename) {
-      setWorkflowConfig((prev) => {
-        if (prev.binaryFile !== firmwareSlots.ap.filename) {
-          const next = { ...prev, binaryFile: firmwareSlots.ap.filename };
-          syncWorkflowConfig(next);
-          return next;
-        }
-        return prev;
-      });
-    } else {
-      setWorkflowConfig((prev) => {
-        if (prev.binaryFile !== '') {
-          const next = { ...prev, binaryFile: '' };
-          syncWorkflowConfig(next);
-          return next;
-        }
-        return prev;
-      });
-    }
-  }, [firmwareSlots.ap.filename, syncWorkflowConfig]);
 
   // Sync real-time MD5 verification progress from Bridge
   useEffect(() => {
@@ -186,10 +187,22 @@ export const App: React.FC = () => {
           });
         }
 
+        // Keep workflowConfig.binaryFile in sync with AP slot
+        const apUpdate = updates.find((u) => u.slotKey === 'ap');
+        if (apUpdate !== undefined) {
+          const nextAp = apUpdate.fileItem ? apUpdate.fileItem.filename : '';
+          setWorkflowConfig((cfg) => {
+            if (cfg.binaryFile === nextAp) return cfg;
+            const nextCfg = { ...cfg, binaryFile: nextAp };
+            syncWorkflowConfig(nextCfg);
+            return nextCfg;
+          });
+        }
+
         return nextSlots;
       });
     },
-    [bridges, dispatchAction, syncFirmwareSlots]
+    [bridges, dispatchAction, syncFirmwareSlots, syncWorkflowConfig]
   );
 
   const handleUpdateSlot = (slotKey: keyof FirmwareSlotsMap, fileItem: BinaryItem | null) => {
@@ -284,8 +297,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (matchedDevices.length > 0) {
       const valid = matchedDevices.filter((d) => !sourcePcId || d.pcId === sourcePcId).map((d) => d.id);
-      setSelectedIds(valid);
-      syncSelectedDevices(valid);
+      setSelectedIds((prev) => {
+        const prevStr = prev.slice().sort().join(',');
+        const validStr = valid.slice().sort().join(',');
+        if (prevStr === validStr) return prev;
+        syncSelectedDevices(valid);
+        return valid;
+      });
     }
   }, [activeAp, matchedDevices.length, sourcePcId, syncSelectedDevices]);
 
@@ -358,7 +376,11 @@ export const App: React.FC = () => {
     );
 
     // Unselect targeted devices
-    setSelectedIds((prev) => prev.filter((id) => !targetDeviceIds.includes(id)));
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => !targetDeviceIds.includes(id));
+      syncSelectedDevices(next);
+      return next;
+    });
 
     for (const dev of targetDevices) {
       dispatchAction(dev.pcId, dev.id, 'WORKFLOW_PIPELINE', {
@@ -496,6 +518,7 @@ export const App: React.FC = () => {
             devices={runningDevices}
             apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
             deviceApMap={deviceApMap}
+            binaries={binaries}
             onOpenLogs={handleOpenLogs}
             onAbort={(pcId, deviceId) => dispatchAction(pcId, deviceId, 'ABORT_TASK', {})}
           />

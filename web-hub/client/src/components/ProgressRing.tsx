@@ -17,7 +17,8 @@ export const ProgressRing: React.FC<ProgressRingProps> = ({
   title,
   showPercentSign = false,
 }) => {
-  const safeProgress = Math.min(Math.max(progress, 0), 100);
+  const numProgress = Number.isFinite(progress) ? Number(progress) : 0;
+  const safeProgress = Math.min(Math.max(Math.round(numProgress), 0), 100);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (safeProgress / 100) * circumference;

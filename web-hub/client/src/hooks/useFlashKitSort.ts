@@ -18,14 +18,14 @@ export interface DeviceItem {
 // Normalize full model name for display (e.g. "SM-S947B")
 export function normalizeModel(model: string | undefined): string {
   if (!model) return 'UNKNOWN';
-  const clean = model.toUpperCase().replace(/^SAMSUNG[-_ ]?/i, '').trim();
+  const clean = String(model).toUpperCase().replace(/^SAMSUNG[-_ ]?/i, '').trim();
   return clean.startsWith('SM-') || clean.startsWith('SM_') ? clean.replace('_', '-') : `SM-${clean}`;
 }
 
 // Extract core model code without any SM/SAMSUNG prefix (e.g. "A065F", "S947B", "A276B")
 export function extractCoreModel(name: string | undefined): string {
   if (!name) return '';
-  return name
+  return String(name)
     .toUpperCase()
     .replace(/^SAMSUNG[-_ ]?/i, '')
     .replace(/^SM[-_ ]?/i, '')
@@ -35,7 +35,7 @@ export function extractCoreModel(name: string | undefined): string {
 // Extract model code from Samsung AP/Firmware filename (e.g. "ALL_ODM_A266BXXUCDZI1..." -> "A266B", "ALL_OXM_S926BXXSHDZI1..." -> "S926B")
 export function extractModelFromFirmware(filename: string | undefined): string {
   if (!filename) return '';
-  const upper = filename.toUpperCase();
+  const upper = String(filename).toUpperCase();
 
   // Pattern 1: Scan tokens for Samsung standard model code format (e.g. A266B, A065F, S926B, F741B, S721B)
   const tokens = upper.split(/[_\-.\s/\\()]+/);
@@ -77,7 +77,7 @@ export function isFirmwareForModel(apFilename: string | undefined, deviceModel: 
     }
   }
 
-  const cleanFw = apFilename.toUpperCase();
+  const cleanFw = String(apFilename).toUpperCase();
   if (devCore && devCore.length >= 4 && cleanFw.includes(devCore)) {
     return true;
   }
@@ -86,24 +86,28 @@ export function isFirmwareForModel(apFilename: string | undefined, deviceModel: 
 }
 
 export function useFlashKitSort(
-  devices: DeviceItem[],
+  devices: DeviceItem[] = [],
   apFilename?: string,
   searchQuery: string = '',
   selectedPcId: string = 'all',
   selectedMode: string = 'all'
 ) {
   return useMemo(() => {
-    // 1. Filter
+    if (!Array.isArray(devices)) return [];
+
+    // 1. Filter defensively
     const filtered = devices.filter((dev) => {
+      if (!dev) return false;
+
       // Search query (Model, Serial, Port, PC ID)
-      if (searchQuery.trim()) {
+      if (searchQuery && searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const match =
-          dev.model.toLowerCase().includes(q) ||
-          (dev.serial && dev.serial.toLowerCase().includes(q)) ||
-          dev.port.toLowerCase().includes(q) ||
-          dev.pcId.toLowerCase().includes(q) ||
-          dev.id.toLowerCase().includes(q);
+          (dev.model ? String(dev.model).toLowerCase().includes(q) : false) ||
+          (dev.serial ? String(dev.serial).toLowerCase().includes(q) : false) ||
+          (dev.port ? String(dev.port).toLowerCase().includes(q) : false) ||
+          (dev.pcId ? String(dev.pcId).toLowerCase().includes(q) : false) ||
+          (dev.id ? String(dev.id).toLowerCase().includes(q) : false);
         if (!match) return false;
       }
 
@@ -120,8 +124,12 @@ export function useFlashKitSort(
       return true;
     });
 
-    // 2. Sort by FlashKit Rules
-    return filtered.sort((a, b) => {
+    // 2. Sort defensively using a shallow copy
+    return [...filtered].sort((a, b) => {
+      if (!a && !b) return 0;
+      if (!a) return 1;
+      if (!b) return -1;
+
       // Rule 1: AP Firmware Model Match on top
       const aMatch = isFirmwareForModel(apFilename, a.model);
       const bMatch = isFirmwareForModel(apFilename, b.model);
@@ -133,6 +141,7 @@ export function useFlashKitSort(
       // Rule 2: Status Weight Rank
       // Ready (3) > Flashing/Pass (2) > Others/Offline/Fail (1)
       const getWeight = (d: DeviceItem) => {
+        if (!d) return 0;
         if (d.status === 'Ready') return 3;
         if (d.status === 'Flashing...' || d.status === 'Pass') return 2;
         return 1;
@@ -146,13 +155,19 @@ export function useFlashKitSort(
       }
 
       // Rule 3: Deterministic Alphanumeric Fallback (PC ID -> Port -> ID)
-      if (a.pcId !== b.pcId) {
-        return a.pcId.localeCompare(b.pcId);
+      const pcA = String(a.pcId || '');
+      const pcB = String(b.pcId || '');
+      if (pcA !== pcB) {
+        return pcA.localeCompare(pcB);
       }
-      if (a.port !== b.port) {
-        return a.port.localeCompare(b.port);
+
+      const portA = String(a.port || '');
+      const portB = String(b.port || '');
+      if (portA !== portB) {
+        return portA.localeCompare(portB, undefined, { numeric: true, sensitivity: 'base' });
       }
-      return a.id.localeCompare(b.id);
+
+      return String(a.id || '').localeCompare(String(b.id || ''));
     });
   }, [devices, apFilename, searchQuery, selectedPcId, selectedMode]);
 }

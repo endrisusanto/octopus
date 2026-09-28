@@ -42,27 +42,29 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
   const [isOpen, setIsOpen] = useState(true);
   const [modelFilter, setModelFilter] = useState<string | null>(null);
 
-  if (devices.length === 0) return null;
+  if (!Array.isArray(devices) || devices.length === 0) return null;
 
   // Group summary by model
   const modelCounts: Record<string, number> = {};
   devices.forEach((d) => {
-    modelCounts[d.model] = (modelCounts[d.model] || 0) + 1;
+    if (!d) return;
+    const modelKey = d.model || 'UNKNOWN';
+    modelCounts[modelKey] = (modelCounts[modelKey] || 0) + 1;
   });
 
   // Filter devices if a model chip is active
   const displayedDevices = modelFilter
-    ? devices.filter((d) => d.model === modelFilter)
+    ? devices.filter((d) => d && d.model === modelFilter)
     : devices;
 
-  const validStandbyDevices = displayedDevices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
+  const validStandbyDevices = displayedDevices.filter((d) => d && (!sourcePcId || d.pcId === sourcePcId));
   const validStandbyIds = validStandbyDevices.map((d) => d.id);
-  const selectedStandbyIds = validStandbyIds.filter((id) => selectedIds.includes(id));
+  const selectedStandbyIds = validStandbyIds.filter((id) => (selectedIds || []).includes(id));
   const isAllStandbySelected = validStandbyIds.length > 0 && selectedStandbyIds.length === validStandbyIds.length;
 
   const handleTableSelectAll = () => {
     if (isAllStandbySelected) {
-      onSelectAll(selectedIds.filter((id) => !validStandbyIds.includes(id)));
+      onSelectAll((selectedIds || []).filter((id) => !validStandbyIds.includes(id)));
     } else {
       onSelectAll(Array.from(new Set([...selectedIds, ...validStandbyIds])));
     }

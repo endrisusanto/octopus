@@ -27,7 +27,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
     <header className="header-bar">
       <div className="brand-section">
         <img
-          src="/logo-accent.png?v=2"
+          src="/logo-light.png"
           alt="Octopus Mascot"
           className="brand-logo"
           style={{
@@ -39,8 +39,8 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
           }}
         />
         <div className="brand-text">
-          <h1 className="brand-title">OCTOPUS FLEET HUB</h1>
-          <div className="brand-subtitle">Distributed Web-Managed Provisioning Suite</div>
+          <h1 className="brand-title">OCTOPUS HUB</h1>
+          <div className="brand-subtitle">Automated Odin Firmware Orchestration Engine</div>
         </div>
       </div>
 

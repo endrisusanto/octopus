@@ -425,6 +425,59 @@ wss.on('connection', (ws, req) => {
               selectedDeviceIds: globalSelectedDeviceIds,
             });
           }
+        } else if (msg.type === 'START_WORKFLOW') {
+          const { deviceIds, config: wfConfig } = msg.payload || {};
+          if (Array.isArray(deviceIds) && deviceIds.length > 0) {
+            for (const devId of deviceIds) {
+              // Find target bridge
+              let targetPcId = '';
+              for (const [_, dev] of fleetDevices) {
+                if (dev.id === devId || dev.serial === devId || dev.port === devId) {
+                  targetPcId = dev.pcId;
+                  break;
+                }
+              }
+              if (!targetPcId && connectedBridges.size > 0) {
+                targetPcId = Array.from(connectedBridges.keys())[0];
+              }
+              const bridge = connectedBridges.get(targetPcId);
+              if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+                const fullKey = `${targetPcId}:${devId}`;
+                const dev = fleetDevices.get(fullKey);
+                if (dev) {
+                  dev.status = 'Flashing...';
+                  dev.progress = 10;
+                  dev.currentTask = 'Memulai Automasi...';
+                  broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+                }
+
+                const apFile = globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || (wfConfig?.apFilename as string) || '';
+                const apPath = globalFirmwareSlots.ap.path || globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || (wfConfig?.apPath as string) || '';
+
+                bridge.ws.send(JSON.stringify({
+                  type: 'EXECUTE_COMMAND',
+                  payload: {
+                    deviceId: devId,
+                    action: 'WORKFLOW_PIPELINE',
+                    params: {
+                      apFilename: apFile,
+                      apPath: apPath,
+                      blPath: globalFirmwareSlots.bl.path || globalFirmwareSlots.bl.filename || (wfConfig?.blPath as string) || '',
+                      cpPath: globalFirmwareSlots.cp.path || globalFirmwareSlots.cp.filename || (wfConfig?.cpPath as string) || '',
+                      cscPath: globalFirmwareSlots.csc.path || globalFirmwareSlots.csc.filename || (wfConfig?.cscPath as string) || '',
+                      userdataPath: globalFirmwareSlots.userdata.path || globalFirmwareSlots.userdata.filename || (wfConfig?.userdataPath as string) || '',
+                      odinFlash: wfConfig?.odinFlash !== false,
+                      skipSuw: wfConfig?.skipSuw !== false,
+                      setupGba: wfConfig?.setupGba !== false,
+                      wifiEnabled: wfConfig?.wifiEnabled !== false,
+                      wifiSsid: wfConfig?.wifiSsid || 'RTT / IEEE 802.11',
+                      wifiPassword: wfConfig?.wifiPassword || '1234qwer',
+                    },
+                  },
+                }));
+              }
+            }
+          }
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
           const bridge = connectedBridges.get(targetPcId);

@@ -37,21 +37,21 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
-  if (!apFilename && devices.length === 0) return null;
+  if (!apFilename && (!Array.isArray(devices) || devices.length === 0)) return null;
 
-  const validMatchedDevices = devices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
+  const validMatchedDevices = (devices || []).filter((d) => d && (!sourcePcId || d.pcId === sourcePcId));
   const validMatchedDeviceIds = validMatchedDevices.map((d) => d.id);
-  const selectedMatchedIds = validMatchedDeviceIds.filter((id) => selectedIds.includes(id));
+  const selectedMatchedIds = validMatchedDeviceIds.filter((id) => (selectedIds || []).includes(id));
   const isAllSelected = selectedMatchedIds.length === validMatchedDeviceIds.length && validMatchedDeviceIds.length > 0;
 
   const handleToggleSelectAll = () => {
     if (isAllSelected) {
       // Deselect matched
-      const remaining = selectedIds.filter((id) => !validMatchedDeviceIds.includes(id));
+      const remaining = (selectedIds || []).filter((id) => !validMatchedDeviceIds.includes(id));
       onSelectAll(remaining);
     } else {
       // Select all matched
-      const combined = Array.from(new Set([...selectedIds, ...validMatchedDeviceIds]));
+      const combined = Array.from(new Set([...(selectedIds || []), ...validMatchedDeviceIds]));
       onSelectAll(combined);
     }
   };
