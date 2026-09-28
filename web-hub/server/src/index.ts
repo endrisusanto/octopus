@@ -15,6 +15,10 @@ export interface DeviceInfo {
   progress?: number;       // 0 to 100
   currentTask?: string;    // e.g. "Flashing AP...", "SUW Bypass", "Idle"
   batteryLevel?: number;
+  batteryTemp?: number;
+  torchOn?: boolean;
+  buildType?: string;
+  pdaVersion?: string;
   lastSeen: number;
 }
 
@@ -80,6 +84,16 @@ let globalWorkflowConfig: WorkflowConfig = {
 };
 
 let globalSelectedDeviceIds: string[] = [];
+let globalRackCalibration: any = {
+  layout: [
+    [1, 1, 0, 1, 1, 0, 1, 1],
+    [1, 1, 0, 1, 1, 0, 1, 1],
+    [1, 1, 0, 1, 1, 0, 1, 1]
+  ],
+  rows: 3,
+  cols: 8,
+  slots: []
+};
 
 // ponytail: Memory-efficient fleet & binary registry
 const connectedBridges = new Map<string, BridgeNode>();
@@ -252,15 +266,17 @@ wss.on('connection', (ws, req) => {
               newKeys.add(fullKey);
 
               if (matchingActive) {
+                // If device was rebooting and is now detected back online in Ready state, clear Busy/Rebooting status!
+                const isRebootFinished = (matchingActive.currentTask?.toLowerCase().includes('reboot') || matchingActive.status === 'Busy') && d.status === 'Ready';
                 fleetDevices.set(fullKey, {
                   ...d,
                   id: primaryId,
                   pcId: bridgePcId,
                   model: matchingActive.model && matchingActive.model !== 'SAMSUNG USB' && matchingActive.model !== 'SAMSUNG ODIN' && matchingActive.model !== 'SAMSUNG (Download Mode)' ? matchingActive.model : d.model,
                   serial: matchingActive.serial || d.serial,
-                  status: matchingActive.status,
-                  progress: matchingActive.progress,
-                  currentTask: matchingActive.currentTask,
+                  status: isRebootFinished ? 'Ready' : matchingActive.status,
+                  progress: isRebootFinished ? 0 : matchingActive.progress,
+                  currentTask: isRebootFinished ? undefined : matchingActive.currentTask,
                   lastSeen: Date.now(),
                 });
               } else {
@@ -339,6 +355,17 @@ wss.on('connection', (ws, req) => {
             });
             break;
           }
+
+          case 'RACK_CALIBRATION_SYNC': {
+            if (msg.payload?.calibration) {
+              globalRackCalibration = msg.payload.calibration;
+            } else if (msg.payload) {
+              globalRackCalibration = msg.payload;
+            }
+            console.log(`[Calibration Sync] Received rack calibration from bridge PC: ${bridgePcId}`);
+            broadcastToUI('RACK_CALIBRATION_SYNC', { calibration: globalRackCalibration });
+            break;
+          }
         }
       } catch (err) {
         console.error('[Bridge Msg Parse Error]', err);
@@ -393,6 +420,17 @@ wss.on('connection', (ws, req) => {
       timestamp: Date.now(),
     }));
 
+    // Send initial rack calibration snapshot
+    if (globalRackCalibration) {
+      ws.send(JSON.stringify({
+        type: 'RACK_CALIBRATION_SYNC',
+        payload: {
+          calibration: globalRackCalibration,
+        },
+        timestamp: Date.now(),
+      }));
+    }
+
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -406,6 +444,40 @@ wss.on('connection', (ws, req) => {
               workflowConfig: globalWorkflowConfig,
               selectedDeviceIds: globalSelectedDeviceIds,
             });
+          }
+        } else if (msg.type === 'SAVE_RACK_CALIBRATION') {
+          const calibData = msg.payload?.calibration || msg.payload;
+          if (calibData) {
+            globalRackCalibration = calibData;
+            console.log(`[Calibration Save] Saved rack calibration from UI client`);
+            broadcastToUI('RACK_CALIBRATION_SYNC', { calibration: globalRackCalibration });
+            // Forward save command to all connected bridges
+            for (const bridge of connectedBridges.values()) {
+              if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+                bridge.ws.send(JSON.stringify({
+                  type: 'EXECUTE_COMMAND',
+                  payload: {
+                    deviceId: 'all',
+                    action: 'SAVE_RACK_CALIBRATION',
+                    params: { calibration: globalRackCalibration },
+                  },
+                }));
+              }
+            }
+          }
+        } else if (msg.type === 'BLINK_DEVICE' || msg.type === 'BLINK_SLOT') {
+          const { deviceId, serial } = msg.payload || {};
+          const targetSerial = serial || deviceId;
+          for (const bridge of connectedBridges.values()) {
+            if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: targetSerial,
+                  action: 'BLINK_SLOT',
+                },
+              }));
+            }
           }
         } else if (msg.type === 'SYNC_WORKFLOW_CONFIG') {
           if (msg.payload?.workflowConfig) {
@@ -478,6 +550,55 @@ wss.on('connection', (ws, req) => {
               }
             }
           }
+        } else if (msg.type === 'TOGGLE_TORCH' || msg.type === 'SET_TORCH') {
+          const { deviceId, targetPcId, serial, deviceIds, state } = msg.payload || {};
+          const targetState = state || (msg.type === 'TOGGLE_TORCH' ? 'toggle' : 'off');
+          const targetSerials: string[] = [];
+
+          if (Array.isArray(deviceIds) && deviceIds.length > 0) {
+            deviceIds.forEach((id: string) => {
+              const dev = Array.from(fleetDevices.values()).find((d) => d.id === id || d.serial === id);
+              if (dev && dev.serial) targetSerials.push(dev.serial);
+              else targetSerials.push(id);
+            });
+          } else if (serial || deviceId) {
+            targetSerials.push(serial || deviceId);
+          }
+
+          // Broadcast command to connected bridges
+          for (const [_, bridge] of connectedBridges) {
+            if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: targetSerials.length === 1 ? targetSerials[0] : (targetSerials.length === 0 ? 'ALL' : targetSerials[0]),
+                  action: targetState === 'on' ? 'TORCH_ON' : (targetState === 'off' ? 'TORCH_OFF' : 'TOGGLE_TORCH'),
+                  params: {
+                    state: targetState,
+                    deviceIds: targetSerials,
+                  },
+                },
+              }));
+            }
+          }
+
+          // Optimistically update torch state in server fleetDevices
+          for (const [_, dev] of fleetDevices) {
+            const matches = targetSerials.length === 0 ||
+              targetSerials.includes(dev.id) ||
+              (dev.serial && targetSerials.includes(dev.serial));
+
+            if (matches) {
+              if (targetState === 'on') {
+                dev.torchOn = true;
+              } else if (targetState === 'off') {
+                dev.torchOn = false;
+              } else {
+                dev.torchOn = !dev.torchOn;
+              }
+              broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+            }
+          }
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
           const bridge = connectedBridges.get(targetPcId);
@@ -486,10 +607,16 @@ wss.on('connection', (ws, req) => {
             const fullKey = `${targetPcId}:${deviceId}`;
             const dev = fleetDevices.get(fullKey);
             if (dev) {
-              dev.status = 'Flashing...';
-              dev.progress = 10;
-              dev.currentTask = 'Memulai Automasi...';
-              broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+              if (action === 'WORKFLOW_PIPELINE' || action === 'flash' || action === 'FLASH_ODIN') {
+                dev.status = 'Flashing...';
+                dev.progress = 10;
+                dev.currentTask = 'Memulai Automasi...';
+                broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+              } else if (action === 'REBOOT' || action === 'reboot' || action === 'REBOOT_DOWNLOAD' || action === 'REBOOT_RECOVERY') {
+                dev.status = 'Busy';
+                dev.currentTask = 'Rebooting...';
+                broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+              }
             }
 
             bridge.ws.send(JSON.stringify({

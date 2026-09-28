@@ -4,6 +4,7 @@ interface IconProps {
   size?: number;
   className?: string;
   style?: React.CSSProperties;
+  fill?: string;
 }
 
 export const SunIcon: React.FC<IconProps> = ({ size = 16, className = '', style }) => (
@@ -159,4 +160,26 @@ export const RotateCcwIcon: React.FC<IconProps> = ({ size = 16, className = '' }
     <path d="M3 3v5h5"/>
   </svg>
 );
+
+export const BatteryIcon: React.FC<IconProps> = ({ size = 14, className = '', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect width="16" height="10" x="2" y="7" rx="2" ry="2"/>
+    <line x1="22" x2="22" y1="11" y2="13"/>
+  </svg>
+);
+
+export const ThermometerIcon: React.FC<IconProps> = ({ size = 14, className = '', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
+  </svg>
+);
+
+export const FlashlightIcon: React.FC<IconProps> = ({ size = 14, className = '', style, fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M18 6c0 2-2 4-2 7v6a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-6C8 10 6 8 6 6V3h12v3z"/>
+    <line x1="6" x2="18" y1="6" y2="6"/>
+    <line x1="12" x2="12" y1="12" y2="12"/>
+  </svg>
+);
+
 

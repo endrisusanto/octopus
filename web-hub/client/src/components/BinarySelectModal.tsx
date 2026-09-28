@@ -35,8 +35,6 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [customBinary, setCustomBinary] = useState(currentBinary);
 
-  if (!isOpen) return null;
-
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
 
   // Set of connected models currently online/ready in the fleet
@@ -80,6 +78,8 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
     );
     return { modelCounts: counts, availableModels: models };
   }, [binaries]);
+
+  if (!isOpen) return null;
 
   const filteredBinaries = binaries.filter((b) => {
     const matchSearch =

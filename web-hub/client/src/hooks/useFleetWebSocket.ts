@@ -39,6 +39,19 @@ export interface SessionStatePayload {
   selectedDeviceIds?: string[];
 }
 
+export interface RackSlotMapping {
+  row: number;
+  col: number;
+  serial: string;
+}
+
+export interface RackCalibrationData {
+  layout: number[][];
+  rows: number;
+  cols: number;
+  slots: RackSlotMapping[];
+}
+
 export function useFleetWebSocket() {
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [bridges, setBridges] = useState<BridgeInfo[]>([]);
@@ -47,6 +60,7 @@ export function useFleetWebSocket() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [md5Progress, setMd5Progress] = useState<Md5ProgressEvent | null>(null);
   const [serverSessionState, setServerSessionState] = useState<SessionStatePayload | null>(null);
+  const [rackCalibration, setRackCalibration] = useState<RackCalibrationData | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -174,6 +188,15 @@ export function useFleetWebSocket() {
               }
               break;
             }
+
+            case 'RACK_CALIBRATION_SYNC': {
+              if (msg.payload?.calibration) {
+                setRackCalibration(msg.payload.calibration);
+              } else if (msg.payload) {
+                setRackCalibration(msg.payload);
+              }
+              break;
+            }
           }
         } catch (e) {
           console.error('[Fleet WS Msg Parse Error]', e);
@@ -237,12 +260,81 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const saveRackCalibration = useCallback((calibration: RackCalibrationData) => {
+    setRackCalibration(calibration);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SAVE_RACK_CALIBRATION',
+          payload: { calibration },
+        })
+      );
+    }
+  }, []);
+
+  const blinkDevice = useCallback((serial: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'BLINK_DEVICE',
+          payload: { serial, deviceId: serial },
+        })
+      );
+    }
+  }, []);
+
   const dispatchAction = useCallback((targetPcId: string, deviceId: string, action: string, params: any = {}) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'DISPATCH_ACTION',
           payload: { targetPcId, deviceId, action, params },
+        })
+      );
+    }
+  }, []);
+
+  const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string) => {
+    // Optimistic local state toggle
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (d.id === deviceId || d.serial === deviceId || (serial && d.serial === serial)) {
+          return { ...d, torchOn: !d.torchOn };
+        }
+        return d;
+      })
+    );
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'TOGGLE_TORCH',
+          payload: { deviceId, targetPcId, serial },
+        })
+      );
+    }
+  }, []);
+
+  const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off') => {
+    const isTargetOn = state === 'on';
+    // Optimistic local state update for all selected devices
+    setDevices((prev) =>
+      prev.map((d) => {
+        if (deviceIds.length === 0 || deviceIds.includes(d.id) || (d.serial && deviceIds.includes(d.serial))) {
+          return { ...d, torchOn: isTargetOn };
+        }
+        return d;
+      })
+    );
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SET_TORCH',
+          payload: {
+            deviceIds,
+            state,
+          },
         })
       );
     }
@@ -257,9 +349,14 @@ export function useFleetWebSocket() {
     logs,
     md5Progress,
     serverSessionState,
+    rackCalibration,
+    saveRackCalibration,
+    blinkDevice,
     syncFirmwareSlots,
     syncWorkflowConfig,
     syncSelectedDevices,
     dispatchAction,
+    toggleTorch,
+    setTorchBulk,
   };
 }

@@ -32,6 +32,7 @@ body {
   width: 100%;
   margin: 0 auto;
   padding: 1.5rem;
+  padding-bottom: 7.5rem;
 }
 
 /* Header */
@@ -501,6 +502,71 @@ body {
   border-color: var(--accent-green, #10b981);
   color: var(--accent-green, #10b981);
 }
+
+/* Standby Ready Header Actions & Stepper */
+.ready-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.ready-stepper-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ready-run-btn {
+  position: relative;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  height: 32px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .ready-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.45rem !important;
+  }
+
+  .ready-stepper-row {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.25rem !important;
+  }
+
+  .ready-stepper-row .btn-step-pill {
+    flex: 1 1 0% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.25rem 0.35rem !important;
+    font-size: 0.7rem !important;
+    text-align: center !important;
+    gap: 0.2rem !important;
+    min-width: 0 !important;
+  }
+
+  .ready-run-btn {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: center !important;
+    height: 36px !important;
+  }
+}
+
 
 /* Base Card & Accordion Card Styles */
 .card {
@@ -1595,3 +1661,116 @@ body {
 .spin {
   animation: spin 1s linear infinite;
 }
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+.bulk-btn-label {
+  display: inline;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-left: 0.35rem;
+  white-space: nowrap;
+}
+
+/* LED Animation & Matrix 2D Modal Styles */
+.led-anim-modal-card {
+  max-width: 680px;
+  width: 96%;
+  padding: 1.15rem 1.25rem;
+  border-radius: var(--radius-lg, 14px);
+  background-color: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-subtle, #334155);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 32px rgba(59, 130, 246, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-height: 94vh;
+  overflow-y: auto;
+  position: relative;
+  transition: max-width 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.led-anim-modal-card.calibration-mode {
+  max-width: 920px;
+}
+
+.led-category-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.led-category-btn {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: var(--radius-md, 8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+@media (max-width: 768px) {
+  .bulk-btn-label {
+    display: none !important;
+  }
+
+  .led-anim-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0.85rem 0.75rem !important;
+    border-radius: var(--radius-lg, 12px) !important;
+    max-height: 96vh !important;
+  }
+
+  .led-header-top {
+    padding-right: 2.2rem !important;
+  }
+
+  .led-close-btn {
+    position: absolute !important;
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+  }
+
+  .led-tab-container {
+    width: 100% !important;
+  }
+
+  .led-tab-btn {
+    flex: 1 1 0% !important;
+    text-align: center !important;
+    justify-content: center !important;
+  }
+
+  .led-preview-card {
+    padding: 0.6rem 0.5rem !important;
+  }
+
+  .led-category-btn {
+    font-size: 0.68rem !important;
+    padding: 0 0.2rem !important;
+  }
+}
+

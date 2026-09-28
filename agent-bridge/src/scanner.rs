@@ -175,9 +175,16 @@ pub fn scan_local_binaries(custom_dir: Option<&str>) -> Vec<BinaryFileInfo> {
     results
 }
 
-// ponytail: Scan ADB devices using standard native CLI
+// ponytail: Scan ADB devices using standard native CLI (parallelized for instant response)
 pub fn scan_adb_devices() -> Vec<DeviceInfo> {
-    let mut devices = Vec::new();
+    struct RawDev {
+        serial: String,
+        state: String,
+        model: String,
+        port: String,
+    }
+
+    let mut raw_list = Vec::new();
 
     if let Ok(output) = Command::new("adb").args(["devices", "-l"]).output() {
         let text = String::from_utf8_lossy(&output.stdout);
@@ -190,7 +197,7 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
                 let serial = parts[0].to_string();
-                let state = parts[1];
+                let state = parts[1].to_string();
 
                 // Parse model from line (e.g. model:SM_S908B)
                 let model = parts
@@ -208,22 +215,115 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
                 // Lock USB topology port to serial and model history
                 update_port_history(&port, &serial, &model);
 
-                devices.push(DeviceInfo {
-                    id: serial.clone(),
-                    port,
-                    serial: Some(serial),
+                raw_list.push(RawDev {
+                    serial,
+                    state,
                     model,
-                    mode: if state == "device" { "adb".to_string() } else { "recovery".to_string() },
-                    status: if state == "device" { "Ready".to_string() } else { "Offline".to_string() },
-                    progress: None,
-                    current_task: Some("ADB Connected".to_string()),
-                    battery_level: Some(85),
+                    port,
                 });
             }
         }
     }
 
+    if raw_list.is_empty() {
+        return Vec::new();
+    }
+
+    // Query health in parallel threads
+    let health_results: Vec<(Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>)> = std::thread::scope(|s| {
+        let handles: Vec<_> = raw_list
+            .iter()
+            .map(|dev| {
+                s.spawn(move || {
+                    if dev.state == "device" {
+                        get_device_health(&dev.serial)
+                    } else {
+                        (None, None, None, None, None)
+                    }
+                })
+            })
+            .collect();
+
+        handles.into_iter().map(|h| h.join().unwrap_or((None, None, None, None, None))).collect()
+    });
+
+    let mut devices = Vec::with_capacity(raw_list.len());
+    for (dev, (bat_lvl, bat_temp, torch_on, b_type, pda_ver)) in raw_list.into_iter().zip(health_results.into_iter()) {
+        devices.push(DeviceInfo {
+            id: dev.serial.clone(),
+            port: dev.port,
+            serial: Some(dev.serial),
+            model: dev.model,
+            mode: if dev.state == "device" { "adb".to_string() } else { "recovery".to_string() },
+            status: if dev.state == "device" { "Ready".to_string() } else { "Offline".to_string() },
+            progress: None,
+            current_task: Some("ADB Connected".to_string()),
+            battery_level: bat_lvl,
+            battery_temp: bat_temp,
+            torch_on,
+            build_type: b_type,
+            pda_version: pda_ver,
+        });
+    }
+
     devices
+}
+
+fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>) {
+    let out = Command::new("adb")
+        .args([
+            "-s",
+            serial,
+            "shell",
+            "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"; btype=$(getprop ro.system.build.type); [ -z \"$btype\" ] && btype=$(getprop ro.build.type); echo \"btype:$btype\"; pda=$(getprop ro.build.PDA); [ -z \"$pda\" ] && pda=$(getprop ro.boot.em.status); echo \"pda:$pda\"",
+        ])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    let mut level: Option<u32> = None;
+    let mut temp: Option<f32> = None;
+    let mut torch: Option<bool> = None;
+    let mut build_type: Option<String> = None;
+    let mut pda_version: Option<String> = None;
+
+    for line in out.lines() {
+        let line = line.trim();
+        if line.starts_with("level:") && level.is_none() {
+            if let Ok(val) = line.replace("level:", "").trim().parse::<u32>() {
+                level = Some(val);
+            }
+        } else if line.starts_with("temperature:") && temp.is_none() {
+            if let Ok(raw_temp) = line.replace("temperature:", "").trim().parse::<f32>() {
+                temp = Some(if raw_temp > 100.0 { raw_temp / 10.0 } else { raw_temp });
+            }
+        } else if line.starts_with("torch:") {
+            let val = line.replace("torch:", "").trim().to_string();
+            if val == "1" {
+                torch = Some(true);
+            } else if val == "0" {
+                torch = Some(false);
+            }
+        } else if line.starts_with("btype:") {
+            let val = line.replace("btype:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                build_type = Some(val);
+            }
+        } else if line.starts_with("pda:") {
+            let val = line.replace("pda:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                pda_version = Some(val);
+            }
+        }
+    }
+
+    (
+        level.or(Some(100)),
+        temp.or(Some(31.5)),
+        torch.or(Some(false)),
+        build_type,
+        pda_version,
+    )
 }
 
 // ponytail: Scan real Samsung Odin / Download Mode devices via USB VID:PID (04e8:685d / 04e8:6601)
@@ -284,6 +384,10 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             progress: None,
                             current_task: Some("Download Mode (Odin)".to_string()),
                             battery_level: None,
+                            battery_temp: None,
+                            torch_on: None,
+                            build_type: None,
+                            pda_version: None,
                         });
                     }
                 }
@@ -319,6 +423,10 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             progress: None,
                             current_task: Some("Download Mode (Odin)".to_string()),
                             battery_level: None,
+                            battery_temp: None,
+                            torch_on: None,
+                            build_type: None,
+                            pda_version: None,
                         });
                     }
                 }

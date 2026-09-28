@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -107,6 +108,35 @@ fn get_os_type() -> String {
     }
 }
 
+fn load_rack_calibration() -> serde_json::Value {
+    let path = PathBuf::from("/home/endri-pro/rack_matrix_calibration.json");
+    if let Ok(content) = fs::read_to_string(&path) {
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+            return val;
+        }
+    }
+    serde_json::json!({
+        "layout": [
+            [1, 1, 0, 1, 1, 0, 1, 1],
+            [1, 1, 0, 1, 1, 0, 1, 1],
+            [1, 1, 0, 1, 1, 0, 1, 1]
+        ],
+        "rows": 3,
+        "cols": 8,
+        "slots": []
+    })
+}
+
+fn save_rack_calibration(calib: &serde_json::Value) -> Result<(), String> {
+    let path = PathBuf::from("/home/endri-pro/rack_matrix_calibration.json");
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let s = serde_json::to_string_pretty(calib).map_err(|e| e.to_string())?;
+    fs::write(path, s).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // Background Worker Task
 async fn run_bridge_worker(state: AppState) {
     let os_type = get_os_type();
@@ -142,6 +172,13 @@ async fn run_bridge_worker(state: AppState) {
                     os: os_type.clone(),
                 };
                 if let Ok(json) = serde_json::to_string(&reg_msg) {
+                    let _ = write.send(Message::Text(json.into())).await;
+                }
+
+                // 1b. Send Initial Rack Calibration Sync
+                let calib = load_rack_calibration();
+                let calib_msg = OutgoingMessage::RackCalibrationSync { calibration: calib };
+                if let Ok(json) = serde_json::to_string(&calib_msg) {
                     let _ = write.send(Message::Text(json.into())).await;
                 }
 
@@ -234,6 +271,265 @@ async fn run_bridge_worker(state: AppState) {
                                                     if let Ok(json) = serde_json::to_string(&list_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "TOGGLE_TORCH"
+                                                    || exec.action == "SET_TORCH"
+                                                    || exec.action == "TORCH_ON"
+                                                    || exec.action == "TORCH_OFF"
+                                                    || exec.action == "BULK_TORCH"
+                                                    || exec.action == "TORCH_ALL_OFF"
+                                                    || exec.action == "TORCH_ALL_ON"
+                                                {
+                                                    let serial = exec.device_id.clone();
+                                                    let is_all = serial == "ALL" || serial.is_empty() || exec.action == "TORCH_ALL_OFF" || exec.action == "TORCH_ALL_ON";
+                                                    
+                                                    // Parse target state: "on", "off", or toggle
+                                                    let target_state = if exec.action == "TORCH_ON" || exec.action == "TORCH_ALL_ON" {
+                                                        "on".to_string()
+                                                    } else if exec.action == "TORCH_OFF" || exec.action == "TORCH_ALL_OFF" {
+                                                        "off".to_string()
+                                                    } else if let Some(st) = exec.params.as_ref().and_then(|p| p.get("state")).and_then(|v| v.as_str()) {
+                                                        st.to_string()
+                                                    } else {
+                                                        "toggle".to_string()
+                                                    };
+
+                                                    // Extract device list if provided in params
+                                                    let target_devs: Vec<String> = if let Some(params) = &exec.params {
+                                                        if let Some(arr) = params.get("deviceIds").or_else(|| params.get("devices")).and_then(|v| v.as_array()) {
+                                                            arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()
+                                                        } else if let Some(s) = params.get("devices").or_else(|| params.get("deviceIds")).and_then(|v| v.as_str()) {
+                                                            s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()
+                                                        } else if !serial.is_empty() && serial != "ALL" {
+                                                            vec![serial.clone()]
+                                                        } else {
+                                                            Vec::new()
+                                                        }
+                                                    } else if !serial.is_empty() && serial != "ALL" {
+                                                        vec![serial.clone()]
+                                                    } else {
+                                                        Vec::new()
+                                                    };
+
+                                                    // If turning off all, also terminate running_led animation
+                                                    if target_state == "off" || is_all {
+                                                        let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+                                                    }
+
+                                                    // Immediate UI log feedback (0ms latency)
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: if target_devs.len() == 1 { Some(target_devs[0].clone()) } else { None },
+                                                        level: "info".to_string(),
+                                                        message: if is_all || target_devs.is_empty() {
+                                                            format!("[Senter] Memproses senter SEMUA perangkat ke status: {}", target_state.to_uppercase())
+                                                        } else {
+                                                            format!("[Senter] Memproses senter ({} perangkat) ke status: {}", target_devs.len(), target_state.to_uppercase())
+                                                        },
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+
+                                                    // Spawn background task for fast parallel Python execution
+                                                    tokio::task::spawn_blocking(move || {
+                                                        let state_arg = if target_state == "toggle" {
+                                                            if target_devs.len() == 1 {
+                                                                let curr = Command::new("adb")
+                                                                    .args(["-s", &target_devs[0], "shell", "settings", "get", "secure", "flashlight_enabled"])
+                                                                    .output()
+                                                                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                                                                    .unwrap_or_default();
+                                                                if curr == "1" { "off" } else { "on" }
+                                                            } else {
+                                                                "on"
+                                                            }
+                                                        } else {
+                                                            &target_state
+                                                        };
+
+                                                        let mut cmd = Command::new("python3");
+                                                        cmd.arg("/home/endri-pro/led.py").arg(state_arg);
+                                                        if !target_devs.is_empty() {
+                                                            cmd.arg(target_devs.join(","));
+                                                        }
+                                                        let _ = cmd.current_dir("/home/endri-pro").output();
+                                                    });
+                                                } else if exec.action == "RUN_LED_ANIM" || exec.action == "RUNNING_LED" {
+                                                    let preset = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("preset"))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("all")
+                                                        .to_string();
+                                                    let is_loop = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("loop").or_else(|| p.get("isLoop")))
+                                                        .and_then(|v| v.as_bool())
+                                                        .unwrap_or(false);
+                                                    let devices_str = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("devices"))
+                                                        .and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| {
+                                                            v.as_array().map(|arr| {
+                                                                arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(",")
+                                                            })
+                                                        }))
+                                                        .unwrap_or_default();
+
+                                                    // Terminate previous running animation
+                                                    let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+                                                    let mut py_args = vec!["/home/endri-pro/running_led.py".to_string(), "--preset".to_string(), preset.clone()];
+                                                    if is_loop {
+                                                        py_args.push("--loop".to_string());
+                                                    }
+                                                    if !devices_str.is_empty() {
+                                                        py_args.push("--devices".to_string());
+                                                        py_args.push(devices_str);
+                                                    }
+
+                                                    tokio::task::spawn_blocking(move || {
+                                                        let _ = Command::new("python3")
+                                                            .args(&py_args)
+                                                            .current_dir("/home/endri-pro")
+                                                            .spawn();
+                                                    });
+
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: None,
+                                                        level: "info".to_string(),
+                                                        message: format!("[Running LED] 🎆 Memulai preset animasi '{}' (Loop: {})", preset, if is_loop { "Ya" } else { "Tidak" }),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "STOP_LED_ANIM" {
+                                                    let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: None,
+                                                        level: "info".to_string(),
+                                                        message: "[Running LED] ⏹️ Animasi running LED dihentikan.".to_string(),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "GET_RACK_CALIBRATION" {
+                                                    let calib = load_rack_calibration();
+                                                    let calib_msg = OutgoingMessage::RackCalibrationSync { calibration: calib };
+                                                    if let Ok(json) = serde_json::to_string(&calib_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "SAVE_RACK_CALIBRATION" {
+                                                    let calib_val = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("calibration"))
+                                                        .cloned()
+                                                        .unwrap_or_else(|| exec.params.clone().unwrap_or(serde_json::Value::Null));
+
+                                                    if calib_val.is_object() {
+                                                        let _ = save_rack_calibration(&calib_val);
+                                                        let calib_msg = OutgoingMessage::RackCalibrationSync { calibration: calib_val };
+                                                        if let Ok(json) = serde_json::to_string(&calib_msg) {
+                                                            let _ = write.send(Message::Text(json.into())).await;
+                                                        }
+                                                        let log_msg = OutgoingMessage::LogStream {
+                                                            device_id: None,
+                                                            level: "info".to_string(),
+                                                            message: "[Kalibrasi Rak] 💾 Konfigurasi posisi fisik 6x3 berhasil disimpan.".to_string(),
+                                                        };
+                                                        if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                            let _ = write.send(Message::Text(json.into())).await;
+                                                        }
+                                                    }
+                                                } else if exec.action == "BLINK_SLOT" || exec.action == "BLINK_DEVICE" {
+                                                    let serial = exec.device_id.clone();
+                                                    let b_serial = serial.clone();
+                                                    tokio::task::spawn_blocking(move || {
+                                                        let _ = Command::new("python3").args(["/home/endri-pro/led.py", "on", &b_serial]).output();
+                                                        std::thread::sleep(std::time::Duration::from_millis(1500));
+                                                        let _ = Command::new("python3").args(["/home/endri-pro/led.py", "off", &b_serial]).output();
+                                                    });
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: Some(serial.clone()),
+                                                        level: "info".to_string(),
+                                                        message: format!("[Kalibrasi Rak] 💡 Mengedipkan senter perangkat {}", serial),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+                                                } else if exec.action == "REBOOT" || exec.action == "reboot" || exec.action == "REBOOT_DOWNLOAD" || exec.action == "reboot_download" || exec.action == "REBOOT_RECOVERY" || exec.action == "reboot_recovery" {
+                                                    let serial = exec.device_id.clone();
+                                                    let reboot_arg: Vec<String> = if exec.action == "REBOOT_DOWNLOAD" || exec.action == "reboot_download" {
+                                                        vec!["-s".to_string(), serial.clone(), "reboot".to_string(), "download".to_string()]
+                                                    } else if exec.action == "REBOOT_RECOVERY" || exec.action == "reboot_recovery" {
+                                                        vec!["-s".to_string(), serial.clone(), "reboot".to_string(), "recovery".to_string()]
+                                                    } else {
+                                                        vec!["-s".to_string(), serial.clone(), "reboot".to_string()]
+                                                    };
+
+                                                    let target_mode = reboot_arg.last().cloned().unwrap_or_else(|| "system".to_string());
+                                                    let serial_clone = serial.clone();
+                                                    let target_mode_clone = target_mode.clone();
+                                                    let tx_reboot = tx.clone();
+
+                                                    tokio::spawn(async move {
+                                                        // 1. Dispatch adb reboot asynchronously
+                                                        let _ = tokio::task::spawn_blocking({
+                                                            let reboot_arg = reboot_arg.clone();
+                                                            move || {
+                                                                let _ = Command::new("adb").args(&reboot_arg).output();
+                                                            }
+                                                        }).await;
+
+                                                        // 2. If it is a normal system reboot, monitor until device is verified back online
+                                                        if target_mode_clone == "system" || target_mode_clone == "reboot" {
+                                                            tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                                                            let start_time = std::time::Instant::now();
+                                                            let mut verified = false;
+
+                                                            while start_time.elapsed() < std::time::Duration::from_secs(75) {
+                                                                let s_chk = serial_clone.clone();
+                                                                let is_online = tokio::task::spawn_blocking(move || {
+                                                                    let out = Command::new("adb").args(["-s", &s_chk, "get-state"]).output();
+                                                                    if let Ok(o) = out {
+                                                                        let st = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                                                                        st == "device"
+                                                                    } else {
+                                                                        false
+                                                                    }
+                                                                }).await.unwrap_or(false);
+
+                                                                if is_online {
+                                                                    verified = true;
+                                                                    break;
+                                                                }
+                                                                tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+                                                            }
+
+                                                            if verified {
+                                                                let _ = tx_reboot.send(OutgoingMessage::LogStream {
+                                                                    device_id: Some(serial_clone.clone()),
+                                                                    level: "info".to_string(),
+                                                                    message: format!("[Reboot] ✅ Perangkat {} berhasil reboot dan kembali online (Ready)", serial_clone),
+                                                                }).await;
+                                                                let _ = tx_reboot.send(OutgoingMessage::DeviceProgress {
+                                                                    device_id: serial_clone,
+                                                                    progress: 100,
+                                                                    status: Some("Ready".to_string()),
+                                                                    current_task: None,
+                                                                }).await;
+                                                            }
+                                                        }
+                                                    });
+
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: Some(serial.clone()),
+                                                        level: "info".to_string(),
+                                                        message: format!("[Reboot] Mengirim perintah reboot ({}) ke {}", target_mode, serial),
+                                                    };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
@@ -395,6 +691,11 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("1234qwer")
                                                         .to_string();
+                                                    let post_torch = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("postTorch").or_else(|| p.get("autoTorchOn")))
+                                                        .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "true" || s == "1")))
+                                                        .unwrap_or(true);
 
                                                     let device_id = exec.device_id.clone();
                                                     // Find serial and usb port if device_id is port devnode
@@ -426,6 +727,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             wifi_enabled,
                                                             wifi_ssid,
                                                             wifi_password,
+                                                            post_torch,
                                                             tx_wf,
                                                         ).await;
                                                     });

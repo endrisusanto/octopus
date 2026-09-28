@@ -12,6 +12,10 @@ export interface DeviceItem {
   progress?: number;
   currentTask?: string;
   batteryLevel?: number;
+  batteryTemp?: number;
+  torchOn?: boolean;
+  buildType?: string;
+  pdaVersion?: string;
   lastSeen: number;
 }
 

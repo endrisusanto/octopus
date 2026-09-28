@@ -10,7 +10,16 @@ pub struct DeviceInfo {
     pub status: String, // "Ready", "Flashing...", "Pass", "Fail"
     pub progress: Option<u32>,
     pub current_task: Option<String>,
+    #[serde(rename = "batteryLevel")]
     pub battery_level: Option<u32>,
+    #[serde(rename = "batteryTemp")]
+    pub battery_temp: Option<f32>,
+    #[serde(rename = "torchOn")]
+    pub torch_on: Option<bool>,
+    #[serde(rename = "buildType")]
+    pub build_type: Option<String>,
+    #[serde(rename = "pdaVersion")]
+    pub pda_version: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -61,6 +70,10 @@ pub enum OutgoingMessage {
         calculated_md5: Option<String>,
         #[serde(rename = "errorMessage")]
         error_message: Option<String>,
+    },
+    #[serde(rename = "RACK_CALIBRATION_SYNC")]
+    RackCalibrationSync {
+        calibration: serde_json::Value,
     },
 }
 

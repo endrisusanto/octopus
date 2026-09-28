@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { ChevronDownIcon, ChevronUpIcon, CheckIcon, TerminalIcon, PlayIcon, RefreshIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, CheckIcon, TerminalIcon, PlayIcon, RefreshIcon, BatteryIcon, ThermometerIcon, FlashlightIcon } from './Icons';
 
 interface CompletedWorkflowAccordionProps {
   devices: DeviceItem[];
@@ -8,6 +8,7 @@ interface CompletedWorkflowAccordionProps {
   onResetStatus: (deviceId: string) => void;
   onResetAllCompleted: () => void;
   onRerunAutomation?: (deviceIds: string[]) => void;
+  onToggleTorch?: (deviceId: string, pcId: string, serial?: string) => void;
 }
 
 export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProps> = ({
@@ -16,6 +17,7 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
   onResetStatus,
   onResetAllCompleted,
   onRerunAutomation,
+  onToggleTorch,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -139,7 +141,129 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
                 </div>
 
                 {/* Right Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  {/* Badge: Build Type [ro.system.build.type] */}
+                  {device.buildType && (
+                    <span
+                      className="stat-pill"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                        fontSize: '0.68rem',
+                        padding: '0.12rem 0.38rem',
+                        fontWeight: 700,
+                        textTransform: 'lowercase',
+                        backgroundColor: device.buildType.toLowerCase().includes('userdebug')
+                          ? 'rgba(236, 72, 153, 0.14)'
+                          : 'rgba(100, 116, 139, 0.14)',
+                        color: device.buildType.toLowerCase().includes('userdebug')
+                          ? 'var(--accent-magenta, #ec4899)'
+                          : 'var(--text-secondary, #94a3b8)',
+                        border: `1px solid ${device.buildType.toLowerCase().includes('userdebug') ? 'rgba(236, 72, 153, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
+                      }}
+                      title={`Build Type [ro.system.build.type]: ${device.buildType}`}
+                    >
+                      {device.buildType}
+                    </span>
+                  )}
+
+                  {/* Badge: AP Version [ro.build.PDA] */}
+                  {device.pdaVersion && (
+                    <span
+                      className="stat-pill"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.68rem',
+                        padding: '0.12rem 0.42rem',
+                        fontWeight: 600,
+                        backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                        color: 'var(--accent-primary, #60a5fa)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                      }}
+                      title={`AP Version [ro.build.PDA]: ${device.pdaVersion}`}
+                    >
+                      {device.pdaVersion}
+                    </span>
+                  )}
+
+                  {/* Badge: Battery */}
+                  <span
+                    className="stat-pill"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      fontSize: '0.7rem',
+                      padding: '0.12rem 0.4rem',
+                      fontWeight: 600,
+                      backgroundColor: (device.batteryLevel ?? 100) >= 50
+                        ? 'rgba(16, 185, 129, 0.12)'
+                        : 'rgba(245, 158, 11, 0.12)',
+                      color: (device.batteryLevel ?? 100) >= 50
+                        ? 'var(--accent-green, #10b981)'
+                        : 'var(--accent-warning, #f59e0b)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                    }}
+                    title={`Baterai: ${device.batteryLevel ?? 100}%`}
+                  >
+                    <BatteryIcon size={11} />
+                    <span>{device.batteryLevel ?? 100}%</span>
+                  </span>
+
+                  {/* Badge: Temp */}
+                  <span
+                    className="stat-pill"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      fontSize: '0.7rem',
+                      padding: '0.12rem 0.4rem',
+                      fontWeight: 600,
+                      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                      color: 'var(--accent-primary, #3b82f6)',
+                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                    }}
+                    title={`Suhu: ${device.batteryTemp ? (device.batteryTemp > 100 ? (device.batteryTemp / 10).toFixed(1) : device.batteryTemp.toFixed(1)) : '32.0'}°C`}
+                  >
+                    <ThermometerIcon size={11} />
+                    <span>{device.batteryTemp ? (device.batteryTemp > 100 ? (device.batteryTemp / 10).toFixed(1) : device.batteryTemp.toFixed(1)) : '32.0'}°C</span>
+                  </span>
+
+                  {/* Button: Toggle Flash */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleTorch?.(device.id, device.pcId, device.serial);
+                    }}
+                    className="btn btn-sm"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      fontSize: '0.7rem',
+                      padding: '0.12rem 0.45rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      borderRadius: 'var(--radius-sm, 4px)',
+                      backgroundColor: device.torchOn
+                        ? 'rgba(245, 158, 11, 0.25)'
+                        : 'var(--bg-subtle, rgba(255,255,255,0.05))',
+                      color: device.torchOn ? '#f59e0b' : 'var(--text-secondary)',
+                      border: `1px solid ${device.torchOn ? '#f59e0b' : 'var(--border-subtle)'}`,
+                      boxShadow: device.torchOn ? '0 0 8px rgba(245, 158, 11, 0.4)' : 'none',
+                    }}
+                    title={device.torchOn ? 'Matikan Flash' : 'Nyalakan Flash'}
+                  >
+                    <FlashlightIcon size={12} style={{ color: device.torchOn ? '#f59e0b' : 'currentColor' }} />
+                    <span>{device.torchOn ? 'FLASH ON' : 'FLASH'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => onOpenLogs(device.pcId, device.id)}

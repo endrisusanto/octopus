@@ -182,6 +182,7 @@ pub async fn execute_workflow_pipeline(
     wifi_enabled: bool,
     wifi_ssid: String,
     wifi_password: String,
+    post_torch: bool,
     tx: Sender<OutgoingMessage>,
 ) {
     let target_serial = if let Some(s) = serial_hint.filter(|s| !s.is_empty() && s != "UNKNOWN") {
@@ -755,7 +756,7 @@ pub async fn execute_workflow_pipeline(
     }
 
     // ==========================================
-    // TAHAP 6: FINALIZE
+    // TAHAP 6: FINALIZE & POST COMPLETED ACTION
     // ==========================================
     send_log(
         "info",
@@ -764,5 +765,23 @@ pub async fn execute_workflow_pipeline(
             target_serial
         ),
     );
-    send_progress(100, Some("Pass"), Some("Automasi Selesai"));
+
+    // Post Completed Action: Menyalakan senter jika opsi diaktifkan
+    if post_torch {
+        send_log(
+            "info",
+            format!(
+                "[Workflow] 💡 Menyalakan senter untuk {} sebagai penanda workflow selesai (Post Completed Action)...",
+                target_serial
+            ),
+        );
+        let _ = Command::new("python3")
+            .args(["/home/endri-pro/led.py", "on", &target_serial])
+            .current_dir("/home/endri-pro")
+            .output();
+
+        send_progress(100, Some("Pass"), Some("Automasi Selesai (Senter ON)"));
+    } else {
+        send_progress(100, Some("Pass"), Some("Automasi Selesai"));
+    }
 }

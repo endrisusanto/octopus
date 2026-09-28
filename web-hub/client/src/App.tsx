@@ -10,6 +10,9 @@ import { CompletedWorkflowAccordion } from './components/CompletedWorkflowAccord
 import { ReadyDevicesAccordion } from './components/ReadyDevicesAccordion';
 import { LogDrawer } from './components/LogDrawer';
 import { WifiConfigModal } from './components/WifiConfigModal';
+import { BulkActionBar } from './components/BulkActionBar';
+import { LedAnimationModal } from './components/LedAnimationModal';
+import { AutomationConfirmModal } from './components/AutomationConfirmModal';
 import { SearchIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
@@ -22,16 +25,22 @@ export const App: React.FC = () => {
     logs,
     md5Progress,
     serverSessionState,
+    rackCalibration,
+    saveRackCalibration,
+    blinkDevice,
     syncFirmwareSlots,
     syncWorkflowConfig,
     syncSelectedDevices,
     dispatchAction,
+    toggleTorch,
+    setTorchBulk,
   } = useFleetWebSocket();
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPcId, setSelectedPcId] = useState('all');
   const [selectedMode, setSelectedMode] = useState('all');
+  const [isLedModalOpen, setIsLedModalOpen] = useState(false);
 
   // Firmware 5-Slot State
   const [firmwareSlots, setFirmwareSlots] = useState<FirmwareSlotsMap>({
@@ -345,8 +354,19 @@ export const App: React.FC = () => {
     });
   };
 
-  // Run Automation specifically for matched group or target selection
+  // Automation Confirmation State
+  const [confirmTargetIds, setConfirmTargetIds] = useState<string[] | null>(null);
+
+  // Trigger Confirmation Modal when user clicks "Jalankan Automasi"
   const handleRunAutomation = (targetDeviceIds: string[]) => {
+    if (!targetDeviceIds || targetDeviceIds.length === 0) return;
+    setConfirmTargetIds(targetDeviceIds);
+  };
+
+  // Execute Automation after user confirms in the modal
+  const executeConfirmedAutomation = (postTorch: boolean) => {
+    if (!confirmTargetIds || confirmTargetIds.length === 0) return;
+    const targetDeviceIds = confirmTargetIds;
     const targetDevices = devices.filter((d) => targetDeviceIds.includes(d.id));
     if (targetDevices.length === 0) return;
 
@@ -396,11 +416,31 @@ export const App: React.FC = () => {
         wifiEnabled: workflowConfig.wifiEnabled,
         wifiSsid: workflowConfig.wifiSsid,
         wifiPassword: workflowConfig.wifiPassword,
+        postTorch,
       });
     }
 
     // Reset firmware slots after triggering automation
     handleResetAllSlots();
+    setConfirmTargetIds(null);
+  };
+
+  const handleBulkTorch = (targetDeviceIds: string[], state: 'on' | 'off') => {
+    setTorchBulk(targetDeviceIds, state);
+  };
+
+  const handleBulkDispatch = (targetDeviceIds: string[], action: string, params: any = {}) => {
+    targetDeviceIds.forEach((id) => {
+      const dev = devices.find((d) => d.id === id);
+      if (dev) {
+        dispatchAction(dev.pcId, dev.id, action, params);
+      }
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+    syncSelectedDevices([]);
   };
 
   const handleTriggerAgentUpdate = () => {
@@ -507,6 +547,7 @@ export const App: React.FC = () => {
             onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
             onOpenLogs={handleOpenLogs}
             onOpenWifiModal={() => setIsWifiModalOpen(true)}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
             isMd5Verifying={isMd5Verifying}
             md5VerifyProgress={md5VerifyProgress}
           />
@@ -532,6 +573,7 @@ export const App: React.FC = () => {
             onResetStatus={handleResetDeviceStatus}
             onResetAllCompleted={handleResetAllCompleted}
             onRerunAutomation={handleRunAutomation}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
           />
         )}
 
@@ -552,6 +594,7 @@ export const App: React.FC = () => {
             onSelectAll={handleSelectAll}
             onOpenLogs={handleOpenLogs}
             onAction={handleDeviceAction}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
             onRunAutomation={handleRunAutomation}
             workflowConfig={workflowConfig}
             onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
@@ -563,6 +606,42 @@ export const App: React.FC = () => {
           />
         )}
       </main>
+
+      {/* Floating Multi-Device Bulk Action Bar */}
+      <BulkActionBar
+        selectedIds={selectedIds}
+        devices={devices}
+        rackCalibration={rackCalibration}
+        onSaveCalibration={saveRackCalibration}
+        onBlinkDevice={blinkDevice}
+        onDeselectAll={handleDeselectAll}
+        onToggleTorchBulk={handleBulkTorch}
+        onDispatchActionBulk={handleBulkDispatch}
+      />
+
+      {/* Standalone Matrix & Rack Calibration Modal */}
+      <LedAnimationModal
+        isOpen={isLedModalOpen}
+        onClose={() => setIsLedModalOpen(false)}
+        selectedCount={selectedIds.length}
+        devices={devices}
+        rackCalibration={rackCalibration}
+        onSaveCalibration={saveRackCalibration}
+        onBlinkDevice={blinkDevice}
+        onStartAnimation={(preset, loop, speed) => {
+          const targetPcId = bridges[0]?.pcId || 'ubuntu-desktop';
+          dispatchAction(targetPcId, 'all', 'RUN_LED_ANIM', {
+            preset,
+            loop,
+            speed,
+            devices: selectedIds.length > 0 ? selectedIds : undefined,
+          });
+        }}
+        onStopAnimation={() => {
+          const targetPcId = bridges[0]?.pcId || 'ubuntu-desktop';
+          dispatchAction(targetPcId, 'all', 'STOP_LED_ANIM', {});
+        }}
+      />
 
       {/* Slide-Over Log Drawer */}
       <LogDrawer
@@ -588,6 +667,17 @@ export const App: React.FC = () => {
             wifiPassword: cfg.password,
           }))
         }
+      />
+
+      {/* Automation Confirmation & Post-Torch Option Modal */}
+      <AutomationConfirmModal
+        isOpen={Boolean(confirmTargetIds && confirmTargetIds.length > 0)}
+        onClose={() => setConfirmTargetIds(null)}
+        onConfirm={executeConfirmedAutomation}
+        targetDeviceIds={confirmTargetIds || []}
+        devices={devices}
+        workflowConfig={workflowConfig}
+        apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
       />
     </div>
   );
