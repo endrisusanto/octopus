@@ -17,6 +17,7 @@ interface SuggestionMatchAccordionProps {
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onOpenWifiModal?: () => void;
   onToggleTorch?: (deviceId: string, pcId: string, serial?: string) => void;
+  pendingTorchIds?: string[];
   isMd5Verifying?: boolean;
   md5VerifyProgress?: number;
 }
@@ -34,6 +35,7 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
   onUpdateWorkflowConfig,
   onOpenWifiModal,
   onToggleTorch,
+  pendingTorchIds,
   isMd5Verifying = false,
   md5VerifyProgress = 0,
 }) => {
@@ -742,41 +744,71 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                         </span>
 
                         {/* Button: Toggle Flash */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleTorch?.(device.id, device.pcId, device.serial);
-                          }}
-                          className="btn btn-sm"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            fontSize: '0.72rem',
-                            padding: '0.15rem 0.5rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            borderRadius: 'var(--radius-sm, 4px)',
-                            backgroundColor: device.torchOn
-                              ? 'rgba(245, 158, 11, 0.22)'
-                              : 'var(--bg-subtle, #1e293b)',
-                            color: device.torchOn
-                              ? 'var(--accent-warning, #f59e0b)'
-                              : 'var(--text-secondary, #94a3b8)',
-                            border: device.torchOn
-                              ? '1px solid var(--accent-warning, #f59e0b)'
-                              : '1px solid var(--border-subtle, #334155)',
-                            boxShadow: device.torchOn
-                              ? '0 0 8px rgba(245, 158, 11, 0.35)'
-                              : 'none',
-                            transition: 'all 0.15s ease',
-                          }}
-                          title={device.torchOn ? 'Flash Aktif (Klik untuk Mematikan)' : 'Flash Mati (Klik untuk Menyalakan)'}
-                        >
-                          <FlashlightIcon size={13} fill={device.torchOn ? 'currentColor' : 'none'} />
-                          <span>{device.torchOn ? 'Flash ON' : 'Flash OFF'}</span>
-                        </button>
+                        {(() => {
+                          const isTorchPending = Boolean(
+                            pendingTorchIds &&
+                            (pendingTorchIds.includes(device.id) || (device.serial && pendingTorchIds.includes(device.serial)))
+                          );
+
+                          return (
+                            <button
+                              type="button"
+                              disabled={isTorchPending}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleTorch?.(device.id, device.pcId, device.serial);
+                              }}
+                              className={`btn btn-sm ${isTorchPending ? 'flash-loading-shimmer' : ''}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                fontSize: '0.72rem',
+                                padding: '0.15rem 0.5rem',
+                                fontWeight: 700,
+                                cursor: isTorchPending ? 'wait' : 'pointer',
+                                borderRadius: 'var(--radius-sm, 4px)',
+                                backgroundColor: isTorchPending
+                                  ? undefined
+                                  : device.torchOn
+                                  ? 'rgba(245, 158, 11, 0.22)'
+                                  : 'var(--bg-subtle, #1e293b)',
+                                color: isTorchPending
+                                  ? '#f59e0b'
+                                  : device.torchOn
+                                  ? 'var(--accent-warning, #f59e0b)'
+                                  : 'var(--text-secondary, #94a3b8)',
+                                border: isTorchPending
+                                  ? undefined
+                                  : device.torchOn
+                                  ? '1px solid var(--accent-warning, #f59e0b)'
+                                  : '1px solid var(--border-subtle, #334155)',
+                                boxShadow: isTorchPending
+                                  ? '0 0 10px rgba(245, 158, 11, 0.3)'
+                                  : device.torchOn
+                                  ? '0 0 8px rgba(245, 158, 11, 0.35)'
+                                  : 'none',
+                                transition: 'all 0.15s ease',
+                              }}
+                              title={
+                                isTorchPending
+                                  ? 'Memverifikasi status flash ke perangkat...'
+                                  : device.torchOn
+                                  ? 'Flash Aktif (Klik untuk Mematikan)'
+                                  : 'Flash Mati (Klik untuk Menyalakan)'
+                              }
+                            >
+                              <FlashlightIcon size={13} fill={device.torchOn ? 'currentColor' : 'none'} />
+                              <span>
+                                {isTorchPending
+                                  ? 'CEK...'
+                                  : device.torchOn
+                                  ? 'Flash ON'
+                                  : 'Flash OFF'}
+                              </span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

@@ -75,6 +75,13 @@ pub enum OutgoingMessage {
     RackCalibrationSync {
         calibration: serde_json::Value,
     },
+    #[serde(rename = "TORCH_STATUS_UPDATE")]
+    TorchStatusUpdate {
+        #[serde(rename = "deviceId")]
+        device_id: String,
+        #[serde(rename = "torchOn")]
+        torch_on: bool,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

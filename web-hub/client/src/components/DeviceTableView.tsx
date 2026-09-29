@@ -11,6 +11,7 @@ interface DeviceTableViewProps {
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAction?: (pcId: string, deviceId: string, action: string) => void;
   onToggleTorch?: (deviceId: string, pcId: string, serial?: string) => void;
+  pendingTorchIds?: string[];
   apFilename?: string;
   isFirmwareForModel: (ap?: string, model?: string) => boolean;
 }
@@ -22,6 +23,7 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
   onToggleSelect,
   onSelectAll,
   onToggleTorch,
+  pendingTorchIds,
   apFilename,
   isFirmwareForModel,
 }) => {
@@ -248,35 +250,71 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                     </span>
 
                     {/* Button: Toggle Flash */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleTorch?.(device.id, device.pcId, device.serial);
-                      }}
-                      className="btn btn-sm"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.3rem',
-                        fontSize: '0.72rem',
-                        padding: '0.15rem 0.5rem',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        borderRadius: 'var(--radius-sm, 4px)',
-                        backgroundColor: device.torchOn
-                          ? 'rgba(245, 158, 11, 0.22)'
-                          : 'var(--bg-subtle, rgba(255,255,255,0.05))',
-                        color: device.torchOn ? '#f59e0b' : 'var(--text-secondary)',
-                        border: `1px solid ${device.torchOn ? '#f59e0b' : 'var(--border-subtle)'}`,
-                        boxShadow: device.torchOn ? '0 0 8px rgba(245, 158, 11, 0.4)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={device.torchOn ? 'Matikan Flash' : 'Nyalakan Flash'}
-                    >
-                      <FlashlightIcon size={13} style={{ color: device.torchOn ? '#f59e0b' : 'currentColor' }} />
-                      <span>{device.torchOn ? 'FLASH ON' : 'FLASH'}</span>
-                    </button>
+                    {(() => {
+                      const isTorchPending = Boolean(
+                        pendingTorchIds &&
+                        (pendingTorchIds.includes(device.id) || (device.serial && pendingTorchIds.includes(device.serial)))
+                      );
+
+                      return (
+                        <button
+                          type="button"
+                          disabled={isTorchPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleTorch?.(device.id, device.pcId, device.serial);
+                          }}
+                          className={`btn btn-sm ${isTorchPending ? 'flash-loading-shimmer' : ''}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            fontSize: '0.72rem',
+                            padding: '0.15rem 0.5rem',
+                            fontWeight: 700,
+                            cursor: isTorchPending ? 'wait' : 'pointer',
+                            borderRadius: 'var(--radius-sm, 4px)',
+                            backgroundColor: isTorchPending
+                              ? undefined
+                              : device.torchOn
+                              ? 'rgba(245, 158, 11, 0.22)'
+                              : 'var(--bg-subtle, rgba(255,255,255,0.05))',
+                            color: isTorchPending ? '#f59e0b' : device.torchOn ? '#f59e0b' : 'var(--text-secondary)',
+                            border: isTorchPending
+                              ? undefined
+                              : `1px solid ${device.torchOn ? '#f59e0b' : 'var(--border-subtle)'}`,
+                            boxShadow: isTorchPending
+                              ? '0 0 10px rgba(245, 158, 11, 0.3)'
+                              : device.torchOn
+                              ? '0 0 8px rgba(245, 158, 11, 0.4)'
+                              : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                          title={
+                            isTorchPending
+                              ? 'Memverifikasi status flash ke perangkat...'
+                              : device.torchOn
+                              ? 'Matikan Flash'
+                              : 'Nyalakan Flash'
+                          }
+                        >
+                          <FlashlightIcon
+                            size={13}
+                            style={{
+                              color: device.torchOn || isTorchPending ? '#f59e0b' : 'currentColor',
+                              opacity: isTorchPending ? 0.8 : 1,
+                            }}
+                          />
+                          <span>
+                            {isTorchPending
+                              ? 'CEK...'
+                              : device.torchOn
+                              ? 'FLASH ON'
+                              : 'FLASH'}
+                          </span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>

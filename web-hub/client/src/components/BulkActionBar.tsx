@@ -13,6 +13,7 @@ interface BulkActionBarProps {
   onDeselectAll: () => void;
   onToggleTorchBulk: (deviceIds: string[], state: 'on' | 'off') => void;
   onDispatchActionBulk: (deviceIds: string[], action: string, params?: any) => void;
+  pendingTorchIds?: string[];
 }
 
 export const BulkActionBar: React.FC<BulkActionBarProps> = ({
@@ -24,6 +25,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onDeselectAll,
   onToggleTorchBulk,
   onDispatchActionBulk,
+  pendingTorchIds,
 }) => {
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -162,67 +164,87 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
           }}
         >
           {/* Action 1: Flash ON */}
-          <button
-            type="button"
-            onClick={handleTorchClick}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setIsLedModalOpen(true);
-            }}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
-            onMouseDown={handleTouchStart}
-            onMouseUp={handleTouchEnd}
-            onMouseLeave={handleTouchEnd}
-            className="btn btn-sm"
-            style={{
-              flex: '0 0 auto',
-              height: '32px',
-              padding: '0 0.65rem',
-              borderRadius: '6px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgba(245, 158, 11, 0.15)',
-              color: 'var(--accent-warning, #f59e0b)',
-              border: '1px solid rgba(245, 158, 11, 0.35)',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-            title="Flash ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Matrix 2D)"
-          >
-            <FlashlightIcon size={14} fill="currentColor" />
-            <span className="bulk-btn-label">Flash ON</span>
-          </button>
+          {(() => {
+            const isAnyPending = Boolean(
+              pendingTorchIds &&
+              selectedIds.some((id) => pendingTorchIds.includes(id))
+            );
+
+            return (
+              <button
+                type="button"
+                disabled={isAnyPending}
+                onClick={handleTorchClick}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsLedModalOpen(true);
+                }}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
+                onMouseDown={handleTouchStart}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
+                className={`btn btn-sm ${isAnyPending ? 'flash-loading-shimmer' : ''}`}
+                style={{
+                  flex: '0 0 auto',
+                  height: '32px',
+                  padding: '0 0.65rem',
+                  borderRadius: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isAnyPending ? undefined : 'rgba(245, 158, 11, 0.15)',
+                  color: 'var(--accent-warning, #f59e0b)',
+                  border: isAnyPending ? undefined : '1px solid rgba(245, 158, 11, 0.35)',
+                  cursor: isAnyPending ? 'wait' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+                title={isAnyPending ? 'Memverifikasi status flash perangkat...' : "Flash ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Matrix 2D)"}
+              >
+                <FlashlightIcon size={14} fill="currentColor" />
+                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Flash ON'}</span>
+              </button>
+            );
+          })()}
 
           {/* Action 2: Flash OFF */}
-          <button
-            type="button"
-            onClick={() => handleTorch('off')}
-            className="btn btn-sm"
-            style={{
-              flex: '0 0 auto',
-              height: '32px',
-              padding: '0 0.65rem',
-              borderRadius: '6px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'transparent',
-              color: 'var(--text-secondary, #94a3b8)',
-              border: '1px solid transparent',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease',
-            }}
-            title="Flash OFF (Matikan Semua)"
-          >
-            <FlashlightIcon size={14} fill="none" />
-            <span className="bulk-btn-label">Flash OFF</span>
-          </button>
+          {(() => {
+            const isAnyPending = Boolean(
+              pendingTorchIds &&
+              selectedIds.some((id) => pendingTorchIds.includes(id))
+            );
+
+            return (
+              <button
+                type="button"
+                disabled={isAnyPending}
+                onClick={() => handleTorch('off')}
+                className={`btn btn-sm ${isAnyPending ? 'flash-loading-shimmer' : ''}`}
+                style={{
+                  flex: '0 0 auto',
+                  height: '32px',
+                  padding: '0 0.65rem',
+                  borderRadius: '6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isAnyPending ? undefined : 'transparent',
+                  color: isAnyPending ? 'var(--accent-warning, #f59e0b)' : 'var(--text-secondary, #94a3b8)',
+                  border: isAnyPending ? undefined : '1px solid transparent',
+                  cursor: isAnyPending ? 'wait' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+                title={isAnyPending ? 'Memverifikasi status flash perangkat...' : "Flash OFF (Matikan Semua)"}
+              >
+                <FlashlightIcon size={14} fill="none" />
+                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Flash OFF'}</span>
+              </button>
+            );
+          })()}
 
           {/* Action 3: 2D Matrix & Calibration Modal */}
           <button

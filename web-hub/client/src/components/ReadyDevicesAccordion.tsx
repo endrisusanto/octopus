@@ -13,6 +13,7 @@ interface ReadyDevicesAccordionProps {
   onOpenLogs: (pcId: string, deviceId: string) => void;
   onAction: (pcId: string, deviceId: string, action: string) => void;
   onToggleTorch?: (deviceId: string, pcId: string, serial?: string) => void;
+  pendingTorchIds?: string[];
   onRunAutomation?: (deviceIds: string[]) => void;
   workflowConfig?: WorkflowConfig;
   onUpdateWorkflowConfig?: (updater: (prev: WorkflowConfig) => WorkflowConfig) => void;
@@ -32,6 +33,7 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
   onOpenLogs,
   onAction,
   onToggleTorch,
+  pendingTorchIds,
   onRunAutomation,
   workflowConfig,
   onUpdateWorkflowConfig,
@@ -309,6 +311,7 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
             onOpenLogs={onOpenLogs}
             onAction={onAction}
             onToggleTorch={onToggleTorch}
+            pendingTorchIds={pendingTorchIds}
             apFilename={apFilename}
             isFirmwareForModel={isFirmwareForModel}
           />

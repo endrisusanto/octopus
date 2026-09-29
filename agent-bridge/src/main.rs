@@ -332,13 +332,16 @@ async fn run_bridge_worker(state: AppState) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
 
-                                                    // Spawn background task for fast parallel Python execution
-                                                    tokio::task::spawn_blocking(move || {
+                                                    // Spawn background task for fast parallel Python execution and immediate verified status broadcast
+                                                    let tx_torch = tx.clone();
+                                                    let scanner_state_torch = state.clone();
+                                                    tokio::task::spawn(async move {
                                                         let state_arg = if target_state == "toggle" {
                                                             if target_devs.len() == 1 {
-                                                                let curr = Command::new("adb")
+                                                                let curr = tokio::process::Command::new("adb")
                                                                     .args(["-s", &target_devs[0], "shell", "settings", "get", "secure", "flashlight_enabled"])
                                                                     .output()
+                                                                    .await
                                                                     .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                                                                     .unwrap_or_default();
                                                                 if curr == "1" { "off" } else { "on" }
@@ -349,12 +352,50 @@ async fn run_bridge_worker(state: AppState) {
                                                             &target_state
                                                         };
 
-                                                        let mut cmd = Command::new("python3");
+                                                        let mut cmd = tokio::process::Command::new("python3");
                                                         cmd.arg("/home/endri-pro/led.py").arg(state_arg);
                                                         if !target_devs.is_empty() {
                                                             cmd.arg(target_devs.join(","));
                                                         }
-                                                        let _ = cmd.current_dir("/home/endri-pro").output();
+                                                        let _ = cmd.current_dir("/home/endri-pro").output().await;
+
+                                                        // Query actual status directly from physical devices via ADB
+                                                        let check_targets = if target_devs.is_empty() {
+                                                            let st = scanner_state_torch.status.lock().unwrap();
+                                                            st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
+                                                        } else {
+                                                            target_devs.clone()
+                                                        };
+
+                                                        for serial in check_targets {
+                                                            let out = tokio::process::Command::new("adb")
+                                                                .args(["-s", &serial, "shell", "settings", "get", "secure", "flashlight_enabled"])
+                                                                .output()
+                                                                .await
+                                                                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                                                                .unwrap_or_default();
+                                                            let is_on = out == "1";
+
+                                                            {
+                                                                let mut st = scanner_state_torch.status.lock().unwrap();
+                                                                for d in &mut st.devices {
+                                                                    if d.id == serial || d.serial.as_deref() == Some(&serial) {
+                                                                        d.torch_on = Some(is_on);
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
+                                                                device_id: serial,
+                                                                torch_on: is_on,
+                                                            }).await;
+                                                        }
+
+                                                        let devices = {
+                                                            let st = scanner_state_torch.status.lock().unwrap();
+                                                            st.devices.clone()
+                                                        };
+                                                        let _ = tx_torch.send(OutgoingMessage::DeviceList { devices }).await;
                                                     });
                                                 } else if exec.action == "RUN_LED_ANIM" || exec.action == "RUNNING_LED" {
                                                     let preset = exec.params
@@ -408,10 +449,43 @@ async fn run_bridge_worker(state: AppState) {
                                                     }
                                                 } else if exec.action == "STOP_LED_ANIM" {
                                                     let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+
+                                                    // Turn off all physical flashlights and synchronize state
+                                                    let tx_torch = tx.clone();
+                                                    let scanner_state_torch = state.clone();
+                                                    tokio::task::spawn(async move {
+                                                        let _ = tokio::process::Command::new("python3")
+                                                            .args(["/home/endri-pro/led.py", "off"])
+                                                            .current_dir("/home/endri-pro")
+                                                            .output()
+                                                            .await;
+
+                                                        let all_serials = {
+                                                            let mut st = scanner_state_torch.status.lock().unwrap();
+                                                            for d in &mut st.devices {
+                                                                d.torch_on = Some(false);
+                                                            }
+                                                            st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
+                                                        };
+
+                                                        for serial in all_serials {
+                                                            let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
+                                                                device_id: serial,
+                                                                torch_on: false,
+                                                            }).await;
+                                                        }
+
+                                                        let devices = {
+                                                            let st = scanner_state_torch.status.lock().unwrap();
+                                                            st.devices.clone()
+                                                        };
+                                                        let _ = tx_torch.send(OutgoingMessage::DeviceList { devices }).await;
+                                                    });
+
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: None,
                                                         level: "info".to_string(),
-                                                        message: "[Running LED] ⏹️ Animasi running LED dihentikan.".to_string(),
+                                                        message: "[Running LED] ⏹️ Animasi dihentikan & semua senter fisik dimatikan.".to_string(),
                                                     };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;

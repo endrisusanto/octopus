@@ -5,6 +5,7 @@ use std::process::Command;
 use std::sync::Mutex;
 
 static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
+static STATIC_PROP_CACHE: Mutex<Option<HashMap<String, (Option<String>, Option<String>)>>> = Mutex::new(None);
 
 pub fn update_port_history(port: &str, serial: &str, model: &str) {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:").to_string();
@@ -31,6 +32,35 @@ pub fn get_port_history(port: &str) -> Option<(String, String)> {
         }
     }
     None
+}
+
+pub fn get_cached_static_props(serial: &str) -> Option<(Option<String>, Option<String>)> {
+    if let Ok(lock) = STATIC_PROP_CACHE.lock() {
+        if let Some(map) = lock.as_ref() {
+            if let Some(props) = map.get(serial) {
+                if props.0.is_some() || props.1.is_some() {
+                    return Some(props.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn update_cached_static_props(serial: &str, build_type: Option<String>, pda_version: Option<String>) {
+    if serial.is_empty() {
+        return;
+    }
+    if let Ok(mut lock) = STATIC_PROP_CACHE.lock() {
+        let map = lock.get_or_insert_with(HashMap::new);
+        let entry = map.entry(serial.to_string()).or_insert((None, None));
+        if build_type.is_some() {
+            entry.0 = build_type;
+        }
+        if pda_version.is_some() {
+            entry.1 = pda_version;
+        }
+    }
 }
 
 // ponytail: Reload system udev rules and safe refresh ADB devices (matching FlashKit)
@@ -270,13 +300,17 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
 }
 
 fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>) {
+    let cached_props = get_cached_static_props(serial);
+    let need_static = cached_props.as_ref().map(|(b, p)| b.is_none() || p.is_none()).unwrap_or(true);
+
+    let shell_cmd = if need_static {
+        "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"; btype=$(getprop ro.system.build.type); [ -z \"$btype\" ] && btype=$(getprop ro.build.type); echo \"btype:$btype\"; pda=$(getprop ro.build.PDA); [ -z \"$pda\" ] && pda=$(getprop ro.boot.em.status); echo \"pda:$pda\""
+    } else {
+        "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\""
+    };
+
     let out = Command::new("adb")
-        .args([
-            "-s",
-            serial,
-            "shell",
-            "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"; btype=$(getprop ro.system.build.type); [ -z \"$btype\" ] && btype=$(getprop ro.build.type); echo \"btype:$btype\"; pda=$(getprop ro.build.PDA); [ -z \"$pda\" ] && pda=$(getprop ro.boot.em.status); echo \"pda:$pda\"",
-        ])
+        .args(["-s", serial, "shell", shell_cmd])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
@@ -284,8 +318,8 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, O
     let mut level: Option<u32> = None;
     let mut temp: Option<f32> = None;
     let mut torch: Option<bool> = None;
-    let mut build_type: Option<String> = None;
-    let mut pda_version: Option<String> = None;
+    let mut build_type: Option<String> = cached_props.as_ref().and_then(|p| p.0.clone());
+    let mut pda_version: Option<String> = cached_props.as_ref().and_then(|p| p.1.clone());
 
     for line in out.lines() {
         let line = line.trim();
@@ -315,6 +349,10 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, O
                 pda_version = Some(val);
             }
         }
+    }
+
+    if build_type.is_some() || pda_version.is_some() {
+        update_cached_static_props(serial, build_type.clone(), pda_version.clone());
     }
 
     (

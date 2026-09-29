@@ -121,3 +121,29 @@
   --accent-border: #388bfd;
   --accent-text: #58a6ff;
 }
+
+@keyframes flash-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.flash-loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(245, 158, 11, 0.12) 0%,
+    rgba(245, 158, 11, 0.38) 50%,
+    rgba(245, 158, 11, 0.12) 100%
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: flash-shimmer 1.2s infinite linear !important;
+  border: 1px solid rgba(245, 158, 11, 0.55) !important;
+  color: var(--accent-warning, #f59e0b) !important;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25) !important;
+  cursor: wait !important;
+  pointer-events: none !important;
+}
+

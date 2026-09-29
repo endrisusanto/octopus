@@ -265,10 +265,15 @@ wss.on('connection', (ws, req) => {
               const fullKey = `${bridgePcId}:${primaryId}`;
               newKeys.add(fullKey);
 
+              const existingDev = fleetDevices.get(fullKey);
+              const mergedBuildType = d.buildType || existingDev?.buildType;
+              const mergedPdaVersion = d.pdaVersion || existingDev?.pdaVersion;
+
               if (matchingActive) {
                 // If device was rebooting and is now detected back online in Ready state, clear Busy/Rebooting status!
                 const isRebootFinished = (matchingActive.currentTask?.toLowerCase().includes('reboot') || matchingActive.status === 'Busy') && d.status === 'Ready';
                 fleetDevices.set(fullKey, {
+                  ...existingDev,
                   ...d,
                   id: primaryId,
                   pcId: bridgePcId,
@@ -277,10 +282,19 @@ wss.on('connection', (ws, req) => {
                   status: isRebootFinished ? 'Ready' : matchingActive.status,
                   progress: isRebootFinished ? 0 : matchingActive.progress,
                   currentTask: isRebootFinished ? undefined : matchingActive.currentTask,
+                  buildType: mergedBuildType,
+                  pdaVersion: mergedPdaVersion,
                   lastSeen: Date.now(),
                 });
               } else {
-                fleetDevices.set(fullKey, { ...d, pcId: bridgePcId, lastSeen: Date.now() });
+                fleetDevices.set(fullKey, {
+                  ...existingDev,
+                  ...d,
+                  pcId: bridgePcId,
+                  buildType: mergedBuildType,
+                  pdaVersion: mergedPdaVersion,
+                  lastSeen: Date.now(),
+                });
               }
             }
 
@@ -353,6 +367,24 @@ wss.on('connection', (ws, req) => {
               pcId: bridgePcId,
               ...msg.payload,
             });
+            break;
+          }
+
+          case 'TORCH_STATUS_UPDATE': {
+            const { deviceId, torchOn } = msg.payload;
+            for (const [_, dev] of fleetDevices.entries()) {
+              if (dev.pcId === bridgePcId && (dev.id === deviceId || dev.serial === deviceId || dev.port === deviceId)) {
+                dev.torchOn = torchOn;
+                dev.lastSeen = Date.now();
+                broadcastToUI('TORCH_STATUS_UPDATE', {
+                  pcId: bridgePcId,
+                  deviceId: dev.id,
+                  serial: dev.serial,
+                  torchOn,
+                });
+                break;
+              }
+            }
             break;
           }
 
@@ -579,24 +611,6 @@ wss.on('connection', (ws, req) => {
                   },
                 },
               }));
-            }
-          }
-
-          // Optimistically update torch state in server fleetDevices
-          for (const [_, dev] of fleetDevices) {
-            const matches = targetSerials.length === 0 ||
-              targetSerials.includes(dev.id) ||
-              (dev.serial && targetSerials.includes(dev.serial));
-
-            if (matches) {
-              if (targetState === 'on') {
-                dev.torchOn = true;
-              } else if (targetState === 'off') {
-                dev.torchOn = false;
-              } else {
-                dev.torchOn = !dev.torchOn;
-              }
-              broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
             }
           }
         } else if (msg.type === 'DISPATCH_ACTION') {

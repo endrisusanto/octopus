@@ -34,6 +34,7 @@ export const App: React.FC = () => {
     dispatchAction,
     toggleTorch,
     setTorchBulk,
+    pendingTorchIds,
   } = useFleetWebSocket();
 
   // Search & Filter State
@@ -548,6 +549,7 @@ export const App: React.FC = () => {
             onOpenLogs={handleOpenLogs}
             onOpenWifiModal={() => setIsWifiModalOpen(true)}
             onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            pendingTorchIds={pendingTorchIds}
             isMd5Verifying={isMd5Verifying}
             md5VerifyProgress={md5VerifyProgress}
           />
@@ -574,6 +576,7 @@ export const App: React.FC = () => {
             onResetAllCompleted={handleResetAllCompleted}
             onRerunAutomation={handleRunAutomation}
             onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            pendingTorchIds={pendingTorchIds}
           />
         )}
 
@@ -595,6 +598,7 @@ export const App: React.FC = () => {
             onOpenLogs={handleOpenLogs}
             onAction={handleDeviceAction}
             onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            pendingTorchIds={pendingTorchIds}
             onRunAutomation={handleRunAutomation}
             workflowConfig={workflowConfig}
             onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
@@ -617,6 +621,7 @@ export const App: React.FC = () => {
         onDeselectAll={handleDeselectAll}
         onToggleTorchBulk={handleBulkTorch}
         onDispatchActionBulk={handleBulkDispatch}
+        pendingTorchIds={pendingTorchIds}
       />
 
       {/* Standalone Matrix & Rack Calibration Modal */}

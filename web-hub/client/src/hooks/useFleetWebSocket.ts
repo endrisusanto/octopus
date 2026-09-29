@@ -61,6 +61,7 @@ export function useFleetWebSocket() {
   const [md5Progress, setMd5Progress] = useState<Md5ProgressEvent | null>(null);
   const [serverSessionState, setServerSessionState] = useState<SessionStatePayload | null>(null);
   const [rackCalibration, setRackCalibration] = useState<RackCalibrationData | null>(null);
+  const [pendingTorchIds, setPendingTorchIds] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -88,7 +89,14 @@ export function useFleetWebSocket() {
               const incoming: DeviceItem[] = msg.payload.devices || [];
               setDevices((prev) => {
                 const activeRunning = prev.filter((p) => p.status === 'Flashing...' || p.status === 'Busy');
-                const mapped = incoming.map((inc) => {
+                const mapped: DeviceItem[] = incoming.map((inc): DeviceItem => {
+                  const previousDev = prev.find(
+                    (p) =>
+                      p.pcId === inc.pcId &&
+                      (p.id === inc.id ||
+                        (p.port && inc.port && p.port === inc.port) ||
+                        (p.serial && inc.serial && p.serial === inc.serial))
+                  );
                   const curr = activeRunning.find(
                     (p) =>
                       p.pcId === inc.pcId &&
@@ -96,6 +104,9 @@ export function useFleetWebSocket() {
                         (p.port && inc.port && p.port === inc.port) ||
                         (p.serial && inc.serial && p.serial === inc.serial))
                   );
+                  const buildType = inc.buildType || previousDev?.buildType;
+                  const pdaVersion = inc.pdaVersion || previousDev?.pdaVersion;
+
                   if (curr && inc.status === 'Ready') {
                     return {
                       ...inc,
@@ -111,9 +122,15 @@ export function useFleetWebSocket() {
                       status: curr.status,
                       progress: curr.progress ?? inc.progress,
                       currentTask: curr.currentTask ?? inc.currentTask,
+                      buildType,
+                      pdaVersion,
                     };
                   }
-                  return inc;
+                  return {
+                    ...inc,
+                    buildType,
+                    pdaVersion,
+                  };
                 });
 
                 // Preserve running devices during mode switch rebooting
@@ -141,6 +158,23 @@ export function useFleetWebSocket() {
               break;
             }
 
+            case 'TORCH_STATUS_UPDATE': {
+              const { deviceId, serial, torchOn } = msg.payload || {};
+              const targetKeys = [deviceId, serial].filter(Boolean);
+              setPendingTorchIds((prev) =>
+                prev.filter((id) => !targetKeys.includes(id))
+              );
+              setDevices((prev) =>
+                prev.map((d) => {
+                  if (d.id === deviceId || (serial && d.serial === serial) || (d.id === serial)) {
+                    return { ...d, torchOn };
+                  }
+                  return d;
+                })
+              );
+              break;
+            }
+
             case 'DEVICE_PROGRESS_UPDATE': {
               const updatedDev: DeviceItem = msg.payload;
               setDevices((prev) =>
@@ -155,6 +189,8 @@ export function useFleetWebSocket() {
                       ...d,
                       ...updatedDev,
                       id: d.id,
+                      buildType: updatedDev.buildType || d.buildType,
+                      pdaVersion: updatedDev.pdaVersion || d.pdaVersion,
                       model:
                         d.model &&
                         d.model !== 'SAMSUNG USB' &&
@@ -295,37 +331,34 @@ export function useFleetWebSocket() {
   }, []);
 
   const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string) => {
-    // Optimistic local state toggle
-    setDevices((prev) =>
-      prev.map((d) => {
-        if (d.id === deviceId || d.serial === deviceId || (serial && d.serial === serial)) {
-          return { ...d, torchOn: !d.torchOn };
-        }
-        return d;
-      })
-    );
+    const targetIds = [deviceId, ...(serial ? [serial] : [])];
+    setPendingTorchIds((prev) => Array.from(new Set([...prev, ...targetIds])));
+
+    // Determine target state from active devices for direct zero-latency execution
+    const currentDev = devices.find((d) => d.id === deviceId || d.serial === deviceId || (serial && d.serial === serial));
+    const nextState = currentDev?.torchOn ? 'off' : 'on';
+
+    // Auto timeout fallback
+    setTimeout(() => {
+      setPendingTorchIds((prev) => prev.filter((id) => !targetIds.includes(id)));
+    }, 3500);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: 'TOGGLE_TORCH',
-          payload: { deviceId, targetPcId, serial },
+          payload: { deviceId, targetPcId, serial, state: nextState },
         })
       );
     }
-  }, []);
+  }, [devices]);
 
   const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off') => {
-    const isTargetOn = state === 'on';
-    // Optimistic local state update for all selected devices
-    setDevices((prev) =>
-      prev.map((d) => {
-        if (deviceIds.length === 0 || deviceIds.includes(d.id) || (d.serial && deviceIds.includes(d.serial))) {
-          return { ...d, torchOn: isTargetOn };
-        }
-        return d;
-      })
-    );
+    setPendingTorchIds((prev) => Array.from(new Set([...prev, ...deviceIds])));
+
+    setTimeout(() => {
+      setPendingTorchIds((prev) => prev.filter((id) => !deviceIds.includes(id)));
+    }, 3500);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -358,5 +391,6 @@ export function useFleetWebSocket() {
     dispatchAction,
     toggleTorch,
     setTorchBulk,
+    pendingTorchIds,
   };
 }
