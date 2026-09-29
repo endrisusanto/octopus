@@ -409,27 +409,15 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|p| p.get("loop").or_else(|| p.get("isLoop")))
                                                         .and_then(|v| v.as_bool())
                                                         .unwrap_or(false);
-                                                    let devices_str = exec.params
-                                                        .as_ref()
-                                                        .and_then(|p| p.get("devices"))
-                                                        .and_then(|v| v.as_str().map(|s| s.to_string()).or_else(|| {
-                                                            v.as_array().map(|arr| {
-                                                                arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(",")
-                                                            })
-                                                        }))
-                                                        .unwrap_or_default();
 
-                                                    // Terminate previous running animation
-                                                    let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
-                                                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                                                    // Terminate previous running animation forcefully
+                                                    let _ = Command::new("pkill").args(["-9", "-f", "running_led.py"]).output();
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
 
+                                                    // Acuan selalu dari preset rak kalibrasi (abaikan device selection)
                                                     let mut py_args = vec!["/home/endri-pro/running_led.py".to_string(), "--preset".to_string(), preset.clone()];
                                                     if is_loop {
                                                         py_args.push("--loop".to_string());
-                                                    }
-                                                    if !devices_str.is_empty() {
-                                                        py_args.push("--devices".to_string());
-                                                        py_args.push(devices_str);
                                                     }
 
                                                     tokio::task::spawn_blocking(move || {
@@ -442,18 +430,22 @@ async fn run_bridge_worker(state: AppState) {
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: None,
                                                         level: "info".to_string(),
-                                                        message: format!("[Running LED] 🎆 Memulai preset animasi '{}' (Loop: {})", preset, if is_loop { "Ya" } else { "Tidak" }),
+                                                        message: format!("[Running LED] 🎆 Memulai preset animasi '{}' (Loop: {}) [Rak Kalibrasi]", preset, if is_loop { "Ya" } else { "Tidak" }),
                                                     };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
                                                 } else if exec.action == "STOP_LED_ANIM" {
-                                                    let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+                                                    // Forcefully kill any running animation python process
+                                                    let _ = Command::new("pkill").args(["-9", "-f", "running_led.py"]).output();
 
                                                     // Turn off all physical flashlights and synchronize state
                                                     let tx_torch = tx.clone();
                                                     let scanner_state_torch = state.clone();
                                                     tokio::task::spawn(async move {
+                                                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+                                                        // Broadcast off to all connected devices via led.py off
                                                         let _ = tokio::process::Command::new("python3")
                                                             .args(["/home/endri-pro/led.py", "off"])
                                                             .current_dir("/home/endri-pro")
@@ -468,9 +460,9 @@ async fn run_bridge_worker(state: AppState) {
                                                             st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
                                                         };
 
-                                                        for serial in all_serials {
+                                                        for serial in &all_serials {
                                                             let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
-                                                                device_id: serial,
+                                                                device_id: serial.clone(),
                                                                 torch_on: false,
                                                             }).await;
                                                         }
@@ -485,7 +477,7 @@ async fn run_bridge_worker(state: AppState) {
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: None,
                                                         level: "info".to_string(),
-                                                        message: "[Running LED] ⏹️ Animasi dihentikan & semua senter fisik dimatikan.".to_string(),
+                                                        message: "[Running LED] ⏹️ Animasi dihentikan & semua senter fisik dimatikan (broadcast off).".to_string(),
                                                     };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;

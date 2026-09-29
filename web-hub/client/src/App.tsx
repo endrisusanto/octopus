@@ -639,7 +639,6 @@ export const App: React.FC = () => {
             preset,
             loop,
             speed,
-            devices: selectedIds.length > 0 ? selectedIds : undefined,
           });
         }}
         onStopAnimation={() => {

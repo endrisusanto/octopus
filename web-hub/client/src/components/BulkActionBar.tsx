@@ -44,16 +44,15 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   };
 
   const handleStartAnimation = (preset: string, isLoop: boolean, speed: number = 0.12) => {
-    onDispatchActionBulk(selectedIds, 'RUN_LED_ANIM', {
+    onDispatchActionBulk(selectedIds.length > 0 ? selectedIds : ['all'], 'RUN_LED_ANIM', {
       preset,
       loop: isLoop,
       speed,
-      devices: selectedIds,
     });
   };
 
   const handleStopAnimation = () => {
-    onDispatchActionBulk(selectedIds, 'STOP_LED_ANIM', {});
+    onDispatchActionBulk(selectedIds.length > 0 ? selectedIds : ['all'], 'STOP_LED_ANIM', {});
   };
 
   // Touch handlers for mobile long-press
