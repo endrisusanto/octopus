@@ -72,24 +72,6 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
       { slotKey, fileItem: selectedItem },
     ];
 
-    // Auto-populate companion slots if AP is picked
-    if (slotKey === 'ap') {
-      const baseDir = selectedItem.path.substring(0, selectedItem.path.lastIndexOf('/') + 1) ||
-                      selectedItem.path.substring(0, selectedItem.path.lastIndexOf('\\') + 1);
-
-      ['bl', 'cp', 'csc', 'userdata'].forEach((k) => {
-        const key = k as keyof FirmwareSlotsMap;
-        const companion = binaries.find((b) => {
-          const prefix = key.toUpperCase() + '_';
-          const inSameDir = baseDir ? b.path.startsWith(baseDir) : true;
-          return inSameDir && b.filename.toUpperCase().startsWith(prefix);
-        });
-        if (companion) {
-          updates.push({ slotKey: key, fileItem: companion });
-        }
-      });
-    }
-
     onUpdateSlotsBatch(updates);
   };
 

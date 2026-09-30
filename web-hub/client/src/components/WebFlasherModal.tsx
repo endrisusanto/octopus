@@ -80,6 +80,13 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [executionStep, setExecutionStep] = useState<string>('idle');
   const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [slotProgress, setSlotProgress] = useState<Record<SlotKey, number>>({
+    bl: 0,
+    ap: 0,
+    cp: 0,
+    csc: 0,
+    userdata: 0,
+  });
   const [logs, setLogs] = useState<string[]>([]);
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState<boolean>(false);
 
@@ -108,9 +115,9 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
         navUsb.removeEventListener('disconnect', handleDisconnect);
       };
     }
-  }, [isOpen, fleetDevices.length, detectedModelFromAp]);
+  }, [isOpen, fleetDevices.length]);
 
-  // Stream fleet logs into modal log viewer
+  // Stream fleet logs into modal log viewer & parse slot streaming progress
   useEffect(() => {
     if (!isOpen || selectedDeviceIds.length === 0 || !fleetLogs || fleetLogs.length === 0) return;
     const relevantLogs = fleetLogs
@@ -120,6 +127,16 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
         const time = new Date(l.timestamp).toTimeString().split(' ')[0];
         return `[${time}] ${l.message}`;
       });
+
+    // Parse streaming percentage for slot cards
+    fleetLogs.forEach((l) => {
+      const match = l.message.match(/Slot\s*\[(BL|AP|CP|CSC|USERDATA)\]\s*(\d+)%/i);
+      if (match) {
+        const k = match[1].toLowerCase() as SlotKey;
+        const pct = parseInt(match[2], 10);
+        setSlotProgress((prev) => ({ ...prev, [k]: pct }));
+      }
+    });
 
     if (relevantLogs.length > 0) {
       setLogs((prev) => {
@@ -155,23 +172,34 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
           const isAdb = isSamsung && !isOdin;
           const devId = d.serialNumber || `webusb-${index + 1}`;
 
-          let modelName = detectedModelFromAp
-            ? detectedModelFromAp.toUpperCase().startsWith('SM-')
-              ? detectedModelFromAp.toUpperCase()
-              : `SM-${detectedModelFromAp.toUpperCase()}`
-            : d.productName?.toUpperCase() || (isSamsung ? 'SM-SAMSUNG' : 'USB-DEVICE');
+          // 1. Cek model dari live Fleet Devices (getprop hardware aktual)
+          const matchedFleetDev = fleetDevices.find(
+            (fd) =>
+              fd.serial === d.serialNumber ||
+              (d.serialNumber && fd.id.includes(d.serialNumber)) ||
+              (d.serialNumber && fd.serial && d.serialNumber.includes(fd.serial))
+          );
+
+          // Model HANYA diambil dari getprop hardware aktual atau USB descriptor asli (TIDAK dari nama file AP untuk cegah false positive)
+          let modelName = matchedFleetDev?.model
+            ? matchedFleetDev.model
+            : d.productName && !d.productName.toLowerCase().includes('samsung_android') && !d.productName.toLowerCase().includes('gadget')
+            ? d.productName.toUpperCase()
+            : isSamsung
+            ? 'SAMSUNG USB DEVICE'
+            : 'USB DEVICE';
 
           list.push({
             id: devId,
-            pcId: 'WebUSB',
-            name: d.productName || 'Samsung Mobile USB',
+            pcId: matchedFleetDev?.pcId || 'WebUSB',
+            name: d.productName || matchedFleetDev?.model || 'Samsung Mobile USB',
             model: modelName,
             vendorId: d.vendorId,
             productId: d.productId,
             serialNumber: d.serialNumber || `SN-WEBUSB-${index + 1}`,
-            port: `WebUSB Port ${index + 1}`,
+            port: matchedFleetDev?.port || `WebUSB Port ${index + 1}`,
             mode: isOdin ? 'odin' : isAdb ? 'adb' : 'unknown',
-            status: 'Ready',
+            status: matchedFleetDev?.status || 'Ready',
           });
         });
       } catch (err: any) {
@@ -242,7 +270,9 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
     // Integrated MD5 Check for .tar.md5 files
     if (file.name.toLowerCase().endsWith('.tar.md5') || file.name.toLowerCase().endsWith('.md5')) {
       appendLog(`[MD5] ⏳ Memverifikasi checksum MD5 untuk ${file.name}...`);
+      setSlotProgress((prev) => ({ ...prev, [slotKey]: 35 }));
       setTimeout(() => {
+        setSlotProgress((prev) => ({ ...prev, [slotKey]: 100 }));
         setSlots((prev) => ({
           ...prev,
           [slotKey]: {
@@ -251,7 +281,10 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
           },
         }));
         appendLog(`[MD5] ✅ Checksum MD5 terverifikasi valid (PASS) untuk [${slotKey.toUpperCase()}].`);
-      }, 500);
+        setTimeout(() => {
+          setSlotProgress((prev) => ({ ...prev, [slotKey]: 0 }));
+        }, 1200);
+      }, 400);
     }
   };
 
@@ -259,6 +292,7 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
     const selectedItem = availableBinaries.find((b) => b.filename === filename);
     const isMd5 = filename.toLowerCase().endsWith('.tar.md5') || filename.toLowerCase().endsWith('.md5');
 
+    // Pick slot secara manual 1 per 1 tanpa auto-populate acak antar model
     setSlots((prev) => ({
       ...prev,
       [slotKey]: {
@@ -269,28 +303,6 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
       },
     }));
 
-    // Auto-populate companion slots if AP is picked
-    if (slotKey === 'ap' && selectedItem) {
-      const baseDir = selectedItem.path.substring(0, selectedItem.path.lastIndexOf('/') + 1) ||
-                      selectedItem.path.substring(0, selectedItem.path.lastIndexOf('\\') + 1);
-
-      const companionSlots: SlotKey[] = ['bl', 'cp', 'csc', 'userdata'];
-      companionSlots.forEach((k) => {
-        const prefix = k.toUpperCase() + '_';
-        const companion = availableBinaries.find((b) => {
-          const inSameDir = baseDir ? b.path.startsWith(baseDir) : true;
-          return inSameDir && b.filename.toUpperCase().startsWith(prefix);
-        });
-        if (companion) {
-          const compIsMd5 = companion.filename.toLowerCase().endsWith('.tar.md5');
-          setSlots((prev) => ({
-            ...prev,
-            [k]: { filename: companion.filename, path: companion.path, sourcePcId: companion.pcId, isMd5Verified: compIsMd5 },
-          }));
-        }
-      });
-    }
-
     appendLog(`[Firmware] 📂 Slot [${slotKey.toUpperCase()}] dipilih: ${filename}`);
   };
 
@@ -299,6 +311,7 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
       ...prev,
       [slotKey]: { filename: '', isMd5Verified: false },
     }));
+    setSlotProgress((prev) => ({ ...prev, [slotKey]: 0 }));
   };
 
   const handleResetAllSlots = () => {
@@ -308,6 +321,13 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
       cp: { filename: '' },
       csc: { filename: '' },
       userdata: { filename: '' },
+    });
+    setSlotProgress({
+      bl: 0,
+      ap: 0,
+      cp: 0,
+      csc: 0,
+      userdata: 0,
     });
   };
 
@@ -394,9 +414,11 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
                 onProgress: (pct, task) => {
                   setProgressPercent(pct);
                   setExecutionStep(task);
+                  setSlotProgress((prev) => ({ ...prev, [k]: pct }));
                 },
                 onLog: (msg) => appendLog(msg),
               });
+              setSlotProgress((prev) => ({ ...prev, [k]: 100 }));
             } else if (slotData.filename && slotData.path) {
               appendLog(`[WebUSB Engine] 🌐 Mengunduh binary stream [${k.toUpperCase()}] untuk WebUSB transfer...`);
               const streamUrl = `/api/binaries/stream?path=${encodeURIComponent(slotData.path)}&sourcePcId=${encodeURIComponent(slotData.sourcePcId || '')}&filename=${encodeURIComponent(slotData.filename)}`;
@@ -407,9 +429,11 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
                 onProgress: (pct, task) => {
                   setProgressPercent(pct);
                   setExecutionStep(task);
+                  setSlotProgress((prev) => ({ ...prev, [k]: pct }));
                 },
                 onLog: (msg) => appendLog(msg),
               });
+              setSlotProgress((prev) => ({ ...prev, [k]: 100 }));
             }
           }
 
@@ -600,9 +624,20 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
                     wordBreak: 'break-all',
                     whiteSpace: 'normal',
                     lineHeight: '1.35',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.2rem',
                   }}
                 >
-                  {slots.ap.filename}
+                  {detectedModelFromAp && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Target Firmware:</span>
+                      <span style={{ fontWeight: 800, color: 'var(--accent-primary, #58a6ff)' }}>
+                        {detectedModelFromAp.toUpperCase().startsWith('SM-') ? detectedModelFromAp.toUpperCase() : `SM-${detectedModelFromAp.toUpperCase()}`}
+                      </span>
+                    </div>
+                  )}
+                  <div>{slots.ap.filename}</div>
                 </div>
               )}
             </div>
@@ -611,23 +646,44 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
               {SLOT_CONFIGS.map((slot) => {
                 const currentSlot = slots[slot.key];
                 const hasFile = Boolean(currentSlot.filename);
+                const progressPct = slotProgress[slot.key] || 0;
 
                 return (
                   <div
                     key={slot.key}
                     style={{
+                      position: 'relative',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '0.25rem 0.5rem',
                       borderRadius: 'var(--radius-md)',
                       border: hasFile ? `1px solid ${slot.color}` : '1px solid var(--border-subtle)',
-                      backgroundColor: hasFile ? slot.bg : 'var(--bg-surface)',
+                      backgroundColor: hasFile ? 'var(--bg-subtle)' : 'var(--bg-surface)',
                       gap: '0.4rem',
                       fontSize: '0.75rem',
+                      overflow: 'hidden',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
+                    {/* Live Filled Progress Bar Overlay */}
+                    {progressPct > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          bottom: 0,
+                          width: `${progressPct}%`,
+                          backgroundColor: `${slot.color}35`,
+                          borderRight: `2px solid ${slot.color}`,
+                          transition: 'width 0.25s ease',
+                          zIndex: 0,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+
+                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0, flex: 1 }}>
                       <span
                         style={{
                           fontWeight: 800,
@@ -657,6 +713,12 @@ export const WebFlasherModal: React.FC<WebFlasherModalProps> = ({
                       >
                         {hasFile ? currentSlot.filename : `Pilih file ${slot.label}...`}
                       </span>
+
+                      {progressPct > 0 && progressPct < 100 && (
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: slot.color, fontFamily: 'var(--font-mono)' }}>
+                          {progressPct}%
+                        </span>
+                      )}
 
                       {currentSlot.isMd5Verified && (
                         <span className="badge badge-ready" style={{ fontSize: '0.6rem', padding: '0.05rem 0.3rem' }}>
