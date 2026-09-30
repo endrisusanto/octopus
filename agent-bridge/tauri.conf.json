@@ -11,9 +11,11 @@
     "windows": [
       {
         "title": "Octopus Agent Bridge",
-        "width": 460,
-        "height": 380,
-        "resizable": false,
+        "width": 540,
+        "height": 620,
+        "minWidth": 460,
+        "minHeight": 500,
+        "resizable": true,
         "fullscreen": false
       }
     ],

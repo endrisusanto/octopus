@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod protocol;
 mod scanner;
 mod updater;
@@ -7,11 +9,10 @@ mod workflow;
 use futures_util::{SinkExt, StreamExt};
 use protocol::{DeviceInfo, IncomingMessage, OutgoingMessage};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -21,11 +22,29 @@ use tauri::{Manager, WindowEvent};
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
+use scanner::silent_command;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+pub fn silent_tokio_command<S: AsRef<std::ffi::OsStr>>(program: S) -> tokio::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = tokio::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(0x08000000);
+    }
+    cmd
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BridgeConfig {
     pub pc_id: String,
     pub hub_url: String,
+    #[serde(default)]
+    pub binary_dir: Option<String>,
+    #[serde(default)]
+    pub restrict_binary_dir: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -36,13 +55,39 @@ pub struct BridgeLiveStatus {
     pub device_count: usize,
     pub devices: Vec<DeviceInfo>,
     pub binary_count: usize,
+    pub binary_dir: Option<String>,
+    pub restrict_binary_dir: bool,
+    pub recent_logs: Vec<String>,
 }
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Mutex<BridgeConfig>>,
     pub status: Arc<Mutex<BridgeLiveStatus>>,
+    pub logs: Arc<Mutex<VecDeque<String>>>,
     pub restart_trigger: Arc<tokio::sync::Notify>,
+}
+
+pub fn log_msg(state: &AppState, msg: impl Into<String>) {
+    let text = msg.into();
+    let time_str = {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let secs = now % 60;
+        let mins = (now / 60) % 60;
+        let hours = (now / 3600) % 24;
+        format!("{:02}:{:02}:{:02}", hours, mins, secs)
+    };
+    let formatted = format!("[{}] {}", time_str, text);
+    println!("{}", formatted);
+    if let Ok(mut lock) = state.logs.lock() {
+        if lock.len() >= 400 {
+            lock.pop_front();
+        }
+        lock.push_back(formatted);
+    }
 }
 
 fn get_config_path() -> PathBuf {
@@ -81,9 +126,13 @@ fn load_initial_config() -> BridgeConfig {
     let default_hub_url = env::var("HUB_URL")
         .unwrap_or_else(|_| "ws://127.0.0.1:4000/ws/bridge".to_string());
 
+    let default_binary_dir = env::var("OCTOPUS_FIRMWARE_DIR").ok();
+
     let cfg = BridgeConfig {
         pc_id: default_pc_id,
         hub_url: default_hub_url,
+        binary_dir: default_binary_dir,
+        restrict_binary_dir: false,
     };
 
     let _ = save_config_to_disk(&cfg);
@@ -154,11 +203,11 @@ async fn run_bridge_worker(state: AppState) {
             st.is_connected = false;
         }
 
-        println!("[Bridge] Connecting to Hub: {} as PC ID: {} ...", current_hub_url, current_pc_id);
+        log_msg(&state, format!("[Bridge] Connecting to Hub: {} as PC ID: {} ...", current_hub_url, current_pc_id));
 
         match connect_async(&current_hub_url).await {
             Ok((ws_stream, _)) => {
-                println!("[Bridge] Connected successfully! Registered as {}", current_pc_id);
+                log_msg(&state, format!("[Bridge] Connected successfully! Registered as {}", current_pc_id));
                 {
                     let mut st = state.status.lock().unwrap();
                     st.is_connected = true;
@@ -208,10 +257,16 @@ async fn run_bridge_worker(state: AppState) {
 
                         // Periodic binary scan (every 10s)
                         if tick % 5 == 0 {
-                            let binaries = scanner::scan_local_binaries(None);
+                            let (custom_bin, restrict_bin) = {
+                                let cfg = scanner_state.config.lock().unwrap();
+                                (cfg.binary_dir.clone(), cfg.restrict_binary_dir)
+                            };
+                            let binaries = scanner::scan_local_binaries(custom_bin.as_deref(), restrict_bin);
                             {
                                 let mut st = scanner_state.status.lock().unwrap();
                                 st.binary_count = binaries.len();
+                                st.binary_dir = custom_bin;
+                                st.restrict_binary_dir = restrict_bin;
                             }
                             let bin_update = OutgoingMessage::BinaryList { binaries };
                             let _ = tx_scanner.send(bin_update).await;
@@ -315,7 +370,7 @@ async fn run_bridge_worker(state: AppState) {
 
                                                     // If turning off all, also terminate running_led animation
                                                     if target_state == "off" || is_all {
-                                                        let _ = Command::new("pkill").args(["-f", "running_led.py"]).output();
+                                                        let _ = silent_command("pkill").args(["-f", "running_led.py"]).output();
                                                     }
 
                                                     // Immediate UI log feedback (0ms latency)
@@ -338,7 +393,7 @@ async fn run_bridge_worker(state: AppState) {
                                                     tokio::task::spawn(async move {
                                                         let state_arg = if target_state == "toggle" {
                                                             if target_devs.len() == 1 {
-                                                                let curr = tokio::process::Command::new("adb")
+                                                                let curr = silent_tokio_command("adb")
                                                                     .args(["-s", &target_devs[0], "shell", "settings", "get", "secure", "flashlight_enabled"])
                                                                     .output()
                                                                     .await
@@ -352,7 +407,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             &target_state
                                                         };
 
-                                                        let mut cmd = tokio::process::Command::new("python3");
+                                                        let mut cmd = silent_tokio_command("python3");
                                                         cmd.arg("/home/endri-pro/led.py").arg(state_arg);
                                                         if !target_devs.is_empty() {
                                                             cmd.arg(target_devs.join(","));
@@ -368,7 +423,7 @@ async fn run_bridge_worker(state: AppState) {
                                                         };
 
                                                         for serial in check_targets {
-                                                            let out = tokio::process::Command::new("adb")
+                                                            let out = silent_tokio_command("adb")
                                                                 .args(["-s", &serial, "shell", "settings", "get", "secure", "flashlight_enabled"])
                                                                 .output()
                                                                 .await
@@ -411,7 +466,7 @@ async fn run_bridge_worker(state: AppState) {
                                                         .unwrap_or(false);
 
                                                     // Terminate previous running animation forcefully
-                                                    let _ = Command::new("pkill").args(["-9", "-f", "running_led.py"]).output();
+                                                    let _ = silent_command("pkill").args(["-9", "-f", "running_led.py"]).output();
                                                     tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
 
                                                     // Acuan selalu dari preset rak kalibrasi (abaikan device selection)
@@ -421,7 +476,7 @@ async fn run_bridge_worker(state: AppState) {
                                                     }
 
                                                     tokio::task::spawn_blocking(move || {
-                                                        let _ = Command::new("python3")
+                                                        let _ = silent_command("python3")
                                                             .args(&py_args)
                                                             .current_dir("/home/endri-pro")
                                                             .spawn();
@@ -437,7 +492,7 @@ async fn run_bridge_worker(state: AppState) {
                                                     }
                                                 } else if exec.action == "STOP_LED_ANIM" {
                                                     // Forcefully kill any running animation python process
-                                                    let _ = Command::new("pkill").args(["-9", "-f", "running_led.py"]).output();
+                                                    let _ = silent_command("pkill").args(["-9", "-f", "running_led.py"]).output();
 
                                                     // Turn off all physical flashlights and synchronize state
                                                     let tx_torch = tx.clone();
@@ -446,7 +501,7 @@ async fn run_bridge_worker(state: AppState) {
                                                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
                                                         // Broadcast off to all connected devices via led.py off
-                                                        let _ = tokio::process::Command::new("python3")
+                                                        let _ = silent_tokio_command("python3")
                                                             .args(["/home/endri-pro/led.py", "off"])
                                                             .current_dir("/home/endri-pro")
                                                             .output()
@@ -464,7 +519,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
                                                                 device_id: serial.clone(),
                                                                 torch_on: false,
-                                                            }).await;
+                                                             }).await;
                                                         }
 
                                                         let devices = {
@@ -514,9 +569,9 @@ async fn run_bridge_worker(state: AppState) {
                                                     let serial = exec.device_id.clone();
                                                     let b_serial = serial.clone();
                                                     tokio::task::spawn_blocking(move || {
-                                                        let _ = Command::new("python3").args(["/home/endri-pro/led.py", "on", &b_serial]).output();
+                                                        let _ = silent_command("python3").args(["/home/endri-pro/led.py", "on", &b_serial]).output();
                                                         std::thread::sleep(std::time::Duration::from_millis(1500));
-                                                        let _ = Command::new("python3").args(["/home/endri-pro/led.py", "off", &b_serial]).output();
+                                                        let _ = silent_command("python3").args(["/home/endri-pro/led.py", "off", &b_serial]).output();
                                                     });
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: Some(serial.clone()),
@@ -546,7 +601,7 @@ async fn run_bridge_worker(state: AppState) {
                                                         let _ = tokio::task::spawn_blocking({
                                                             let reboot_arg = reboot_arg.clone();
                                                             move || {
-                                                                let _ = Command::new("adb").args(&reboot_arg).output();
+                                                                let _ = silent_command("adb").args(&reboot_arg).output();
                                                             }
                                                         }).await;
 
@@ -559,7 +614,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             while start_time.elapsed() < std::time::Duration::from_secs(75) {
                                                                 let s_chk = serial_clone.clone();
                                                                 let is_online = tokio::task::spawn_blocking(move || {
-                                                                    let out = Command::new("adb").args(["-s", &s_chk, "get-state"]).output();
+                                                                    let out = silent_command("adb").args(["-s", &s_chk, "get-state"]).output();
                                                                     if let Ok(o) = out {
                                                                         let st = String::from_utf8_lossy(&o.stdout).trim().to_string();
                                                                         st == "device"
@@ -843,17 +898,25 @@ async fn run_bridge_worker(state: AppState) {
 // Tauri IPC Commands
 #[tauri::command]
 fn get_bridge_status(state: tauri::State<AppState>) -> BridgeLiveStatus {
-    state.status.lock().unwrap().clone()
+    let mut st = state.status.lock().unwrap().clone();
+    if let Ok(logs) = state.logs.lock() {
+        st.recent_logs = logs.iter().cloned().collect();
+    }
+    st
 }
 
 #[tauri::command]
 fn save_bridge_config(
     pc_id: String,
     hub_url: String,
+    binary_dir: Option<String>,
+    restrict_binary_dir: Option<bool>,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
     let clean_pc = pc_id.trim().to_string();
     let clean_url = hub_url.trim().to_string();
+    let clean_bin = binary_dir.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let restrict = restrict_binary_dir.unwrap_or(false);
 
     if clean_pc.is_empty() {
         return Err("PC ID tidak boleh kosong".to_string());
@@ -865,6 +928,8 @@ fn save_bridge_config(
     let new_cfg = BridgeConfig {
         pc_id: clean_pc,
         hub_url: clean_url,
+        binary_dir: clean_bin,
+        restrict_binary_dir: restrict,
     };
 
     save_config_to_disk(&new_cfg)?;
@@ -874,9 +939,25 @@ fn save_bridge_config(
         *cfg = new_cfg;
     }
 
-    // Trigger immediate reconnect
+    // Trigger immediate reconnect & rescan
     state.restart_trigger.notify_one();
     Ok(())
+}
+
+#[tauri::command]
+async fn select_binary_folder() -> Option<String> {
+    let folder = rfd::AsyncFileDialog::new()
+        .set_title("Pilih Folder Binary Firmware")
+        .pick_folder()
+        .await;
+    folder.map(|f| f.path().to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn clear_bridge_logs(state: tauri::State<AppState>) {
+    if let Ok(mut logs) = state.logs.lock() {
+        logs.clear();
+    }
 }
 
 fn main() {
@@ -893,16 +974,23 @@ fn main() {
             device_count: 0,
             devices: Vec::new(),
             binary_count: 0,
+            binary_dir: initial_config.binary_dir.clone(),
+            restrict_binary_dir: initial_config.restrict_binary_dir,
+            recent_logs: Vec::new(),
         })),
+        logs: Arc::new(Mutex::new(VecDeque::new())),
         restart_trigger: Arc::new(tokio::sync::Notify::new()),
     };
 
-    println!("==================================================");
-    println!(" Octopus Lightweight Agent Bridge");
-    println!(" PC ID:   {}", initial_config.pc_id);
-    println!(" Hub URL: {}", initial_config.hub_url);
-    println!(" Mode:    {}", if is_headless { "Headless Daemon" } else { "Tauri Desktop with AppTray" });
-    println!("==================================================");
+    log_msg(&app_state, "==================================================");
+    log_msg(&app_state, " Octopus Lightweight Agent Bridge Started");
+    log_msg(&app_state, format!(" PC ID:   {}", initial_config.pc_id));
+    log_msg(&app_state, format!(" Hub URL: {}", initial_config.hub_url));
+    if let Some(ref dir) = initial_config.binary_dir {
+        log_msg(&app_state, format!(" Firmware Dir: {} (Restrict: {})", dir, initial_config.restrict_binary_dir));
+    }
+    log_msg(&app_state, format!(" Mode:    {}", if is_headless { "Headless Daemon" } else { "Tauri Desktop with AppTray" }));
+    log_msg(&app_state, "==================================================");
 
     if is_headless {
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -920,7 +1008,12 @@ fn main() {
     // Start Tauri Desktop App with System Tray & Close-to-Tray Prevention
     tauri::Builder::default()
         .manage(app_state)
-        .invoke_handler(tauri::generate_handler![get_bridge_status, save_bridge_config])
+        .invoke_handler(tauri::generate_handler![
+            get_bridge_status,
+            save_bridge_config,
+            select_binary_folder,
+            clear_bridge_logs
+        ])
         .setup(|app| {
             let status_item = MenuItem::with_id(app, "status", "Octopus Agent Bridge Active", false, None::<&str>)?;
             let show_item = MenuItem::with_id(app, "show", "Show Bridge Window", true, None::<&str>)?;

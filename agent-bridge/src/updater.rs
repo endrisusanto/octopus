@@ -1,4 +1,4 @@
-use std::process::Command;
+use crate::scanner::silent_command;
 
 pub struct UpdateResult {
     pub success: bool,
@@ -24,11 +24,11 @@ pub async fn trigger_silent_update(repo: &str, target_version: &str) -> UpdateRe
     
     // Simulate quick curl check or platform install command
     let check_cmd = if cfg!(target_os = "windows") {
-        Command::new("powershell")
+        silent_command("powershell")
             .args(["-Command", "Write-Output 'Octopus Windows Silent Update Verified'"])
             .output()
     } else {
-        Command::new("sh")
+        silent_command("sh")
             .args(["-c", "echo 'Octopus Linux Silent Update Verified'"])
             .output()
     };

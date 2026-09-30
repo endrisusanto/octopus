@@ -1,7 +1,8 @@
 use crate::protocol::OutgoingMessage;
+use crate::scanner::silent_command;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::time::sleep;
@@ -77,7 +78,7 @@ fn resolve_firmware_file(input: &str) -> String {
         return p.to_string_lossy().to_string();
     }
     // If not found directly, look up from local binaries scanner
-    let scanned = crate::scanner::scan_local_binaries(None);
+    let scanned = crate::scanner::scan_local_binaries(None, false);
     if let Some(found) = scanned.iter().find(|b| b.filename == trimmed || b.path.ends_with(trimmed)) {
         return found.path.clone();
     }
@@ -90,7 +91,7 @@ fn resolve_odin_devnode(port_hint: Option<&str>, odin_bin: &str) -> Option<Strin
         .filter(|p| !p.is_empty());
 
     // 1. Dapatkan daftar devnode aktif dari odin4 -l
-    let active_odin_devs = Command::new(odin_bin)
+    let active_odin_devs = silent_command(odin_bin)
         .arg("-l")
         .output()
         .map(|out| {
@@ -255,7 +256,7 @@ pub async fn execute_workflow_pipeline(
 
         // Jika mode saat ini adalah ADB, reboot ke Download Mode
         let is_adb_mode = mode_hint.as_deref() == Some("adb") || {
-            let mut check = Command::new("adb");
+            let mut check = silent_command("adb");
             check.arg("-s").arg(&target_serial).arg("get-state");
             check.output().map(|o| String::from_utf8_lossy(&o.stdout).trim() == "device").unwrap_or(false)
         };
@@ -263,7 +264,7 @@ pub async fn execute_workflow_pipeline(
         if is_adb_mode {
             send_log("info", format!("[Odin Engine] 🔄 Me-reboot perangkat {} ke Download Mode...", target_serial));
             send_progress(8, Some("Flashing..."), Some("Rebooting ke Download Mode..."));
-            let mut reb = Command::new("adb");
+            let mut reb = silent_command("adb");
             reb.arg("-s").arg(&target_serial).arg("reboot").arg("download");
             let _ = reb.output();
         }
@@ -304,7 +305,7 @@ pub async fn execute_workflow_pipeline(
         let dev_id_clone = device_id.clone();
 
         let flash_res = tokio::task::spawn_blocking(move || -> Result<(), String> {
-            let mut cmd = Command::new(&odin_bin_clone);
+            let mut cmd = silent_command(&odin_bin_clone);
             cmd.arg("--ignore-md5");
 
             if !ap_clone.is_empty() {
@@ -453,12 +454,12 @@ pub async fn execute_workflow_pipeline(
                         }
 
                         // Periksa status device di ADB
-                        let mut check_state = Command::new("adb");
+                        let mut check_state = silent_command("adb");
                         check_state.arg("-s").arg(&serial_boot).arg("get-state");
                         if let Ok(out) = check_state.output() {
                             let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
                             if state == "device" {
-                                let mut cmd = Command::new("adb");
+                                let mut cmd = silent_command("adb");
                                 cmd.arg("-s").arg(&serial_boot).arg("shell").arg("getprop sys.boot_completed");
                                 if let Ok(prop_out) = cmd.output() {
                                     let prop = String::from_utf8_lossy(&prop_out.stdout).trim().to_string();
@@ -508,7 +509,7 @@ pub async fn execute_workflow_pipeline(
     send_progress(55, Some("Flashing..."), Some("Memeriksa status koneksi ADB..."));
     let serial_check = target_serial.clone();
     let state_check = tokio::task::spawn_blocking(move || {
-        let mut cmd = Command::new("adb");
+        let mut cmd = silent_command("adb");
         cmd.arg("-s").arg(&serial_check).arg("get-state");
         match cmd.output() {
             Ok(out) => {
@@ -569,7 +570,7 @@ pub async fn execute_workflow_pipeline(
         let mut last_err = String::new();
 
         for attempt in 1..=5 {
-            let mut cmd = Command::new("adb");
+            let mut cmd = silent_command("adb");
             cmd.arg("-s").arg(serial).arg("shell").arg(cmd_str);
 
             if let Ok(out) = cmd.output() {
@@ -621,11 +622,11 @@ pub async fn execute_workflow_pipeline(
             crate::scanner::reload_udev_and_adb();
 
             // 2. Pastikan ADB daemon ready
-            let _ = Command::new("adb").args(["-s", &serial_suw, "wait-for-device"]).output();
+            let _ = silent_command("adb").args(["-s", &serial_suw, "wait-for-device"]).output();
 
             // 3. Install Language Helper APK jika ada (matching FlashKit)
             if let Some(lang_apk) = find_asset("language.apk") {
-                let _ = Command::new("adb")
+                let _ = silent_command("adb")
                     .args(["-s", &serial_suw, "install", "-r", "-g", "--bypass-low-target-sdk-block", &lang_apk.to_string_lossy()])
                     .output();
                 run_shell_with_retry(&serial_suw, "am start -n net.sanapeli.adbchangelanguage/.AdbChangeLanguage --es language en --es country US", &mut logs);
@@ -646,15 +647,15 @@ pub async fn execute_workflow_pipeline(
 
             // 5. Install & Run Data Saver Instrumentation Test (matching FlashKit)
             if let Some(apk1) = find_asset("Data_Saver_Test-debug.apk") {
-                let _ = Command::new("adb")
+                let _ = silent_command("adb")
                     .args(["-s", &serial_suw, "install", "-r", "-g", "--bypass-low-target-sdk-block", &apk1.to_string_lossy()])
                     .output();
             }
             if let Some(apk2) = find_asset("Data_Saver_Test-debug-androidTest.apk") {
-                let _ = Command::new("adb")
+                let _ = silent_command("adb")
                     .args(["-s", &serial_suw, "install", "-r", "-g", "--bypass-low-target-sdk-block", &apk2.to_string_lossy()])
                     .output();
-                let _ = Command::new("adb")
+                let _ = silent_command("adb")
                     .args(["-s", &serial_suw, "shell", "am instrument -w -m -e debug false -e class 'com.example.DataSaver.ExampleInstrumentedTest' com.example.DataSaver.test/androidx.test.runner.AndroidJUnitRunner"])
                     .output();
                 std::thread::sleep(Duration::from_millis(500));
@@ -665,9 +666,9 @@ pub async fn execute_workflow_pipeline(
             run_shell_with_retry(&serial_suw, "pm disable-user com.google.android.setupwizard", &mut logs);
 
             // 7. Cleanup helper APKs
-            let _ = Command::new("adb").args(["-s", &serial_suw, "uninstall", "com.example.DataSaver"]).output();
-            let _ = Command::new("adb").args(["-s", &serial_suw, "uninstall", "com.example.DataSaver.test"]).output();
-            let _ = Command::new("adb").args(["-s", &serial_suw, "uninstall", "net.sanapeli.adbchangelanguage"]).output();
+            let _ = silent_command("adb").args(["-s", &serial_suw, "uninstall", "com.example.DataSaver"]).output();
+            let _ = silent_command("adb").args(["-s", &serial_suw, "uninstall", "com.example.DataSaver.test"]).output();
+            let _ = silent_command("adb").args(["-s", &serial_suw, "uninstall", "net.sanapeli.adbchangelanguage"]).output();
 
             run_shell_with_retry(&serial_suw, "svc wifi enable", &mut logs);
             run_shell_with_retry(&serial_suw, "settings put global wifi_on 1", &mut logs);
@@ -775,7 +776,7 @@ pub async fn execute_workflow_pipeline(
                 target_serial
             ),
         );
-        let _ = Command::new("python3")
+        let _ = silent_command("python3")
             .args(["/home/endri-pro/led.py", "on", &target_serial])
             .current_dir("/home/endri-pro")
             .output();

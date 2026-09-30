@@ -1,34 +1,188 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="UTF-8">
   <title>Octopus Agent Bridge</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: #0d1117; color: #f0f6fc; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; min-height: 100vh; user-select: none; }
-    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #30363d; padding-bottom: 0.75rem; }
-    .title { font-size: 1.1rem; font-weight: 700; color: #58a6ff; letter-spacing: 0.03em; }
-    .status-badge { font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 4px; transition: all 0.2s; }
+    body {
+      background-color: #0d1117;
+      color: #f0f6fc;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 0.5rem;
+    }
+    .title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #58a6ff;
+      letter-spacing: 0.03em;
+    }
+    .status-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
     .status-online { background: #122619; color: #3fb950; border: 1px solid #238636; }
     .status-offline { background: #2a1215; color: #f85149; border: 1px solid #da3633; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem; }
-    .input-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.825rem; }
-    .label { color: #8b949e; font-weight: 600; min-width: 110px; }
-    .input-control { flex: 1; background: #0d1117; border: 1px solid #30363d; color: #f0f6fc; padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-family: monospace; outline: none; }
+    
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.65rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.775rem;
+    }
+    .label {
+      color: #8b949e;
+      font-weight: 600;
+      width: 110px;
+      flex-shrink: 0;
+    }
+    .input-control {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 0.3rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: monospace;
+      outline: none;
+    }
     .input-control:focus { border-color: #58a6ff; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; background: #21262d; border: 1px solid #30363d; color: #f0f6fc; padding: 0.35rem 0.75rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #f0f6fc;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
     .btn:hover { background: #30363d; }
     .btn-primary { background: #1f6feb; border-color: #1f6feb; }
     .btn-primary:hover { background: #388bfd; }
-    .device-list { max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.25rem; }
-    .device-item { display: flex; justify-content: space-between; align-items: center; background: #0d1117; padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.75rem; border: 1px solid #21262d; }
-    .alert { background: #1f242c; border: 1px solid #388bfd; color: #8b949e; font-size: 0.725rem; padding: 0.5rem; border-radius: 6px; }
+    
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.725rem;
+      color: #8b949e;
+      margin-left: 110px;
+    }
+    .checkbox-row input {
+      cursor: pointer;
+      accent-color: #1f6feb;
+    }
+    
+    .device-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .device-list {
+      max-height: 80px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .device-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0d1117;
+      padding: 0.25rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.725rem;
+      border: 1px solid #21262d;
+    }
+    
+    /* Log Window */
+    .log-card {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      min-height: 120px;
+      overflow: hidden;
+    }
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #161b22;
+      padding: 0.3rem 0.5rem;
+      border-bottom: 1px solid #30363d;
+      font-size: 0.725rem;
+      color: #8b949e;
+    }
+    .log-content {
+      flex: 1;
+      padding: 0.45rem;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      line-height: 1.35;
+      color: #c9d1d9;
+      background: #07090d;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-line {
+      margin-bottom: 2px;
+    }
+    .log-line.info { color: #58a6ff; }
+    .log-line.warn { color: #d29922; }
+    .log-line.error { color: #f85149; }
+    
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-top: auto;
+      padding-top: 0.25rem;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <div style="display: flex; align-items: center; gap: 0.65rem;">
-      <img src="app-logo.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 6px;">
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <img src="app-logo.png" alt="Logo" style="width: 24px; height: 24px; border-radius: 4px;">
       <div class="title">OCTOPUS AGENT BRIDGE</div>
     </div>
     <div class="status-badge status-offline" id="status-badge">CONNECTING...</div>
@@ -38,48 +192,79 @@
     <div class="input-row">
       <span class="label">Workstation ID:</span>
       <input type="text" id="pc-id-input" class="input-control" placeholder="Workstation-01">
-      <button onclick="handleSaveConfig()" class="btn" id="btn-save-pc" style="padding: 0.35rem 0.5rem;">Simpan</button>
     </div>
 
     <div class="input-row">
       <span class="label">Hub Server URL:</span>
       <input type="text" id="hub-url-input" class="input-control" placeholder="ws://127.0.0.1:4000/ws/bridge">
-      <button onclick="handleSaveConfig()" class="btn" id="btn-save-hub" style="padding: 0.35rem 0.5rem;">Simpan</button>
     </div>
 
-    <div class="input-row" style="margin-top: 0.25rem; border-top: 1px solid #21262d; padding-top: 0.4rem;">
-      <span class="label">Connected Devices:</span>
-      <span id="device-count-label" style="font-weight: 700; color: #58a6ff; font-family: monospace;">0 Devices Detected</span>
+    <div class="input-row">
+      <span class="label">Binary / FW Path:</span>
+      <input type="text" id="binary-dir-input" class="input-control" placeholder="Default scan (Auto)">
+      <button onclick="handleBrowseFolder()" class="btn" id="btn-browse" title="Pilih folder secara visual">Browse</button>
     </div>
 
+    <div class="checkbox-row">
+      <input type="checkbox" id="restrict-binary-dir-checkbox">
+      <label for="restrict-binary-dir-checkbox" style="cursor: pointer;">Batasi scan firmware hanya ke folder ini (restrictive)</label>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.2rem;">
+      <button onclick="handleSaveConfig()" class="btn btn-primary" id="btn-save-all" style="padding: 0.3rem 0.8rem;">
+        Simpan Konfigurasi
+      </button>
+    </div>
+  </div>
+
+  <div class="card" style="padding: 0.45rem 0.65rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 0.75rem; font-weight: 600; color: #8b949e;">Perangkat USB & ADB:</span>
+      <span id="device-count-label" style="font-weight: 700; color: #58a6ff; font-family: monospace; font-size: 0.75rem;">0 Devices</span>
+    </div>
     <div class="device-list" id="device-list-container">
-      <div style="color: #8b949e; font-size: 0.75rem; text-align: center; padding: 0.5rem;">Scanning USB & ADB devices...</div>
+      <div style="color: #8b949e; font-size: 0.725rem; text-align: center; padding: 0.3rem;">Scanning USB & ADB devices...</div>
     </div>
   </div>
 
-  <div class="alert">
-    <strong>Background Tray Active:</strong> Bridge tetap aktif saat jendela di-close. Akses kembali lewat icon System Tray.
+  <div class="log-card">
+    <div class="log-header">
+      <span>Console Logs (<span id="log-count">0</span>)</span>
+      <div style="display: flex; gap: 0.4rem;">
+        <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+          <input type="checkbox" id="auto-scroll-checkbox" checked style="accent-color: #1f6feb;">
+          <span>Auto-scroll</span>
+        </label>
+        <button onclick="handleClearLogs()" class="btn" style="padding: 0.1rem 0.4rem; font-size: 0.675rem;">Clear</button>
+      </div>
+    </div>
+    <div class="log-content" id="log-content-container">
+      <div class="log-line info">[Bridge] Menyiapkan antarmuka logs...</div>
+    </div>
   </div>
 
-  <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+  <div class="footer">
     <a href="https://octopus.endrisusanto.my.id" target="_blank" class="btn btn-primary" style="flex: 1;">Buka Web Hub</a>
-    <button onclick="window.__TAURI__.window.getCurrentWindow().hide()" class="btn">Minimize ke Tray</button>
+    <button onclick="hideToTray()" class="btn">Minimize ke Tray</button>
   </div>
 
   <script>
     const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : null;
     let isEditingPc = false;
     let isEditingHub = false;
+    let isEditingBin = false;
+    let lastLogCount = 0;
 
     document.getElementById('pc-id-input').addEventListener('focus', () => { isEditingPc = true; });
     document.getElementById('hub-url-input').addEventListener('focus', () => { isEditingHub = true; });
+    document.getElementById('binary-dir-input').addEventListener('focus', () => { isEditingBin = true; });
 
     async function fetchLiveStatus() {
       if (!invoke) return;
       try {
         const st = await invoke('get_bridge_status');
         
-        // Update status badge
+        // 1. Update status badge
         const badge = document.getElementById('status-badge');
         if (st.is_connected) {
           badge.className = 'status-badge status-online';
@@ -89,33 +274,75 @@
           badge.innerText = 'DISCONNECTED';
         }
 
-        // Update inputs if not currently focused
+        // 2. Update inputs if not focused
         if (!isEditingPc) {
-          document.getElementById('pc-id-input').value = st.pc_id;
+          document.getElementById('pc-id-input').value = st.pc_id || '';
         }
         if (!isEditingHub) {
-          document.getElementById('hub-url-input').value = st.hub_url;
+          document.getElementById('hub-url-input').value = st.hub_url || '';
+        }
+        if (!isEditingBin) {
+          document.getElementById('binary-dir-input').value = st.binary_dir || '';
+        }
+        if (!isEditingBin) {
+          document.getElementById('restrict-binary-dir-checkbox').checked = !!st.restrict_binary_dir;
         }
 
-        // Update devices count & list
-        document.getElementById('device-count-label').innerText = `${st.device_count} Devices Detected`;
+        // 3. Update devices count & list
+        document.getElementById('device-count-label').innerText = `${st.device_count || 0} Devices (${st.binary_count || 0} Binaries)`;
         
         const listContainer = document.getElementById('device-list-container');
         if (st.devices && st.devices.length > 0) {
           listContainer.innerHTML = st.devices.map(d => `
             <div class="device-item">
               <div>
-                <strong style="color: #f0f6fc;">${d.model}</strong>
-                <span style="color: #8b949e; font-size: 0.7rem; margin-left: 0.3rem;">[${d.port}]</span>
+                <strong style="color: #f0f6fc;">${d.model || d.serial}</strong>
+                <span style="color: #8b949e; font-size: 0.7rem; margin-left: 0.3rem;">[${d.port || d.serial}]</span>
               </div>
               <span style="color: ${d.mode === 'odin' ? '#58a6ff' : '#3fb950'}; font-weight: 600; text-transform: uppercase;">${d.mode}</span>
             </div>
           `).join('');
         } else {
-          listContainer.innerHTML = '<div style="color: #8b949e; font-size: 0.75rem; text-align: center; padding: 0.4rem;">Tidak ada USB device terdeteksi.</div>';
+          listContainer.innerHTML = '<div style="color: #8b949e; font-size: 0.725rem; text-align: center; padding: 0.25rem;">Tidak ada USB device terdeteksi.</div>';
+        }
+
+        // 4. Update logs
+        if (st.recent_logs && st.recent_logs.length !== lastLogCount) {
+          lastLogCount = st.recent_logs.length;
+          document.getElementById('log-count').innerText = lastLogCount;
+          
+          const logContainer = document.getElementById('log-content-container');
+          logContainer.innerHTML = st.recent_logs.map(line => {
+            let cls = '';
+            if (line.includes('[Bridge]') || line.includes('ONLINE') || line.includes('Connected')) cls = 'info';
+            if (line.includes('warn') || line.includes('Retrying')) cls = 'warn';
+            if (line.includes('error') || line.includes('failed') || line.includes('DISCONNECTED')) cls = 'error';
+            return `<div class="log-line ${cls}">${escapeHtml(line)}</div>`;
+          }).join('');
+
+          if (document.getElementById('auto-scroll-checkbox').checked) {
+            logContainer.scrollTop = logContainer.scrollHeight;
+          }
         }
       } catch (err) {
         console.error('Status fetch error:', err);
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    async function handleBrowseFolder() {
+      if (!invoke) return;
+      try {
+        const folder = await invoke('select_binary_folder');
+        if (folder) {
+          document.getElementById('binary-dir-input').value = folder;
+          isEditingBin = false;
+        }
+      } catch (err) {
+        alert('Gagal memilih folder: ' + err);
       }
     }
 
@@ -123,16 +350,43 @@
       if (!invoke) return;
       const pcId = document.getElementById('pc-id-input').value;
       const hubUrl = document.getElementById('hub-url-input').value;
+      const binaryDir = document.getElementById('binary-dir-input').value;
+      const restrictBinaryDir = document.getElementById('restrict-binary-dir-checkbox').checked;
       
       try {
-        await invoke('save_bridge_config', { pcId, hubUrl });
+        await invoke('save_bridge_config', { 
+          pcId, 
+          hubUrl, 
+          binaryDir: binaryDir.trim() === '' ? null : binaryDir, 
+          restrictBinaryDir 
+        });
         isEditingPc = false;
         isEditingHub = false;
+        isEditingBin = false;
         document.getElementById('pc-id-input').blur();
         document.getElementById('hub-url-input').blur();
+        document.getElementById('binary-dir-input').blur();
         fetchLiveStatus();
       } catch (err) {
         alert('Gagal menyimpan config: ' + err);
+      }
+    }
+
+    async function handleClearLogs() {
+      if (!invoke) return;
+      try {
+        await invoke('clear_bridge_logs');
+        document.getElementById('log-content-container').innerHTML = '';
+        document.getElementById('log-count').innerText = '0';
+        lastLogCount = 0;
+      } catch (err) {
+        console.error('Clear logs error:', err);
+      }
+    }
+
+    function hideToTray() {
+      if (window.__TAURI__ && window.__TAURI__.window) {
+        window.__TAURI__.window.getCurrentWindow().hide();
       }
     }
 

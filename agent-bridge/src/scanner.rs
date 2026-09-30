@@ -4,6 +4,20 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+// ponytail: Create silent command without CMD console window popping up on Windows
+pub fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
 static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
 
 pub fn update_port_history(port: &str, serial: &str, model: &str) {
@@ -37,13 +51,13 @@ pub fn get_port_history(port: &str) -> Option<(String, String)> {
 pub fn reload_udev_and_adb() -> String {
     #[cfg(target_os = "linux")]
     {
-        let _ = Command::new("sudo").args(["udevadm", "control", "--reload-rules"]).output();
-        let _ = Command::new("sudo").args(["udevadm", "trigger"]).output();
-        let _ = Command::new("udevadm").args(["control", "--reload-rules"]).output();
-        let _ = Command::new("udevadm").args(["trigger"]).output();
+        let _ = silent_command("sudo").args(["udevadm", "control", "--reload-rules"]).output();
+        let _ = silent_command("sudo").args(["udevadm", "trigger"]).output();
+        let _ = silent_command("udevadm").args(["control", "--reload-rules"]).output();
+        let _ = silent_command("udevadm").args(["trigger"]).output();
     }
 
-    let output = Command::new("adb").arg("devices").output();
+    let output = silent_command("adb").arg("devices").output();
     match output {
         Ok(out) => String::from_utf8_lossy(&out.stdout).to_string(),
         Err(e) => format!("Error refreshing ADB: {}", e),
@@ -110,56 +124,67 @@ fn scan_dir_recursive(
 }
 
 // ponytail: Scan local binary & mounted external drive directories on Bridge PC
-pub fn scan_local_binaries(custom_dir: Option<&str>) -> Vec<BinaryFileInfo> {
+pub fn scan_local_binaries(custom_dir: Option<&str>, restrict_to_custom: bool) -> Vec<BinaryFileInfo> {
     let mut results = Vec::new();
     let mut candidate_roots: Vec<PathBuf> = Vec::new();
 
+    let mut has_valid_custom = false;
     if let Some(dir) = custom_dir {
-        candidate_roots.push(PathBuf::from(dir));
-    }
-
-    if let Ok(env_dir) = std::env::var("OCTOPUS_FIRMWARE_DIR") {
-        candidate_roots.push(PathBuf::from(env_dir));
-    }
-
-    // Platform-specific search roots
-    #[cfg(target_os = "windows")]
-    {
-        // Scan all Windows drive letters from A: to Z: (all partitions and mounted USB/external drives)
-        for drive_letter in b'A'..=b'Z' {
-            let drive_path = format!(r"{}:\", drive_letter as char);
-            let path = PathBuf::from(&drive_path);
-            if path.exists() && path.is_dir() {
-                candidate_roots.push(path);
-            }
-        }
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let user_path = PathBuf::from(&userprofile);
-            candidate_roots.push(user_path.join("Downloads"));
-            candidate_roots.push(user_path.join("Desktop"));
-        }
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Scan Ubuntu / Linux mounted media partitions (/run/media, /media, /mnt)
-        let media_roots = ["/run/media", "/media", "/mnt"];
-        for m in media_roots {
-            let p = PathBuf::from(m);
+        let trimmed = dir.trim();
+        if !trimmed.is_empty() {
+            let p = PathBuf::from(trimmed);
             if p.exists() && p.is_dir() {
                 candidate_roots.push(p);
+                has_valid_custom = true;
+            }
+        }
+    }
+
+    // If restricted to custom folder and custom folder is valid, only scan that specific folder
+    if !(restrict_to_custom && has_valid_custom) {
+        if let Ok(env_dir) = std::env::var("OCTOPUS_FIRMWARE_DIR") {
+            candidate_roots.push(PathBuf::from(env_dir));
+        }
+
+        // Platform-specific search roots
+        #[cfg(target_os = "windows")]
+        {
+            // Scan all Windows drive letters from A: to Z: (all partitions and mounted USB/external drives)
+            for drive_letter in b'A'..=b'Z' {
+                let drive_path = format!(r"{}:\", drive_letter as char);
+                let path = PathBuf::from(&drive_path);
+                if path.exists() && path.is_dir() {
+                    candidate_roots.push(path);
+                }
+            }
+            if let Ok(userprofile) = std::env::var("USERPROFILE") {
+                let user_path = PathBuf::from(&userprofile);
+                candidate_roots.push(user_path.join("Downloads"));
+                candidate_roots.push(user_path.join("Desktop"));
             }
         }
 
-        // Standard Linux firmware folders
-        candidate_roots.push(PathBuf::from("/opt/flashkit/firmware"));
-        candidate_roots.push(PathBuf::from("/opt/octopus/firmware"));
-        candidate_roots.push(PathBuf::from("./firmware"));
+        #[cfg(not(target_os = "windows"))]
+        {
+            // Scan Ubuntu / Linux mounted media partitions (/run/media, /media, /mnt)
+            let media_roots = ["/run/media", "/media", "/mnt"];
+            for m in media_roots {
+                let p = PathBuf::from(m);
+                if p.exists() && p.is_dir() {
+                    candidate_roots.push(p);
+                }
+            }
 
-        if let Ok(home) = std::env::var("HOME") {
-            let home_path = PathBuf::from(&home);
-            candidate_roots.push(home_path.join("Downloads"));
-            candidate_roots.push(home_path.join("Desktop"));
+            // Standard Linux firmware folders
+            candidate_roots.push(PathBuf::from("/opt/flashkit/firmware"));
+            candidate_roots.push(PathBuf::from("/opt/octopus/firmware"));
+            candidate_roots.push(PathBuf::from("./firmware"));
+
+            if let Ok(home) = std::env::var("HOME") {
+                let home_path = PathBuf::from(&home);
+                candidate_roots.push(home_path.join("Downloads"));
+                candidate_roots.push(home_path.join("Desktop"));
+            }
         }
     }
 
@@ -186,7 +211,7 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
 
     let mut raw_list = Vec::new();
 
-    if let Ok(output) = Command::new("adb").args(["devices", "-l"]).output() {
+    if let Ok(output) = silent_command("adb").args(["devices", "-l"]).output() {
         let text = String::from_utf8_lossy(&output.stdout);
         for line in text.lines().skip(1) {
             let line = line.trim();
@@ -268,7 +293,7 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
 }
 
 fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>) {
-    let out = Command::new("adb")
+    let out = silent_command("adb")
         .args([
             "-s",
             serial,
@@ -381,7 +406,7 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
     {
         // On Windows, query PNP entities matching Samsung Download Mode VID/PID (04E8&PID_685D)
         let ps_cmd = r#"Get-CimInstance Win32_PnPEntity | Where-Object { $_.DeviceID -like '*VID_04E8&PID_685D*' -or $_.DeviceID -like '*VID_04E8&PID_6601*' } | Select-Object -Property DeviceID, Name | ConvertTo-Json -Compress"#;
-        if let Ok(output) = Command::new("powershell").args(["-NoProfile", "-Command", ps_cmd]).output() {
+        if let Ok(output) = silent_command("powershell").args(["-NoProfile", "-Command", ps_cmd]).output() {
             let json_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !json_str.is_empty() {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json_str) {

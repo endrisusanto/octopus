@@ -16,6 +16,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 open = "5.3"
 md5 = "0.7"
 serialport = "4.3.0"
+rfd = "0.15"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
