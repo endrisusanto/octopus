@@ -16,10 +16,6 @@ pub struct DeviceInfo {
     pub battery_temp: Option<f32>,
     #[serde(rename = "torchOn")]
     pub torch_on: Option<bool>,
-    #[serde(rename = "buildType")]
-    pub build_type: Option<String>,
-    #[serde(rename = "pdaVersion")]
-    pub pda_version: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -90,13 +90,6 @@ export function useFleetWebSocket() {
               setDevices((prev) => {
                 const activeRunning = prev.filter((p) => p.status === 'Flashing...' || p.status === 'Busy');
                 const mapped: DeviceItem[] = incoming.map((inc): DeviceItem => {
-                  const previousDev = prev.find(
-                    (p) =>
-                      p.pcId === inc.pcId &&
-                      (p.id === inc.id ||
-                        (p.port && inc.port && p.port === inc.port) ||
-                        (p.serial && inc.serial && p.serial === inc.serial))
-                  );
                   const curr = activeRunning.find(
                     (p) =>
                       p.pcId === inc.pcId &&
@@ -104,8 +97,6 @@ export function useFleetWebSocket() {
                         (p.port && inc.port && p.port === inc.port) ||
                         (p.serial && inc.serial && p.serial === inc.serial))
                   );
-                  const buildType = inc.buildType || previousDev?.buildType;
-                  const pdaVersion = inc.pdaVersion || previousDev?.pdaVersion;
 
                   if (curr && inc.status === 'Ready') {
                     return {
@@ -122,15 +113,9 @@ export function useFleetWebSocket() {
                       status: curr.status,
                       progress: curr.progress ?? inc.progress,
                       currentTask: curr.currentTask ?? inc.currentTask,
-                      buildType,
-                      pdaVersion,
                     };
                   }
-                  return {
-                    ...inc,
-                    buildType,
-                    pdaVersion,
-                  };
+                  return inc;
                 });
 
                 // Preserve running devices during mode switch rebooting
@@ -189,8 +174,6 @@ export function useFleetWebSocket() {
                       ...d,
                       ...updatedDev,
                       id: d.id,
-                      buildType: updatedDev.buildType || d.buildType,
-                      pdaVersion: updatedDev.pdaVersion || d.pdaVersion,
                       model:
                         d.model &&
                         d.model !== 'SAMSUNG USB' &&

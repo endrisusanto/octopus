@@ -65,7 +65,7 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
             <th>SERIAL</th>
             <th>MODE</th>
             <th>STATUS</th>
-            <th style={{ minWidth: '260px', textAlign: 'center' }}>BUILD / AP / BATTERY / TEMP / FLASH</th>
+            <th style={{ minWidth: '200px', textAlign: 'center' }}>BATTERY / TEMP / FLASH</th>
           </tr>
         </thead>
         <tbody>
@@ -149,54 +149,6 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                 <td>{getStatusBadge(device.status)}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
-                    {/* Badge: Build Type [ro.system.build.type] */}
-                    {device.buildType && (
-                      <span
-                        className="stat-pill"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.2rem',
-                          fontSize: '0.68rem',
-                          padding: '0.15rem 0.4rem',
-                          fontWeight: 700,
-                          textTransform: 'lowercase',
-                          backgroundColor: device.buildType.toLowerCase().includes('userdebug')
-                            ? 'rgba(236, 72, 153, 0.14)'
-                            : 'rgba(100, 116, 139, 0.14)',
-                          color: device.buildType.toLowerCase().includes('userdebug')
-                            ? 'var(--accent-magenta, #ec4899)'
-                            : 'var(--text-secondary, #94a3b8)',
-                          border: `1px solid ${device.buildType.toLowerCase().includes('userdebug') ? 'rgba(236, 72, 153, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
-                        }}
-                        title={`Build Type [ro.system.build.type]: ${device.buildType}`}
-                      >
-                        {device.buildType}
-                      </span>
-                    )}
-
-                    {/* Badge: AP Version [ro.build.PDA] */}
-                    {device.pdaVersion && (
-                      <span
-                        className="stat-pill"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.2rem',
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: '0.68rem',
-                          padding: '0.15rem 0.45rem',
-                          fontWeight: 600,
-                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                          color: 'var(--accent-primary, #60a5fa)',
-                          border: '1px solid rgba(59, 130, 246, 0.25)',
-                        }}
-                        title={`AP Version [ro.build.PDA]: ${device.pdaVersion}`}
-                      >
-                        {device.pdaVersion}
-                      </span>
-                    )}
-
                     {/* Badge: Battery Level */}
                     <span
                       className="stat-pill"

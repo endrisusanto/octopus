@@ -5,7 +5,6 @@ use std::process::Command;
 use std::sync::Mutex;
 
 static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
-static STATIC_PROP_CACHE: Mutex<Option<HashMap<String, (Option<String>, Option<String>)>>> = Mutex::new(None);
 
 pub fn update_port_history(port: &str, serial: &str, model: &str) {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:").to_string();
@@ -32,35 +31,6 @@ pub fn get_port_history(port: &str) -> Option<(String, String)> {
         }
     }
     None
-}
-
-pub fn get_cached_static_props(serial: &str) -> Option<(Option<String>, Option<String>)> {
-    if let Ok(lock) = STATIC_PROP_CACHE.lock() {
-        if let Some(map) = lock.as_ref() {
-            if let Some(props) = map.get(serial) {
-                if props.0.is_some() || props.1.is_some() {
-                    return Some(props.clone());
-                }
-            }
-        }
-    }
-    None
-}
-
-pub fn update_cached_static_props(serial: &str, build_type: Option<String>, pda_version: Option<String>) {
-    if serial.is_empty() {
-        return;
-    }
-    if let Ok(mut lock) = STATIC_PROP_CACHE.lock() {
-        let map = lock.get_or_insert_with(HashMap::new);
-        let entry = map.entry(serial.to_string()).or_insert((None, None));
-        if build_type.is_some() {
-            entry.0 = build_type;
-        }
-        if pda_version.is_some() {
-            entry.1 = pda_version;
-        }
-    }
 }
 
 // ponytail: Reload system udev rules and safe refresh ADB devices (matching FlashKit)
@@ -260,7 +230,7 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
     }
 
     // Query health in parallel threads
-    let health_results: Vec<(Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>)> = std::thread::scope(|s| {
+    let health_results: Vec<(Option<u32>, Option<f32>, Option<bool>)> = std::thread::scope(|s| {
         let handles: Vec<_> = raw_list
             .iter()
             .map(|dev| {
@@ -268,17 +238,17 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
                     if dev.state == "device" {
                         get_device_health(&dev.serial)
                     } else {
-                        (None, None, None, None, None)
+                        (None, None, None)
                     }
                 })
             })
             .collect();
 
-        handles.into_iter().map(|h| h.join().unwrap_or((None, None, None, None, None))).collect()
+        handles.into_iter().map(|h| h.join().unwrap_or((None, None, None))).collect()
     });
 
     let mut devices = Vec::with_capacity(raw_list.len());
-    for (dev, (bat_lvl, bat_temp, torch_on, b_type, pda_ver)) in raw_list.into_iter().zip(health_results.into_iter()) {
+    for (dev, (bat_lvl, bat_temp, torch_on)) in raw_list.into_iter().zip(health_results.into_iter()) {
         devices.push(DeviceInfo {
             id: dev.serial.clone(),
             port: dev.port,
@@ -291,26 +261,20 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
             battery_level: bat_lvl,
             battery_temp: bat_temp,
             torch_on,
-            build_type: b_type,
-            pda_version: pda_ver,
         });
     }
 
     devices
 }
 
-fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>) {
-    let cached_props = get_cached_static_props(serial);
-    let need_static = cached_props.as_ref().map(|(b, p)| b.is_none() || p.is_none()).unwrap_or(true);
-
-    let shell_cmd = if need_static {
-        "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"; btype=$(getprop ro.system.build.type); [ -z \"$btype\" ] && btype=$(getprop ro.build.type); echo \"btype:$btype\"; pda=$(getprop ro.build.PDA); [ -z \"$pda\" ] && pda=$(getprop ro.boot.em.status); echo \"pda:$pda\""
-    } else {
-        "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\""
-    };
-
+fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>) {
     let out = Command::new("adb")
-        .args(["-s", serial, "shell", shell_cmd])
+        .args([
+            "-s",
+            serial,
+            "shell",
+            "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"",
+        ])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
@@ -318,8 +282,6 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, O
     let mut level: Option<u32> = None;
     let mut temp: Option<f32> = None;
     let mut torch: Option<bool> = None;
-    let mut build_type: Option<String> = cached_props.as_ref().and_then(|p| p.0.clone());
-    let mut pda_version: Option<String> = cached_props.as_ref().and_then(|p| p.1.clone());
 
     for line in out.lines() {
         let line = line.trim();
@@ -338,29 +300,13 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, O
             } else if val == "0" {
                 torch = Some(false);
             }
-        } else if line.starts_with("btype:") {
-            let val = line.replace("btype:", "").trim().to_string();
-            if !val.is_empty() && val != "null" {
-                build_type = Some(val);
-            }
-        } else if line.starts_with("pda:") {
-            let val = line.replace("pda:", "").trim().to_string();
-            if !val.is_empty() && val != "null" {
-                pda_version = Some(val);
-            }
         }
-    }
-
-    if build_type.is_some() || pda_version.is_some() {
-        update_cached_static_props(serial, build_type.clone(), pda_version.clone());
     }
 
     (
         level.or(Some(100)),
         temp.or(Some(31.5)),
         torch.or(Some(false)),
-        build_type,
-        pda_version,
     )
 }
 
@@ -424,8 +370,6 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             battery_level: None,
                             battery_temp: None,
                             torch_on: None,
-                            build_type: None,
-                            pda_version: None,
                         });
                     }
                 }
@@ -463,8 +407,6 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             battery_level: None,
                             battery_temp: None,
                             torch_on: None,
-                            build_type: None,
-                            pda_version: None,
                         });
                     }
                 }

@@ -17,8 +17,6 @@ export interface DeviceInfo {
   batteryLevel?: number;
   batteryTemp?: number;
   torchOn?: boolean;
-  buildType?: string;
-  pdaVersion?: string;
   lastSeen: number;
 }
 
@@ -265,15 +263,10 @@ wss.on('connection', (ws, req) => {
               const fullKey = `${bridgePcId}:${primaryId}`;
               newKeys.add(fullKey);
 
-              const existingDev = fleetDevices.get(fullKey);
-              const mergedBuildType = d.buildType || existingDev?.buildType;
-              const mergedPdaVersion = d.pdaVersion || existingDev?.pdaVersion;
-
               if (matchingActive) {
                 // If device was rebooting and is now detected back online in Ready state, clear Busy/Rebooting status!
                 const isRebootFinished = (matchingActive.currentTask?.toLowerCase().includes('reboot') || matchingActive.status === 'Busy') && d.status === 'Ready';
                 fleetDevices.set(fullKey, {
-                  ...existingDev,
                   ...d,
                   id: primaryId,
                   pcId: bridgePcId,
@@ -282,17 +275,12 @@ wss.on('connection', (ws, req) => {
                   status: isRebootFinished ? 'Ready' : matchingActive.status,
                   progress: isRebootFinished ? 0 : matchingActive.progress,
                   currentTask: isRebootFinished ? undefined : matchingActive.currentTask,
-                  buildType: mergedBuildType,
-                  pdaVersion: mergedPdaVersion,
                   lastSeen: Date.now(),
                 });
               } else {
                 fleetDevices.set(fullKey, {
-                  ...existingDev,
                   ...d,
                   pcId: bridgePcId,
-                  buildType: mergedBuildType,
-                  pdaVersion: mergedPdaVersion,
                   lastSeen: Date.now(),
                 });
               }

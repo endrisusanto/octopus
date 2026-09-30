@@ -144,54 +144,6 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
 
                 {/* Right Actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                  {/* Badge: Build Type [ro.system.build.type] */}
-                  {device.buildType && (
-                    <span
-                      className="stat-pill"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.2rem',
-                        fontSize: '0.68rem',
-                        padding: '0.12rem 0.38rem',
-                        fontWeight: 700,
-                        textTransform: 'lowercase',
-                        backgroundColor: device.buildType.toLowerCase().includes('userdebug')
-                          ? 'rgba(236, 72, 153, 0.14)'
-                          : 'rgba(100, 116, 139, 0.14)',
-                        color: device.buildType.toLowerCase().includes('userdebug')
-                          ? 'var(--accent-magenta, #ec4899)'
-                          : 'var(--text-secondary, #94a3b8)',
-                        border: `1px solid ${device.buildType.toLowerCase().includes('userdebug') ? 'rgba(236, 72, 153, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
-                      }}
-                      title={`Build Type [ro.system.build.type]: ${device.buildType}`}
-                    >
-                      {device.buildType}
-                    </span>
-                  )}
-
-                  {/* Badge: AP Version [ro.build.PDA] */}
-                  {device.pdaVersion && (
-                    <span
-                      className="stat-pill"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.2rem',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '0.68rem',
-                        padding: '0.12rem 0.42rem',
-                        fontWeight: 600,
-                        backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                        color: 'var(--accent-primary, #60a5fa)',
-                        border: '1px solid rgba(59, 130, 246, 0.25)',
-                      }}
-                      title={`AP Version [ro.build.PDA]: ${device.pdaVersion}`}
-                    >
-                      {device.pdaVersion}
-                    </span>
-                  )}
-
                   {/* Badge: Battery */}
                   <span
                     className="stat-pill"
