@@ -45,7 +45,7 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
 
   if (!apFilename && (!Array.isArray(devices) || devices.length === 0)) return null;
 
-  const validMatchedDevices = (devices || []).filter((d) => d && (!sourcePcId || d.pcId === sourcePcId));
+  const validMatchedDevices = (devices || []).filter((d) => Boolean(d));
   const validMatchedDeviceIds = validMatchedDevices.map((d) => d.id);
   const selectedMatchedIds = validMatchedDeviceIds.filter((id) => (selectedIds || []).includes(id));
   const isAllSelected = selectedMatchedIds.length === validMatchedDeviceIds.length && validMatchedDeviceIds.length > 0;
@@ -578,17 +578,13 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                 {devices.map((device) => {
                   const isSelected = selectedIds.includes(device.id);
-                  const isPcMismatch = Boolean(sourcePcId && device.pcId !== sourcePcId);
+                  const isCrossNode = Boolean(sourcePcId && device.pcId !== sourcePcId);
 
                   return (
                     <div
                       key={`${device.pcId}-${device.id}`}
-                      onClick={() => {
-                        if (!isPcMismatch) {
-                          onToggleSelect(device.id);
-                        }
-                      }}
-                      title={isPcMismatch ? `File binary dipilih dari PC [${sourcePcId}]. Device ini berada di PC [${device.pcId}]. Checkbox dinonaktifkan.` : ''}
+                      onClick={() => onToggleSelect(device.id)}
+                      title={isCrossNode ? `Cross-Node Flash: Binary dari [${sourcePcId}], target device di [${device.pcId}]` : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -602,8 +598,8 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                         border: isSelected ? '1px solid var(--border-active)' : '1px solid var(--border-subtle)',
                         boxShadow: 'none',
                         backgroundColor: isSelected ? 'rgba(9, 105, 218, 0.08)' : 'var(--bg-surface)',
-                        cursor: isPcMismatch ? 'not-allowed' : 'pointer',
-                        opacity: isPcMismatch ? 0.45 : 1,
+                        cursor: 'pointer',
+                        opacity: 1,
                         gap: '0.75rem',
                         fontSize: '0.85rem',
                         overflowX: 'auto',
@@ -615,13 +611,10 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          disabled={isPcMismatch}
-                          onChange={() => {
-                            if (!isPcMismatch) onToggleSelect(device.id);
-                          }}
+                          onChange={() => onToggleSelect(device.id)}
                           onClick={(e) => e.stopPropagation()}
                           className="custom-checkbox"
-                          style={{ cursor: isPcMismatch ? 'not-allowed' : 'pointer', width: '16px', height: '16px' }}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                         />
                         <span style={{ fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>{device.model}</span>
                         <span className="pc-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', whiteSpace: 'nowrap' }}>{device.pcId}</span>
@@ -631,9 +624,9 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           {device.port}
                         </span>
-                        {isPcMismatch && (
-                          <span className="badge" style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', backgroundColor: 'rgba(239, 68, 68, 0.12)', color: 'var(--accent-red, #ef4444)', border: '1px solid var(--accent-red, #ef4444)' }}>
-                            PC Berbeda ({device.pcId})
+                        {isCrossNode && (
+                          <span className="badge" style={{ fontSize: '0.65rem', padding: '0.08rem 0.35rem', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-primary, #3b82f6)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                            Cross-Node
                           </span>
                         )}
                       </div>

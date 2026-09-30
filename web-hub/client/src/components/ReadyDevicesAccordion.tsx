@@ -63,7 +63,7 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
     ? devices.filter((d) => d && d.model === modelFilter)
     : devices;
 
-  const validStandbyDevices = displayedDevices.filter((d) => d && (!sourcePcId || d.pcId === sourcePcId));
+  const validStandbyDevices = displayedDevices.filter((d) => Boolean(d));
   const validStandbyIds = validStandbyDevices.map((d) => d.id);
   const selectedStandbyIds = validStandbyIds.filter((id) => (selectedIds || []).includes(id));
   const isAllStandbySelected = validStandbyIds.length > 0 && selectedStandbyIds.length === validStandbyIds.length;

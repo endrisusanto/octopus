@@ -10,6 +10,7 @@ interface FleetHeaderProps {
   isConnected: boolean;
   onRefresh?: () => void;
   onReloadDevices?: () => void;
+  onOpenWebFlasher?: () => void;
 }
 
 export const FleetHeader: React.FC<FleetHeaderProps> = ({
@@ -18,6 +19,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   isConnected,
   onRefresh,
   onReloadDevices,
+  onOpenWebFlasher,
 }) => {
   const odinCount = devices.filter((d) => d.mode === 'odin').length;
   const adbCount = devices.filter((d) => d.mode === 'adb').length;
@@ -25,7 +27,27 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
 
   return (
     <header className="header-bar">
-      <div className="brand-section">
+      <div
+        className="brand-section"
+        onClick={onOpenWebFlasher}
+        title="⚡ Klik untuk Buka Direct Browser WebUSB Flasher"
+        style={{
+          cursor: onOpenWebFlasher ? 'pointer' : 'default',
+          transition: 'all 0.15s ease',
+          padding: '0.2rem 0.4rem',
+          borderRadius: '8px',
+        }}
+        onMouseEnter={(e) => {
+          if (onOpenWebFlasher) {
+            e.currentTarget.style.backgroundColor = 'var(--bg-hover, rgba(255, 255, 255, 0.05))';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (onOpenWebFlasher) {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }
+        }}
+      >
         <img
           src="/logo-light.png"
           alt="Octopus Mascot"
@@ -39,7 +61,23 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
           }}
         />
         <div className="brand-text">
-          <h1 className="brand-title">OCTOPUS HUB</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <h1 className="brand-title">OCTOPUS HUB</h1>
+            <span
+              style={{
+                fontSize: '0.625rem',
+                fontWeight: 700,
+                padding: '0.1rem 0.35rem',
+                borderRadius: '4px',
+                background: 'rgba(31, 111, 235, 0.15)',
+                color: '#58a6ff',
+                border: '1px solid rgba(31, 111, 235, 0.4)',
+                letterSpacing: '0.04em',
+              }}
+            >
+              WEBUSB
+            </span>
+          </div>
           <div className="brand-subtitle">Automated Odin Firmware Orchestration Engine</div>
         </div>
       </div>

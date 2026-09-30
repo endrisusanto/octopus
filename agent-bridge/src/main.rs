@@ -2,6 +2,7 @@
 
 mod protocol;
 mod scanner;
+mod stream_server;
 mod updater;
 mod verifier;
 mod workflow;
@@ -189,6 +190,9 @@ fn save_rack_calibration(calib: &serde_json::Value) -> Result<(), String> {
 // Background Worker Task
 async fn run_bridge_worker(state: AppState) {
     let os_type = get_os_type();
+
+    // ponytail: Start high-speed mini HTTP streaming server for LAN cross-node binary distribution
+    tokio::spawn(stream_server::start_stream_server(4005));
 
     loop {
         let (current_hub_url, current_pc_id) = {
@@ -748,30 +752,59 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
+                                                    let ap_pc_id = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("apPcId").or_else(|| p.get("sourcePcId")))
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+
                                                     let bl_path = exec.params
                                                         .as_ref()
                                                         .and_then(|p| p.get("blPath"))
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
+                                                    let bl_pc_id = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("blPcId"))
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+
                                                     let cp_path = exec.params
                                                         .as_ref()
                                                         .and_then(|p| p.get("cpPath"))
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
+                                                    let cp_pc_id = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("cpPcId"))
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+
                                                     let csc_path = exec.params
                                                         .as_ref()
                                                         .and_then(|p| p.get("cscPath"))
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
+                                                    let csc_pc_id = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("cscPcId"))
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
+
                                                     let userdata_path = exec.params
                                                         .as_ref()
                                                         .and_then(|p| p.get("userdataPath"))
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
                                                         .to_string();
+                                                    let userdata_pc_id = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("userdataPcId"))
+                                                        .and_then(|v| v.as_str())
+                                                        .map(|s| s.to_string());
 
                                                     let skip_suw = if exec.action == "suw_bypass" {
                                                         true
@@ -820,7 +853,7 @@ async fn run_bridge_worker(state: AppState) {
 
                                                     let device_id = exec.device_id.clone();
                                                     // Find serial and usb port if device_id is port devnode
-                                                    let (serial_hint, port_hint, mode_hint) = {
+                                                    let (st_serial, st_port, st_mode) = {
                                                         let st = state.status.lock().unwrap();
                                                         let dev = st.devices.iter().find(|d| d.id == device_id || d.serial.as_deref() == Some(&device_id));
                                                         (
@@ -830,6 +863,15 @@ async fn run_bridge_worker(state: AppState) {
                                                         )
                                                     };
 
+                                                    let p_serial = exec.params.as_ref().and_then(|p| p.get("serialHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
+                                                    let p_port = exec.params.as_ref().and_then(|p| p.get("portHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
+                                                    let p_mode = exec.params.as_ref().and_then(|p| p.get("modeHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                                                    let serial_hint = st_serial.or(p_serial);
+                                                    let port_hint = st_port.or(p_port);
+                                                    let mode_hint = st_mode.or(p_mode);
+
+                                                    let wf_hub_url = Some(current_hub_url.clone());
                                                     let tx_wf = tx.clone();
                                                     tokio::spawn(async move {
                                                         workflow::execute_workflow_pipeline(
@@ -839,16 +881,22 @@ async fn run_bridge_worker(state: AppState) {
                                                             mode_hint,
                                                             odin_flash,
                                                             ap_path,
+                                                            ap_pc_id,
                                                             bl_path,
+                                                            bl_pc_id,
                                                             cp_path,
+                                                            cp_pc_id,
                                                             csc_path,
+                                                            csc_pc_id,
                                                             userdata_path,
+                                                            userdata_pc_id,
                                                             skip_suw,
                                                             setup_gba,
                                                             wifi_enabled,
                                                             wifi_ssid,
                                                             wifi_password,
                                                             post_torch,
+                                                            wf_hub_url,
                                                             tx_wf,
                                                         ).await;
                                                     });

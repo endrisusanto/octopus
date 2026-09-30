@@ -13,6 +13,7 @@ import { WifiConfigModal } from './components/WifiConfigModal';
 import { BulkActionBar } from './components/BulkActionBar';
 import { LedAnimationModal } from './components/LedAnimationModal';
 import { AutomationConfirmModal } from './components/AutomationConfirmModal';
+import { WebFlasherModal } from './components/WebFlasherModal';
 import { SearchIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
@@ -42,6 +43,7 @@ export const App: React.FC = () => {
   const [selectedPcId, setSelectedPcId] = useState('all');
   const [selectedMode, setSelectedMode] = useState('all');
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
+  const [isWebFlasherOpen, setIsWebFlasherOpen] = useState(false);
 
   // Firmware 5-Slot State
   const [firmwareSlots, setFirmwareSlots] = useState<FirmwareSlotsMap>({
@@ -303,10 +305,10 @@ export const App: React.FC = () => {
     );
   };
 
-  // Auto-select matched devices when matched model changes (restricted to sourcePcId if defined)
+  // Auto-select matched devices when matched model changes (across all connected nodes)
   useEffect(() => {
     if (matchedDevices.length > 0) {
-      const valid = matchedDevices.filter((d) => !sourcePcId || d.pcId === sourcePcId).map((d) => d.id);
+      const valid = matchedDevices.map((d) => d.id);
       setSelectedIds((prev) => {
         const prevStr = prev.slice().sort().join(',');
         const validStr = valid.slice().sort().join(',');
@@ -315,7 +317,7 @@ export const App: React.FC = () => {
         return valid;
       });
     }
-  }, [activeAp, matchedDevices.length, sourcePcId, syncSelectedDevices]);
+  }, [activeAp, matchedDevices.length, syncSelectedDevices]);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -471,6 +473,7 @@ export const App: React.FC = () => {
         isConnected={isConnected}
         onRefresh={handleTriggerAgentUpdate}
         onReloadDevices={handleReloadDevices}
+        onOpenWebFlasher={() => setIsWebFlasherOpen(true)}
       />
 
       <main className="main-content">
@@ -682,6 +685,16 @@ export const App: React.FC = () => {
         devices={devices}
         workflowConfig={workflowConfig}
         apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
+      />
+
+      {/* Direct In-Browser WebUSB / WebADB Flasher Modal */}
+      <WebFlasherModal
+        isOpen={isWebFlasherOpen}
+        onClose={() => setIsWebFlasherOpen(false)}
+        availableBinaries={binaries}
+        fleetDevices={devices}
+        dispatchAction={dispatchAction}
+        fleetLogs={logs}
       />
     </div>
   );

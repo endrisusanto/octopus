@@ -130,6 +130,110 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ponytail: HTTP Stream & Cross-Node Binary Streaming Gateway with Range Support
+  if (req.url?.startsWith('/api/binaries/stream')) {
+    const hostHeader = req.headers.host || '127.0.0.1:4000';
+    const urlObj = new URL(req.url, `http://${hostHeader}`);
+    const targetPath = urlObj.searchParams.get('path') || '';
+    const targetFilename = urlObj.searchParams.get('filename') || '';
+    const sourcePcId = urlObj.searchParams.get('sourcePcId') || '';
+
+    // 1. Check local hub filesystem
+    let resolvedFilePath = '';
+    if (targetPath && fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+      resolvedFilePath = targetPath;
+    } else {
+      const allBins = getAllBinaries();
+      const match = allBins.find(b =>
+        (targetPath && b.path === targetPath) ||
+        (targetFilename && b.filename === targetFilename) ||
+        (targetPath && b.filename === path.basename(targetPath))
+      );
+      if (match && fs.existsSync(match.path) && fs.statSync(match.path).isFile()) {
+        resolvedFilePath = match.path;
+      }
+    }
+
+    if (resolvedFilePath) {
+      const stat = fs.statSync(resolvedFilePath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const fileStream = fs.createReadStream(resolvedFilePath, { start, end });
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*',
+          'Content-Disposition': `attachment; filename="${path.basename(resolvedFilePath)}"`,
+        });
+        fileStream.pipe(res);
+      } else {
+        res.writeHead(200, {
+          'Content-Length': fileSize,
+          'Content-Type': 'application/octet-stream',
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*',
+          'Content-Disposition': `attachment; filename="${path.basename(resolvedFilePath)}"`,
+        });
+        fs.createReadStream(resolvedFilePath).pipe(res);
+      }
+      return;
+    }
+
+    // 2. If file is on remote bridge node, proxy stream from bridge's mini HTTP stream server (port 4005)
+    let autoSourcePcId = sourcePcId;
+    if (!autoSourcePcId) {
+      const allBins = getAllBinaries();
+      const match = allBins.find(b =>
+        (targetPath && b.path === targetPath) ||
+        (targetFilename && b.filename === targetFilename) ||
+        (targetPath && b.filename === path.basename(targetPath))
+      );
+      if (match && match.pcId) {
+        autoSourcePcId = match.pcId;
+      }
+    }
+
+    if (autoSourcePcId) {
+      const sourceBridge = connectedBridges.get(autoSourcePcId);
+      if (sourceBridge && sourceBridge.ip) {
+        const bridgeStreamUrl = `http://${sourceBridge.ip}:4005/stream?path=${encodeURIComponent(targetPath || targetFilename)}`;
+        const proxyReq = http.request(bridgeStreamUrl, {
+          method: req.method,
+          headers: {
+            ...req.headers,
+            host: `${sourceBridge.ip}:4005`,
+          }
+        }, (proxyRes) => {
+          res.writeHead(proxyRes.statusCode || 200, {
+            ...proxyRes.headers,
+            'Access-Control-Allow-Origin': '*',
+          });
+          proxyRes.pipe(res);
+        });
+        proxyReq.on('error', (err) => {
+          console.error(`[Stream Error] Proxying to ${bridgeStreamUrl} failed:`, err.message);
+          res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ error: `Failed to stream from bridge ${autoSourcePcId}: ${err.message}` }));
+        });
+        req.pipe(proxyReq);
+        return;
+      }
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Firmware binary file not found on hub or source node.' }));
+    return;
+  }
+
+
   // Serve static files for Web UI
   if (fs.existsSync(clientDistPath)) {
     let reqPath = req.url?.split('?')[0] || '/';
@@ -554,10 +658,15 @@ wss.on('connection', (ws, req) => {
                     params: {
                       apFilename: apFile,
                       apPath: apPath,
+                      apPcId: globalFirmwareSlots.ap.pcId || wfConfig?.apPcId || '',
                       blPath: globalFirmwareSlots.bl.path || globalFirmwareSlots.bl.filename || (wfConfig?.blPath as string) || '',
+                      blPcId: globalFirmwareSlots.bl.pcId || wfConfig?.blPcId || '',
                       cpPath: globalFirmwareSlots.cp.path || globalFirmwareSlots.cp.filename || (wfConfig?.cpPath as string) || '',
+                      cpPcId: globalFirmwareSlots.cp.pcId || wfConfig?.cpPcId || '',
                       cscPath: globalFirmwareSlots.csc.path || globalFirmwareSlots.csc.filename || (wfConfig?.cscPath as string) || '',
+                      cscPcId: globalFirmwareSlots.csc.pcId || wfConfig?.cscPcId || '',
                       userdataPath: globalFirmwareSlots.userdata.path || globalFirmwareSlots.userdata.filename || (wfConfig?.userdataPath as string) || '',
+                      userdataPcId: globalFirmwareSlots.userdata.pcId || wfConfig?.userdataPcId || '',
                       odinFlash: wfConfig?.odinFlash !== false,
                       skipSuw: wfConfig?.skipSuw !== false,
                       setupGba: wfConfig?.setupGba !== false,
