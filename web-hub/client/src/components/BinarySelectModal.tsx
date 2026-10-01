@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CloseIcon, FileCodeIcon, RefreshIcon, CheckIcon } from './Icons';
+import { CloseIcon, FileCodeIcon, RefreshIcon, CheckIcon, DownloadIcon } from './Icons';
 import { BinaryItem } from '../hooks/useFleetWebSocket';
 import { extractModelFromFirmware, extractCoreModel, DeviceItem } from '../hooks/useFlashKitSort';
 
@@ -11,6 +11,7 @@ interface BinarySelectModalProps {
   devices?: DeviceItem[];
   onSave: (binaryFile: string) => void;
   onRefreshBinaries?: () => void;
+  onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -29,11 +30,11 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   devices,
   onSave,
   onRefreshBinaries,
+  onCopyBinary,
 }) => {
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedPc, setSelectedPc] = useState('all');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [customBinary, setCustomBinary] = useState(currentBinary);
 
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
 
@@ -99,14 +100,6 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   const handleSelectBinary = (filename: string) => {
     onSave(filename);
     onClose();
-  };
-
-  const handleSaveCustom = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (customBinary.trim()) {
-      onSave(customBinary.trim());
-      onClose();
-    }
   };
 
   return (
@@ -221,7 +214,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
             <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
               <div style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>Belum ada binary terdeteksi di folder Bridge PC</div>
               <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-                Simpan file firmware (AP_*.tar.md5 / .tar / .zip) pada folder lokal bridge (misal: semua partisi <code>C:\</code> s/d <code>Z:\</code> di Windows, atau <code>/run/media</code> / <code>/media</code> di Ubuntu/Linux), atau masukkan nama file manual di bawah.
+                Simpan file firmware (AP_*.tar.md5 / .tar / .zip) pada folder lokal bridge (misal: semua partisi <code>C:\</code> s/d <code>Z:\</code> di Windows, atau <code>/run/media</code> / <code>/media</code> di Ubuntu/Linux).
               </div>
             </div>
           ) : filteredBinaries.length === 0 ? (
@@ -276,6 +269,23 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
                     <span className="stat-pill binary-item-size" style={{ fontWeight: 700 }}>
                       {formatBytes(b.sizeBytes)}
                     </span>
+
+                    {onCopyBinary && uniquePcs.filter((p) => p !== b.pcId).map((targetPc) => (
+                      <button
+                        key={targetPc}
+                        type="button"
+                        className="btn btn-sm binary-item-copy-btn"
+                        title={`Salin firmware ini ke folder ${targetPc}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCopyBinary(b.pcId, targetPc, b.filename, b.path);
+                        }}
+                      >
+                        <DownloadIcon size={13} />
+                        <span>Salin ke {targetPc}</span>
+                      </button>
+                    ))}
+
                     <button
                       type="button"
                       className={`btn btn-sm binary-item-btn ${isSelected ? 'btn-primary' : ''}`}
@@ -288,21 +298,6 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
             })
           )}
         </div>
-
-        {/* Custom / Manual Input Form */}
-        <form onSubmit={handleSaveCustom} className="binary-manual-form" style={{ marginTop: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            type="text"
-            className="search-input binary-manual-input"
-            style={{ flex: 1, paddingLeft: '0.75rem' }}
-            placeholder="Atau ketik nama binary manual (e.g. AP_S908BXXU2AVF1...)"
-            value={customBinary}
-            onChange={(e) => setCustomBinary(e.target.value)}
-          />
-          <button type="submit" className="btn btn-sm binary-manual-submit-btn" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-            Set Manual
-          </button>
-        </form>
       </div>
     </div>
   );

@@ -182,7 +182,9 @@ pub fn scan_local_binaries(custom_dir: Option<&str>, restrict_to_custom: bool) -
 
             if let Ok(home) = std::env::var("HOME") {
                 let home_path = PathBuf::from(&home);
+                candidate_roots.push(home_path.join(".octopus").join("firmware"));
                 candidate_roots.push(home_path.join("Downloads"));
+                candidate_roots.push(home_path.join("Downloads").join("OctopusFirmware"));
                 candidate_roots.push(home_path.join("Desktop"));
             }
         }

@@ -30,6 +30,7 @@ interface FirmwareAccordionProps {
   binaries: BinaryItem[];
   devices?: DeviceItem[];
   onRefreshBinaries?: () => void;
+  onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
 }
 
 const SLOT_CONFIGS: { key: keyof FirmwareSlotsMap; label: string; name: string; color: string; bg: string }[] = [
@@ -47,6 +48,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
   binaries,
   devices,
   onRefreshBinaries,
+  onCopyBinary,
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [activeSlotModal, setActiveSlotModal] = useState<keyof FirmwareSlotsMap | null>(null);
@@ -363,6 +365,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
             setActiveSlotModal(null);
           }}
           onRefreshBinaries={onRefreshBinaries}
+          onCopyBinary={onCopyBinary}
         />
       )}
     </div>

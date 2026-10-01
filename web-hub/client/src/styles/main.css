@@ -1192,13 +1192,242 @@ body {
   padding: 0.35rem 0.85rem;
 }
 
-.binary-manual-input {
-  font-size: 0.9rem;
+.binary-item-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.775rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-sm, 6px);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.binary-manual-submit-btn {
-  font-size: 0.875rem;
-  padding: 0.5rem 0.95rem;
+.binary-item-copy-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+/* Floating Bottom-Left Binary Transfer Toast */
+.binary-toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-width: 380px;
+  width: calc(100vw - 2.5rem);
+  pointer-events: none;
+}
+
+.binary-toast-card {
+  pointer-events: auto;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: toastSlideInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.binary-toast-card.transferring {
+  border-color: var(--border-active);
+}
+
+.binary-toast-card.completed {
+  border-color: var(--ready-color, #10b981);
+}
+
+.binary-toast-card.failed {
+  border-color: var(--fail-color, #ef4444);
+}
+
+.binary-toast-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.binary-toast-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.binary-toast-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.binary-toast-spin {
+  animation: toastSpin 1s linear infinite;
+}
+
+@keyframes toastSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes toastSlideInUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.binary-toast-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.binary-toast-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.binary-toast-close-btn:hover {
+  background-color: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.binary-toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.binary-toast-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.725rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.binary-toast-node {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.binary-toast-node.target {
+  color: var(--accent-primary);
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+}
+
+.binary-toast-route-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.binary-toast-filename {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.binary-toast-file-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.binary-toast-filename-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.775rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.binary-toast-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+.binary-toast-progress-bar {
+  height: 100%;
+  background-color: var(--accent-primary, #3b82f6);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.binary-toast-progress-bar.completed {
+  background-color: var(--ready-color, #10b981);
+}
+
+.binary-toast-progress-bar.failed {
+  background-color: var(--fail-color, #ef4444);
+}
+
+.binary-toast-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.725rem;
+  color: var(--text-muted);
+}
+
+.binary-toast-pct {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+}
+
+.binary-toast-stat {
+  font-family: var(--font-mono, monospace);
+}
+
+.binary-toast-error-text {
+  color: var(--fail-color, #ef4444);
+  font-size: 0.725rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
 }
 
 /* Empty State */
@@ -1593,26 +1822,6 @@ body {
     min-height: 24px !important;
   }
 
-  .binary-manual-form {
-    margin-top: 0.45rem !important;
-    padding-top: 0.45rem !important;
-    gap: 0.35rem !important;
-  }
-
-  .binary-manual-input {
-    font-size: 0.675rem !important;
-    padding: 0.3rem 0.5rem !important;
-    height: 30px !important;
-    min-height: 30px !important;
-  }
-
-  .binary-manual-submit-btn {
-    font-size: 0.675rem !important;
-    padding: 0.3rem 0.6rem !important;
-    height: 30px !important;
-    min-height: 30px !important;
-  }
-
   /* Workflow Device Card Mobile */
   .workflow-device-card {
     padding: 0.55rem 0.75rem !important;
@@ -1782,6 +1991,38 @@ body {
   .led-category-btn {
     font-size: 0.68rem !important;
     padding: 0 0.2rem !important;
+  }
+
+  /* Compact Binary Transfer Toast Mobile */
+  .binary-toast-container {
+    bottom: 0.65rem !important;
+    left: 0.65rem !important;
+    right: 0.65rem !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  .binary-toast-card {
+    padding: 0.65rem 0.75rem !important;
+    border-radius: 10px !important;
+    gap: 0.35rem !important;
+  }
+
+  .binary-toast-title {
+    font-size: 0.8rem !important;
+  }
+
+  .binary-toast-close-btn {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .binary-toast-filename-text {
+    font-size: 0.72rem !important;
+  }
+
+  .binary-toast-footer {
+    font-size: 0.68rem !important;
   }
 }
 

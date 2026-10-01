@@ -52,10 +52,23 @@ export interface RackCalibrationData {
   slots: RackSlotMapping[];
 }
 
+export interface BinaryTransferProgress {
+  sourcePcId: string;
+  targetPcId: string;
+  filename: string;
+  progressPct: number;
+  speedMb?: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  status: 'transferring' | 'completed' | 'failed';
+  error?: string;
+}
+
 export function useFleetWebSocket() {
   const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [bridges, setBridges] = useState<BridgeInfo[]>([]);
   const [binaries, setBinaries] = useState<BinaryItem[]>([]);
+  const [binaryTransfers, setBinaryTransfers] = useState<BinaryTransferProgress[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [md5Progress, setMd5Progress] = useState<Md5ProgressEvent | null>(null);
@@ -216,6 +229,23 @@ export function useFleetWebSocket() {
               }
               break;
             }
+
+            case 'BINARY_COPY_PROGRESS': {
+              const item: BinaryTransferProgress = msg.payload;
+              if (!item || !item.filename) break;
+              setBinaryTransfers((prev) => {
+                const idx = prev.findIndex(
+                  (t) => t.filename === item.filename && t.targetPcId === item.targetPcId
+                );
+                if (idx >= 0) {
+                  const next = [...prev];
+                  next[idx] = item;
+                  return next;
+                }
+                return [...prev, item];
+              });
+              break;
+            }
           }
         } catch (e) {
           console.error('[Fleet WS Msg Parse Error]', e);
@@ -356,11 +386,45 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const requestCopyBinary = useCallback((sourcePcId: string, targetPcId: string, filename: string, path?: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'REQUEST_COPY_BINARY',
+          payload: { sourcePcId, targetPcId, filename, path },
+        })
+      );
+      // Optimistically show initial progress toast
+      setBinaryTransfers((prev) => {
+        const existing = prev.filter((t) => !(t.filename === filename && t.targetPcId === targetPcId));
+        return [
+          ...existing,
+          {
+            sourcePcId,
+            targetPcId,
+            filename,
+            progressPct: 0,
+            downloadedBytes: 0,
+            totalBytes: 0,
+            status: 'transferring',
+          },
+        ];
+      });
+    }
+  }, []);
+
+  const dismissBinaryTransfer = useCallback((targetPcId: string, filename: string) => {
+    setBinaryTransfers((prev) => prev.filter((t) => !(t.filename === filename && t.targetPcId === targetPcId)));
+  }, []);
+
   return {
     devices,
     setDevices,
     bridges,
     binaries,
+    binaryTransfers,
+    requestCopyBinary,
+    dismissBinaryTransfer,
     isConnected,
     logs,
     md5Progress,

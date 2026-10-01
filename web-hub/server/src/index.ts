@@ -490,6 +490,11 @@ wss.on('connection', (ws, req) => {
             broadcastToUI('RACK_CALIBRATION_SYNC', { calibration: globalRackCalibration });
             break;
           }
+
+          case 'BINARY_COPY_PROGRESS': {
+            broadcastToUI('BINARY_COPY_PROGRESS', msg.payload);
+            break;
+          }
         }
       } catch (err) {
         console.error('[Bridge Msg Parse Error]', err);
@@ -708,6 +713,23 @@ wss.on('connection', (ws, req) => {
                   },
                 },
               }));
+            }
+          }
+        } else if (msg.type === 'REQUEST_COPY_BINARY') {
+          const { sourcePcId, targetPcId, filename, path } = msg.payload || {};
+          if (targetPcId && filename) {
+            const targetBridge = connectedBridges.get(targetPcId);
+            if (targetBridge && targetBridge.ws && targetBridge.ws.readyState === WebSocket.OPEN) {
+              targetBridge.ws.send(JSON.stringify({
+                type: 'DOWNLOAD_BINARY_COMMAND',
+                payload: {
+                  sourcePcId,
+                  targetPcId,
+                  filename,
+                  path,
+                }
+              }));
+              console.log(`[Binary Copy] Forwarded copy request for ${filename} from ${sourcePcId} to ${targetPcId}`);
             }
           }
         } else if (msg.type === 'DISPATCH_ACTION') {

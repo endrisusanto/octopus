@@ -78,6 +78,24 @@ pub enum OutgoingMessage {
         #[serde(rename = "torchOn")]
         torch_on: bool,
     },
+    #[serde(rename = "BINARY_COPY_PROGRESS")]
+    BinaryCopyProgress {
+        #[serde(rename = "sourcePcId")]
+        source_pc_id: String,
+        #[serde(rename = "targetPcId")]
+        target_pc_id: String,
+        filename: String,
+        #[serde(rename = "progressPct")]
+        progress_pct: u32,
+        #[serde(rename = "speedMb")]
+        speed_mb: Option<String>,
+        #[serde(rename = "downloadedBytes")]
+        downloaded_bytes: u64,
+        #[serde(rename = "totalBytes")]
+        total_bytes: u64,
+        status: String,
+        error: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,9 +106,20 @@ pub struct ExecutePayload {
     pub params: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadBinaryPayload {
+    pub source_pc_id: String,
+    pub target_pc_id: String,
+    pub filename: String,
+    pub path: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum IncomingMessage {
     #[serde(rename = "EXECUTE_COMMAND")]
     Execute(ExecutePayload),
+    #[serde(rename = "DOWNLOAD_BINARY_COMMAND")]
+    DownloadBinary(DownloadBinaryPayload),
 }

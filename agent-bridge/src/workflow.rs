@@ -595,7 +595,7 @@ pub async fn execute_workflow_pipeline(
                 err_collector
             });
 
-            let mut reader = BufReader::new(stdout);
+            let reader = BufReader::new(stdout);
             let mut is_success = false;
             let mut last_emitted_pct: u32 = 0;
 

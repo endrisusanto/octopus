@@ -3,6 +3,7 @@
 mod protocol;
 mod scanner;
 mod stream_server;
+mod transfer;
 mod updater;
 mod verifier;
 mod workflow;
@@ -901,6 +902,21 @@ async fn run_bridge_worker(state: AppState) {
                                                         ).await;
                                                     });
                                                 }
+                                            }
+                                            IncomingMessage::DownloadBinary(dl_payload) => {
+                                                println!("[Download Binary] Copying {} from {} to {}", dl_payload.filename, dl_payload.source_pc_id, dl_payload.target_pc_id);
+                                                let tx_dl = tx.clone();
+                                                let hub_url_dl = current_hub_url.clone();
+                                                tokio::spawn(async move {
+                                                    transfer::download_binary_file(
+                                                        dl_payload.source_pc_id,
+                                                        dl_payload.target_pc_id,
+                                                        dl_payload.filename,
+                                                        dl_payload.path,
+                                                        hub_url_dl,
+                                                        tx_dl,
+                                                    ).await;
+                                                });
                                             }
                                         }
                                     }

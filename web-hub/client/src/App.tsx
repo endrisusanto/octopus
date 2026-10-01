@@ -14,6 +14,7 @@ import { BulkActionBar } from './components/BulkActionBar';
 import { LedAnimationModal } from './components/LedAnimationModal';
 import { AutomationConfirmModal } from './components/AutomationConfirmModal';
 import { WebFlasherModal } from './components/WebFlasherModal';
+import { BinaryTransferToast } from './components/BinaryTransferToast';
 import { SearchIcon, TerminalIcon } from './components/Icons';
 
 export const App: React.FC = () => {
@@ -22,6 +23,9 @@ export const App: React.FC = () => {
     setDevices,
     bridges,
     binaries,
+    binaryTransfers,
+    requestCopyBinary,
+    dismissBinaryTransfer,
     isConnected,
     logs,
     md5Progress,
@@ -534,6 +538,7 @@ export const App: React.FC = () => {
           binaries={binaries}
           devices={devices}
           onRefreshBinaries={handleRefreshBinaries}
+          onCopyBinary={requestCopyBinary}
         />
 
         {/* Accordion 2: Suggestion Match (Highlighted with Accent Glow Outline) */}
@@ -695,6 +700,12 @@ export const App: React.FC = () => {
         fleetDevices={devices}
         dispatchAction={dispatchAction}
         fleetLogs={logs}
+      />
+
+      {/* Floating Bottom-Left Cross-Node Binary Transfer Progress Toast */}
+      <BinaryTransferToast
+        transfers={binaryTransfers}
+        onDismiss={dismissBinaryTransfer}
       />
     </div>
   );
