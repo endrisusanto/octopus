@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CloseIcon, FileCodeIcon, RefreshIcon, CheckIcon, DownloadIcon } from './Icons';
-import { BinaryItem } from '../hooks/useFleetWebSocket';
+import { BinaryItem, BridgeInfo } from '../hooks/useFleetWebSocket';
 import { extractModelFromFirmware, extractCoreModel, DeviceItem } from '../hooks/useFlashKitSort';
 
 interface BinarySelectModalProps {
@@ -8,6 +8,7 @@ interface BinarySelectModalProps {
   onClose: () => void;
   currentBinary: string;
   binaries: BinaryItem[];
+  bridges?: BridgeInfo[];
   devices?: DeviceItem[];
   onSave: (binaryFile: string) => void;
   onRefreshBinaries?: () => void;
@@ -27,6 +28,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   onClose,
   currentBinary,
   binaries,
+  bridges,
   devices,
   onSave,
   onRefreshBinaries,
@@ -37,6 +39,16 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
+
+  // All available target PC nodes across binaries and connected bridge stations
+  const allTargetPcs = useMemo(() => {
+    const pcs = new Set<string>();
+    binaries.forEach((b) => pcs.add(b.pcId));
+    if (bridges) {
+      bridges.forEach((br) => pcs.add(br.pcId));
+    }
+    return Array.from(pcs);
+  }, [binaries, bridges]);
 
   // Set of connected models currently online/ready in the fleet
   const connectedModelSet = useMemo(() => {
@@ -229,62 +241,55 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
                   key={`${b.pcId}-${b.path}`}
                   onClick={() => handleSelectBinary(b.filename)}
                   className={`device-row binary-item-row ${isSelected ? 'selected' : ''}`}
-                  style={{
-                    borderRadius: 'var(--radius-md)',
-                    border: `1px solid ${isSelected ? 'var(--border-active)' : 'var(--border-subtle)'}`,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.65rem',
-                    backgroundColor: isSelected ? 'var(--bg-subtle)' : 'var(--bg-surface)',
-                    transition: 'border-color 0.15s, background-color 0.15s',
-                  }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
-                      <span
-                        className="binary-item-filename"
-                        style={{
-                          fontWeight: 700,
-                          fontFamily: 'var(--font-mono, monospace)',
-                          letterSpacing: '-0.01em',
-                          color: isSelected ? 'var(--accent-primary)' : 'var(--text-primary)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          display: 'block',
-                        }}
-                      >
-                        {b.filename}
-                      </span>
-                      {isSelected && <CheckIcon size={14} className="text-ready" style={{ flexShrink: 0 }} />}
+                  <div className="binary-item-info">
+                    <div className="binary-item-title-row">
+                      <div className="binary-item-filename-wrapper" onClick={(e) => e.stopPropagation()}>
+                        <span className="binary-item-filename">
+                          {b.filename}
+                        </span>
+                      </div>
+                      {isSelected && <CheckIcon size={14} className="text-ready binary-item-check" />}
                     </div>
-                    <div className="binary-item-meta" style={{ color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>[{b.pcId}]</span> &bull; {b.path}
+                    <div className="binary-item-meta">
+                      <span className="binary-item-node-tag">[{b.pcId}]</span> &bull; {b.path}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
-                    <span className="stat-pill binary-item-size" style={{ fontWeight: 700 }}>
+                  <div className="binary-item-actions">
+                    <span className="stat-pill binary-item-size">
                       {formatBytes(b.sizeBytes)}
                     </span>
 
-                    {onCopyBinary && uniquePcs.filter((p) => p !== b.pcId).map((targetPc) => (
-                      <button
-                        key={targetPc}
-                        type="button"
-                        className="btn btn-sm binary-item-copy-btn"
-                        title={`Salin firmware ini ke folder ${targetPc}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCopyBinary(b.pcId, targetPc, b.filename, b.path);
-                        }}
-                      >
-                        <DownloadIcon size={13} />
-                        <span>Salin ke {targetPc}</span>
-                      </button>
-                    ))}
+                    {onCopyBinary && allTargetPcs.filter((p) => p !== b.pcId).length > 0 && (
+                      <div className="binary-copy-select-wrapper" onClick={(e) => e.stopPropagation()}>
+                        <DownloadIcon size={12} className="binary-copy-select-icon" />
+                        <select
+                          className="binary-copy-select"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const targetPc = e.target.value;
+                            if (targetPc) {
+                              onCopyBinary(b.pcId, targetPc, b.filename, b.path);
+                              e.target.value = '';
+                            }
+                          }}
+                          title="Pilih node tujuan untuk menyalin firmware ini"
+                          aria-label="Salin binary ke node lain"
+                        >
+                          <option value="" disabled>
+                            Salin ke Node...
+                          </option>
+                          {allTargetPcs
+                            .filter((p) => p !== b.pcId)
+                            .map((targetPc) => (
+                              <option key={targetPc} value={targetPc}>
+                                Salin ke {targetPc}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
 
                     <button
                       type="button"

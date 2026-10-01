@@ -732,6 +732,23 @@ wss.on('connection', (ws, req) => {
               console.log(`[Binary Copy] Forwarded copy request for ${filename} from ${sourcePcId} to ${targetPcId}`);
             }
           }
+        } else if (msg.type === 'CONTROL_BINARY_TRANSFER') {
+          const { action, targetPcId, filename, sourcePcId } = msg.payload || {};
+          if (targetPcId && filename && action) {
+            const targetBridge = connectedBridges.get(targetPcId);
+            if (targetBridge && targetBridge.ws && targetBridge.ws.readyState === WebSocket.OPEN) {
+              targetBridge.ws.send(JSON.stringify({
+                type: 'CONTROL_BINARY_TRANSFER_COMMAND',
+                payload: {
+                  action,
+                  targetPcId,
+                  filename,
+                  sourcePcId,
+                }
+              }));
+              console.log(`[Binary Control] Forwarded ${action} command for ${filename} to ${targetPcId}`);
+            }
+          }
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
           const bridge = connectedBridges.get(targetPcId);

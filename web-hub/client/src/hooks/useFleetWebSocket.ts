@@ -60,7 +60,7 @@ export interface BinaryTransferProgress {
   speedMb?: string;
   downloadedBytes: number;
   totalBytes: number;
-  status: 'transferring' | 'completed' | 'failed';
+  status: 'transferring' | 'paused' | 'cancelled' | 'completed' | 'failed';
   error?: string;
 }
 
@@ -413,6 +413,35 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const controlBinaryTransfer = useCallback(
+    (action: 'pause' | 'resume' | 'cancel', targetPcId: string, filename: string, sourcePcId?: string) => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: 'CONTROL_BINARY_TRANSFER',
+            payload: { action, targetPcId, filename, sourcePcId },
+          })
+        );
+      }
+
+      setBinaryTransfers((prev) =>
+        prev.map((t) => {
+          if (t.filename === filename && t.targetPcId === targetPcId) {
+            if (action === 'pause') {
+              return { ...t, status: 'paused' as const, speedMb: undefined };
+            } else if (action === 'resume') {
+              return { ...t, status: 'transferring' as const };
+            } else if (action === 'cancel') {
+              return { ...t, status: 'cancelled' as const, speedMb: undefined };
+            }
+          }
+          return t;
+        })
+      );
+    },
+    []
+  );
+
   const dismissBinaryTransfer = useCallback((targetPcId: string, filename: string) => {
     setBinaryTransfers((prev) => prev.filter((t) => !(t.filename === filename && t.targetPcId === targetPcId)));
   }, []);
@@ -424,6 +453,7 @@ export function useFleetWebSocket() {
     binaries,
     binaryTransfers,
     requestCopyBinary,
+    controlBinaryTransfer,
     dismissBinaryTransfer,
     isConnected,
     logs,

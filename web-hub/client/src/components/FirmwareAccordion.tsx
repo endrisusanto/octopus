@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, RotateCcwIcon, CheckIcon, CloseIcon, FileCodeIcon } from './Icons';
-import { BinaryItem } from '../hooks/useFleetWebSocket';
+import { BinaryItem, BridgeInfo } from '../hooks/useFleetWebSocket';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { BinarySelectModal } from './BinarySelectModal';
 import { ProgressRing } from './ProgressRing';
@@ -28,6 +28,7 @@ interface FirmwareAccordionProps {
   onUpdateSlotsBatch: (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => void;
   onResetAll: () => void;
   binaries: BinaryItem[];
+  bridges?: BridgeInfo[];
   devices?: DeviceItem[];
   onRefreshBinaries?: () => void;
   onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
@@ -46,6 +47,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
   onUpdateSlotsBatch,
   onResetAll,
   binaries,
+  bridges,
   devices,
   onRefreshBinaries,
   onCopyBinary,
@@ -359,6 +361,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
           onClose={() => setActiveSlotModal(null)}
           currentBinary={slots[activeSlotModal].filename}
           binaries={binaries}
+          bridges={bridges}
           devices={devices}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);

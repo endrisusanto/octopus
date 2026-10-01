@@ -13,7 +13,6 @@ import { WifiConfigModal } from './components/WifiConfigModal';
 import { BulkActionBar } from './components/BulkActionBar';
 import { LedAnimationModal } from './components/LedAnimationModal';
 import { AutomationConfirmModal } from './components/AutomationConfirmModal';
-import { WebFlasherModal } from './components/WebFlasherModal';
 import { BinaryTransferToast } from './components/BinaryTransferToast';
 import { SearchIcon, TerminalIcon } from './components/Icons';
 
@@ -25,6 +24,7 @@ export const App: React.FC = () => {
     binaries,
     binaryTransfers,
     requestCopyBinary,
+    controlBinaryTransfer,
     dismissBinaryTransfer,
     isConnected,
     logs,
@@ -47,7 +47,6 @@ export const App: React.FC = () => {
   const [selectedPcId, setSelectedPcId] = useState('all');
   const [selectedMode, setSelectedMode] = useState('all');
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
-  const [isWebFlasherOpen, setIsWebFlasherOpen] = useState(false);
 
   // Firmware 5-Slot State
   const [firmwareSlots, setFirmwareSlots] = useState<FirmwareSlotsMap>({
@@ -477,7 +476,6 @@ export const App: React.FC = () => {
         isConnected={isConnected}
         onRefresh={handleTriggerAgentUpdate}
         onReloadDevices={handleReloadDevices}
-        onOpenWebFlasher={() => setIsWebFlasherOpen(true)}
       />
 
       <main className="main-content">
@@ -536,6 +534,7 @@ export const App: React.FC = () => {
           onUpdateSlotsBatch={handleUpdateSlotsBatch}
           onResetAll={handleResetAllSlots}
           binaries={binaries}
+          bridges={bridges}
           devices={devices}
           onRefreshBinaries={handleRefreshBinaries}
           onCopyBinary={requestCopyBinary}
@@ -692,20 +691,11 @@ export const App: React.FC = () => {
         apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
       />
 
-      {/* Direct In-Browser WebUSB / WebADB Flasher Modal */}
-      <WebFlasherModal
-        isOpen={isWebFlasherOpen}
-        onClose={() => setIsWebFlasherOpen(false)}
-        availableBinaries={binaries}
-        fleetDevices={devices}
-        dispatchAction={dispatchAction}
-        fleetLogs={logs}
-      />
-
       {/* Floating Bottom-Left Cross-Node Binary Transfer Progress Toast */}
       <BinaryTransferToast
         transfers={binaryTransfers}
         onDismiss={dismissBinaryTransfer}
+        onControl={controlBinaryTransfer}
       />
     </div>
   );

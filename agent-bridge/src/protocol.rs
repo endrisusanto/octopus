@@ -115,6 +115,15 @@ pub struct DownloadBinaryPayload {
     pub path: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlBinaryTransferPayload {
+    pub action: String,
+    pub target_pc_id: String,
+    pub filename: String,
+    pub source_pc_id: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum IncomingMessage {
@@ -122,4 +131,6 @@ pub enum IncomingMessage {
     Execute(ExecutePayload),
     #[serde(rename = "DOWNLOAD_BINARY_COMMAND")]
     DownloadBinary(DownloadBinaryPayload),
+    #[serde(rename = "CONTROL_BINARY_TRANSFER_COMMAND")]
+    ControlBinaryTransfer(ControlBinaryTransferPayload),
 }

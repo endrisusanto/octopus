@@ -918,6 +918,21 @@ async fn run_bridge_worker(state: AppState) {
                                                     ).await;
                                                 });
                                             }
+                                            IncomingMessage::ControlBinaryTransfer(ctrl_payload) => {
+                                                println!("[Binary Control] Action {} on {}", ctrl_payload.action, ctrl_payload.filename);
+                                                let tx_ctrl = tx.clone();
+                                                let hub_url_ctrl = current_hub_url.clone();
+                                                tokio::spawn(async move {
+                                                    transfer::control_binary_transfer(
+                                                        ctrl_payload.action,
+                                                        ctrl_payload.target_pc_id,
+                                                        ctrl_payload.filename,
+                                                        ctrl_payload.source_pc_id,
+                                                        hub_url_ctrl,
+                                                        tx_ctrl,
+                                                    ).await;
+                                                });
+                                            }
                                         }
                                     }
                                 }

@@ -227,5 +227,18 @@ export const AlertCircleIcon: React.FC<IconProps> = ({ size = 16, className = ''
   </svg>
 );
 
+export const PauseIcon: React.FC<IconProps> = ({ size = 16, className = '', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect x="6" y="4" width="4" height="16" rx="1"/>
+    <rect x="14" y="4" width="4" height="16" rx="1"/>
+  </svg>
+);
+
+export const StopIcon: React.FC<IconProps> = ({ size = 16, className = '', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect width="18" height="18" x="3" y="3" rx="2"/>
+  </svg>
+);
+
 
 
