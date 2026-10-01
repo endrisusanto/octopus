@@ -33,6 +33,8 @@ import {
   RotateCcwIcon,
   UploadAudioIcon,
   MusicIcon,
+  SunIcon,
+  SquareIcon,
 } from './Icons';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { RackCalibrationData, RackSlotMapping } from '../hooks/useFleetWebSocket';
@@ -45,9 +47,10 @@ interface LedAnimationModalProps {
   rackCalibration: RackCalibrationData | null;
   onSaveCalibration: (calib: RackCalibrationData) => void;
   onBlinkDevice: (serial: string) => void;
-  onStartAnimation: (preset: string, isLoop: boolean, speed?: number) => void;
+  onStartAnimation: (preset: string, isLoop: boolean, speed?: number, mode?: 'flash' | 'screen') => void;
   onStopAnimation: () => void;
   onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
+  onStopSound?: () => void;
   customSoundName?: string | null;
   onUploadCustomSound?: (file: File) => Promise<void>;
   onResetCustomSound?: () => void;
@@ -599,6 +602,7 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   onStartAnimation,
   onStopAnimation,
   onPlaySound,
+  onStopSound,
   customSoundName,
   onUploadCustomSound,
   onResetCustomSound,
@@ -609,6 +613,14 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   const [speed, setSpeed] = useState<number>(0.12);
   const [filterCategory, setFilterCategory] = useState<'all' | 'matrix' | 'classic'>('matrix');
   const [activeSoundPattern, setActiveSoundPattern] = useState<string | null>(null);
+  const [animMode, setAnimMode] = useState<'flash' | 'screen'>(() => {
+    return (localStorage.getItem('octopus_matrix_anim_mode') as 'flash' | 'screen') || 'flash';
+  });
+
+  const handleAnimModeChange = (mode: 'flash' | 'screen') => {
+    setAnimMode(mode);
+    localStorage.setItem('octopus_matrix_anim_mode', mode);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingSound, setIsUploadingSound] = useState(false);
@@ -645,6 +657,11 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
     }, 2000);
   };
 
+  const handleStopSound = () => {
+    setActiveSoundPattern(null);
+    onStopSound?.();
+  };
+
   // Local Calibration State
   const [slotsState, setSlotsState] = useState<RackSlotMapping[]>([]);
   const [blinkingSerial, setBlinkingSerial] = useState<string | null>(null);
@@ -671,7 +688,7 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   if (!isOpen) return null;
 
   const handleStart = () => {
-    onStartAnimation(selectedPreset, isLoop, speed);
+    onStartAnimation(selectedPreset, isLoop, speed, animMode);
     onClose();
   };
 
@@ -1047,71 +1064,153 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
               })}
             </div>
 
-            {/* Loop & Speed Options */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.75rem',
-                backgroundColor: 'var(--bg-subtle, #0f172a)',
-                padding: '0.65rem 0.85rem',
-                borderRadius: 'var(--radius-md, 8px)',
-                border: '1px solid var(--border-subtle, #334155)',
-              }}
-            >
+            {/* Loop, Speed & Output Mode Options */}
+            <div className="led-anim-options-grid">
+              {/* Output Mode Switch: Flash vs Screen Brightness */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary, #f8fafc)' }}>
+                    {animMode === 'screen' ? (
+                      <SunIcon size={13} style={{ color: '#f59e0b' }} />
+                    ) : (
+                      <DotIcon size={11} fill="#ef4444" />
+                    )}
+                    <span>Mode Output</span>
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: animMode === 'screen' ? '#f59e0b' : '#60a5fa', fontWeight: 700 }}>
+                    {animMode === 'screen' ? 'Layar' : 'Flash'}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    backgroundColor: 'var(--bg-surface, #1e293b)',
+                    padding: '2px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-subtle, #334155)',
+                    gap: '2px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleAnimModeChange('flash')}
+                    style={{
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.3rem',
+                      fontSize: '0.68rem',
+                      padding: '0.28rem 0.35rem',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: animMode === 'flash' ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                      color: animMode === 'flash' ? '#93c5fd' : 'var(--text-secondary, #94a3b8)',
+                      cursor: 'pointer',
+                      fontWeight: animMode === 'flash' ? 700 : 500,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Animasi menggunakan Lampu Flash Kamera"
+                  >
+                    <DotIcon size={8} fill={animMode === 'flash' ? '#ef4444' : 'currentColor'} />
+                    <span>Flash LED</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAnimModeChange('screen')}
+                    style={{
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.3rem',
+                      fontSize: '0.68rem',
+                      padding: '0.28rem 0.35rem',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: animMode === 'screen' ? 'rgba(245, 158, 11, 0.25)' : 'transparent',
+                      color: animMode === 'screen' ? '#fbbf24' : 'var(--text-secondary, #94a3b8)',
+                      cursor: 'pointer',
+                      fontWeight: animMode === 'screen' ? 700 : 500,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Animasi menggunakan Kecerahan Layar (Screen Brightness)"
+                  >
+                    <SunIcon size={12} style={{ color: animMode === 'screen' ? '#f59e0b' : 'inherit' }} />
+                    <span>Layar (Brightness)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Loop Option */}
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
                   checked={isLoop}
                   onChange={(e) => setIsLoop(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#3b82f6' }}
                 />
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <RepeatIcon size={13} style={{ color: '#60a5fa' }} />
                     <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)' }}>
-                      Ulangi Pola (Loop)
+                      Ulangi (Loop)
                     </span>
                   </div>
                   <p style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)', margin: 0 }}>
-                    Pola animasi berulang tanpa henti.
+                    Berulang tanpa henti.
                   </p>
                 </div>
               </label>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
+              {/* Speed Option (Range Slider) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary, #f8fafc)' }}>
                     <ZapIcon size={12} style={{ color: '#f59e0b' }} />
-                    <span>Kecepatan</span>
+                    <span>Kecepatan Animasi</span>
                   </span>
-                  <span style={{ color: 'var(--accent-primary, #60a5fa)' }}>{speed}s</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.35rem' }}>
-                  {[
-                    { label: 'Cepat', val: 0.08 },
-                    { label: 'Normal', val: 0.12 },
-                    { label: 'Santai', val: 0.18 },
-                  ].map((s) => (
-                    <button
-                      key={s.val}
-                      type="button"
-                      onClick={() => setSpeed(s.val)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 500 }}>
+                      {Math.round(speed * 1000)}ms
+                    </span>
+                    <span
                       style={{
-                        flex: 1,
-                        fontSize: '0.68rem',
-                        padding: '0.2rem',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        padding: '0.1rem 0.4rem',
                         borderRadius: '4px',
-                        border: speed === s.val ? '1px solid var(--accent-primary, #3b82f6)' : '1px solid var(--border-subtle, #334155)',
-                        backgroundColor: speed === s.val ? 'var(--accent-primary, #3b82f6)' : 'var(--bg-surface, #1e293b)',
-                        color: speed === s.val ? '#fff' : 'var(--text-secondary, #94a3b8)',
-                        cursor: 'pointer',
-                        fontWeight: 600,
+                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                        color: 'var(--accent-primary, #60a5fa)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
                       }}
                     >
-                      {s.label}
-                    </button>
-                  ))}
+                      {speed.toFixed(2)}s
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <input
+                    type="range"
+                    min="0.04"
+                    max="0.50"
+                    step="0.01"
+                    value={speed}
+                    onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                    style={{
+                      width: '100%',
+                      accentColor: 'var(--accent-primary, #3b82f6)',
+                      cursor: 'pointer',
+                      height: '6px',
+                    }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted, #64748b)', fontWeight: 600 }}>
+                    <span role="button" onClick={() => setSpeed(0.06)} style={{ cursor: 'pointer' }}>⚡ Cepat (0.06s)</span>
+                    <span role="button" onClick={() => setSpeed(0.12)} style={{ cursor: 'pointer' }}>⚖️ Normal (0.12s)</span>
+                    <span role="button" onClick={() => setSpeed(0.25)} style={{ cursor: 'pointer' }}>🐢 Santai (0.25s)</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1257,42 +1356,70 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
-                {[
-                  { id: 'chorus', label: 'Chorus', desc: 'Serentak', icon: <SpeakerChorusIcon size={15} style={{ color: '#60a5fa' }} /> },
-                  { id: 'sequential', label: 'Sequential', desc: 'Berurutan', icon: <RepeatIcon size={15} style={{ color: '#38bdf8' }} /> },
-                  { id: 'random', label: 'Random', desc: 'Acak', icon: <ShuffleIcon size={15} style={{ color: '#a78bfa' }} /> },
-                  { id: 'chatter', label: 'Bersautan', desc: 'Polifoni', icon: <ChatterIcon size={15} style={{ color: '#34d399' }} /> },
-                ].map((item) => {
-                  const isPlaying = activeSoundPattern === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handlePlaySoundGimmick(item.id as any)}
-                      className={`btn btn-sm ${isPlaying ? 'flash-loading-shimmer' : ''}`}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.2rem',
-                        padding: '0.45rem 0.3rem',
-                        borderRadius: '6px',
-                        border: isPlaying ? '1px solid #3b82f6' : '1px solid var(--border-subtle, #334155)',
-                        backgroundColor: isPlaying ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-surface, #1e293b)',
-                        color: isPlaying ? '#93c5fd' : 'var(--text-primary, #f8fafc)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title={`Putar Suara: ${item.label} (${item.desc})`}
-                    >
-                      {item.icon}
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{item.label}</span>
-                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary, #94a3b8)', whiteSpace: 'nowrap' }}>{item.desc}</span>
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
+                  {[
+                    { id: 'chorus', label: 'Chorus', desc: 'Serentak', icon: <SpeakerChorusIcon size={15} style={{ color: '#60a5fa' }} /> },
+                    { id: 'sequential', label: 'Sequential', desc: 'Berurutan', icon: <RepeatIcon size={15} style={{ color: '#38bdf8' }} /> },
+                    { id: 'random', label: 'Random', desc: 'Acak', icon: <ShuffleIcon size={15} style={{ color: '#a78bfa' }} /> },
+                    { id: 'chatter', label: 'Bersautan', desc: 'Polifoni', icon: <ChatterIcon size={15} style={{ color: '#34d399' }} /> },
+                  ].map((item) => {
+                    const isPlaying = activeSoundPattern === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handlePlaySoundGimmick(item.id as any)}
+                        className={`btn btn-sm ${isPlaying ? 'flash-loading-shimmer' : ''}`}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.2rem',
+                          padding: '0.45rem 0.3rem',
+                          borderRadius: '6px',
+                          border: isPlaying ? '1px solid #3b82f6' : '1px solid var(--border-subtle, #334155)',
+                          backgroundColor: isPlaying ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-surface, #1e293b)',
+                          color: isPlaying ? '#93c5fd' : 'var(--text-primary, #f8fafc)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        title={`Putar Suara: ${item.label} (${item.desc})`}
+                      >
+                        {item.icon}
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{item.label}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary, #94a3b8)', whiteSpace: 'nowrap' }}>{item.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Stop Audio Button */}
+                <button
+                  type="button"
+                  onClick={handleStopSound}
+                  className="btn btn-sm"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                    padding: '0.38rem 0.75rem',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    color: '#f87171',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Hentikan pemutaran audio di semua perangkat"
+                >
+                  <SquareIcon size={12} fill="#ef4444" />
+                  <span>Hentikan Pemutaran Suara (Stop Audio)</span>
+                </button>
               </div>
             </div>
 

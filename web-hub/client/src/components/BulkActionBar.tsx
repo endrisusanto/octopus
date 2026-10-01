@@ -13,6 +13,7 @@ interface BulkActionBarProps {
   onDeselectAll: () => void;
   onToggleTorchBulk: (deviceIds: string[], state: 'on' | 'off') => void;
   onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
+  onStopSound?: () => void;
   onDispatchActionBulk: (deviceIds: string[], action: string, params?: any) => void;
   customSoundName?: string | null;
   onUploadCustomSound?: (file: File) => Promise<void>;
@@ -29,6 +30,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onDeselectAll,
   onToggleTorchBulk,
   onPlaySound,
+  onStopSound,
   onDispatchActionBulk,
   customSoundName,
   onUploadCustomSound,
@@ -51,11 +53,12 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
     onDispatchActionBulk(selectedIds, 'reboot');
   };
 
-  const handleStartAnimation = (preset: string, isLoop: boolean, speed: number = 0.12) => {
+  const handleStartAnimation = (preset: string, isLoop: boolean, speed: number = 0.12, mode: 'flash' | 'screen' = 'flash') => {
     onDispatchActionBulk(selectedIds.length > 0 ? selectedIds : ['all'], 'RUN_LED_ANIM', {
       preset,
       loop: isLoop,
       speed,
+      mode,
     });
   };
 
@@ -345,6 +348,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
         onStartAnimation={handleStartAnimation}
         onStopAnimation={handleStopAnimation}
         onPlaySound={onPlaySound}
+        onStopSound={onStopSound}
         customSoundName={customSoundName}
         onUploadCustomSound={onUploadCustomSound}
         onResetCustomSound={onResetCustomSound}

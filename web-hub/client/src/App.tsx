@@ -40,6 +40,7 @@ export const App: React.FC = () => {
     toggleTorch,
     setTorchBulk,
     playSound,
+    stopSound,
     customSoundName,
     uploadCustomSound,
     resetCustomSound,
@@ -452,6 +453,11 @@ export const App: React.FC = () => {
   };
 
   const handleBulkDispatch = (targetDeviceIds: string[], action: string, params: any = {}) => {
+    if (action === 'RUN_LED_ANIM' || action === 'STOP_LED_ANIM') {
+      const targetPcId = bridges[0]?.pcId || 'all';
+      dispatchAction(targetPcId, 'all', action, params);
+      return;
+    }
     targetDeviceIds.forEach((id) => {
       const dev = devices.find((d) => d.id === id);
       if (dev) {
@@ -646,6 +652,7 @@ export const App: React.FC = () => {
         onDeselectAll={handleDeselectAll}
         onToggleTorchBulk={handleBulkTorch}
         onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
+        onStopSound={stopSound}
         onDispatchActionBulk={handleBulkDispatch}
         customSoundName={customSoundName}
         onUploadCustomSound={uploadCustomSound}
@@ -663,15 +670,17 @@ export const App: React.FC = () => {
         onSaveCalibration={saveRackCalibration}
         onBlinkDevice={blinkDevice}
         onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
+        onStopSound={stopSound}
         customSoundName={customSoundName}
         onUploadCustomSound={uploadCustomSound}
         onResetCustomSound={resetCustomSound}
-        onStartAnimation={(preset, loop, speed) => {
+        onStartAnimation={(preset, loop, speed, mode) => {
           const targetPcId = bridges[0]?.pcId || 'ubuntu-desktop';
           dispatchAction(targetPcId, 'all', 'RUN_LED_ANIM', {
             preset,
             loop,
             speed,
+            mode: mode || 'flash',
           });
         }}
         onStopAnimation={() => {

@@ -426,6 +426,19 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const stopSound = useCallback((deviceIds?: string[]) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'STOP_SOUND',
+          payload: {
+            deviceIds,
+          },
+        })
+      );
+    }
+  }, []);
+
   const uploadCustomSound = useCallback((file: File) => {
     return new Promise<void>((resolve, reject) => {
       const reader = new FileReader();
@@ -551,6 +564,7 @@ export function useFleetWebSocket() {
     toggleTorch,
     setTorchBulk,
     playSound,
+    stopSound,
     customSoundName,
     uploadCustomSound,
     resetCustomSound,

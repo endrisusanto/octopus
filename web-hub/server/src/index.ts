@@ -766,6 +766,22 @@ wss.on('connection', (ws, req) => {
               }));
             }
           }
+        } else if (msg.type === 'STOP_SOUND' || msg.type === 'STOP_TWEET') {
+          const { deviceIds } = msg.payload || {};
+          for (const [_, bridge] of connectedBridges) {
+            if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: 'ALL',
+                  action: 'STOP_SOUND',
+                  params: {
+                    deviceIds: deviceIds || [],
+                  },
+                },
+              }));
+            }
+          }
         } else if (msg.type === 'UPLOAD_CUSTOM_SOUND') {
           const { filename, dataBase64 } = msg.payload || {};
           if (filename && dataBase64) {
@@ -839,33 +855,45 @@ wss.on('connection', (ws, req) => {
           }
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
-          const bridge = connectedBridges.get(targetPcId);
-          if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
-            // Optimistic update state on server
-            const fullKey = `${targetPcId}:${deviceId}`;
-            const dev = fleetDevices.get(fullKey);
-            if (dev) {
-              if (action === 'WORKFLOW_PIPELINE' || action === 'flash' || action === 'FLASH_ODIN') {
-                dev.status = 'Flashing...';
-                dev.progress = 10;
-                dev.currentTask = 'Memulai Automasi...';
-                broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
-              } else if (action === 'REBOOT' || action === 'reboot' || action === 'REBOOT_DOWNLOAD' || action === 'REBOOT_RECOVERY') {
-                dev.status = 'Busy';
-                dev.currentTask = 'Rebooting...';
-                broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+          if (targetPcId === 'all' || !connectedBridges.has(targetPcId)) {
+            // Broadcast command to all connected bridges
+            for (const b of connectedBridges.values()) {
+              if (b.ws && b.ws.readyState === WebSocket.OPEN) {
+                b.ws.send(JSON.stringify({
+                  type: 'EXECUTE_COMMAND',
+                  payload: { deviceId, action, params },
+                }));
               }
             }
-
-            bridge.ws.send(JSON.stringify({
-              type: 'EXECUTE_COMMAND',
-              payload: { deviceId, action, params },
-            }));
           } else {
-            ws.send(JSON.stringify({
-              type: 'DISPATCH_ERROR',
-              payload: { message: `Bridge PC ${targetPcId} is not connected` },
-            }));
+            const bridge = connectedBridges.get(targetPcId);
+            if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              // Optimistic update state on server
+              const fullKey = `${targetPcId}:${deviceId}`;
+              const dev = fleetDevices.get(fullKey);
+              if (dev) {
+                if (action === 'WORKFLOW_PIPELINE' || action === 'flash' || action === 'FLASH_ODIN') {
+                  dev.status = 'Flashing...';
+                  dev.progress = 10;
+                  dev.currentTask = 'Memulai Automasi...';
+                  broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+                } else if (action === 'REBOOT' || action === 'reboot' || action === 'REBOOT_DOWNLOAD' || action === 'REBOOT_RECOVERY') {
+                  dev.status = 'Busy';
+                  dev.currentTask = 'Rebooting...';
+                  broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+                }
+              }
+
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: { deviceId, action, params },
+              }));
+            } else {
+              ws.send(JSON.stringify({
+                type: 'DISPATCH_ERROR',
+                payload: { message: `Bridge PC ${targetPcId} is not connected` },
+              }));
+            }
           }
         }
       } catch (err) {

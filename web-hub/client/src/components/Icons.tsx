@@ -469,5 +469,12 @@ export const UploadAudioIcon: React.FC<IconProps> = ({ size = 16, className = ''
   </svg>
 );
 
+export const SquareIcon: React.FC<IconProps> = ({ size = 16, className = '', style, fill = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect width="18" height="18" x="3" y="3" rx="3" />
+  </svg>
+);
+
+
 
 

@@ -237,3 +237,25 @@ pub async fn play_sound_pattern(pattern: &str, target_serials: &[String]) {
         }
     }
 }
+
+pub async fn stop_sound_all(target_serials: &[String]) {
+    let mut stop_futs = Vec::new();
+    for s in target_serials {
+        let s_clone = s.clone();
+        stop_futs.push(tokio::spawn(async move {
+            let _ = silent_tokio_cmd("adb")
+                .args([
+                    "-s",
+                    &s_clone,
+                    "shell",
+                    "pkill -9 -f PlaySound || pkill -9 -f playsound || true",
+                ])
+                .output()
+                .await;
+        }));
+    }
+    for f in stop_futs {
+        let _ = f.await;
+    }
+}
+

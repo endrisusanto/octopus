@@ -559,6 +559,46 @@ async fn run_bridge_worker(state: AppState) {
                                                         };
                                                         sound::play_sound_pattern(&pattern, &targets).await;
                                                     });
+                                                } else if exec.action == "STOP_SOUND" || exec.action == "STOP_TWEET" || exec.action == "STOP_AUDIO" {
+                                                    let serial = exec.device_id.clone();
+                                                    let scanner_state_snd = state.clone();
+                                                    let target_devs = match &exec.params {
+                                                        Some(params) => {
+                                                            if let Some(arr) = params.get("devices").or_else(|| params.get("deviceIds")).and_then(|v| v.as_array()) {
+                                                                arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()
+                                                            } else if !serial.is_empty() && serial != "ALL" {
+                                                                vec![serial.clone()]
+                                                            } else {
+                                                                Vec::new()
+                                                            }
+                                                        }
+                                                        None => {
+                                                            if !serial.is_empty() && serial != "ALL" {
+                                                                vec![serial.clone()]
+                                                            } else {
+                                                                Vec::new()
+                                                            }
+                                                        }
+                                                    };
+
+                                                    tokio::task::spawn(async move {
+                                                        let targets = if target_devs.is_empty() {
+                                                            let st = scanner_state_snd.status.lock().unwrap();
+                                                            st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
+                                                        } else {
+                                                            target_devs
+                                                        };
+                                                        sound::stop_sound_all(&targets).await;
+                                                    });
+
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: None,
+                                                        level: "info".to_string(),
+                                                        message: "[Audio Tweet] ⏹️ Pemutaran audio dihentikan.".to_string(),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
                                                 } else if exec.action == "RUN_LED_ANIM" || exec.action == "RUNNING_LED" {
                                                     let preset = exec.params
                                                         .as_ref()
@@ -571,16 +611,35 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|p| p.get("loop").or_else(|| p.get("isLoop")))
                                                         .and_then(|v| v.as_bool())
                                                         .unwrap_or(false);
+                                                    let anim_mode = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("mode").or_else(|| p.get("torchMode")).or_else(|| p.get("animMode")))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("flash")
+                                                        .to_string();
+                                                    let speed = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("speed"))
+                                                        .and_then(|v| v.as_f64())
+                                                        .unwrap_or(0.12);
 
                                                     // Terminate previous running animation forcefully
                                                     let _ = silent_command("pkill").args(["-9", "-f", "running_led.py"]).output();
                                                     tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
 
                                                     // Acuan selalu dari preset rak kalibrasi (abaikan device selection)
-                                                    let mut py_args = vec!["/home/endri-pro/running_led.py".to_string(), "--preset".to_string(), preset.clone()];
+                                                    let mut py_args = vec![
+                                                        "/home/endri-pro/running_led.py".to_string(),
+                                                        "--preset".to_string(),
+                                                        preset.clone(),
+                                                        "--speed".to_string(),
+                                                        speed.to_string(),
+                                                    ];
                                                     if is_loop {
                                                         py_args.push("--loop".to_string());
                                                     }
+                                                    py_args.push("--mode".to_string());
+                                                    py_args.push(anim_mode.clone());
 
                                                     tokio::task::spawn_blocking(move || {
                                                         let _ = silent_command("python3")
@@ -589,10 +648,11 @@ async fn run_bridge_worker(state: AppState) {
                                                             .spawn();
                                                     });
 
+                                                    let mode_text = if anim_mode == "screen" || anim_mode == "brightness" { "Kecerahan Layar" } else { "Flash LED" };
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: None,
                                                         level: "info".to_string(),
-                                                        message: format!("[Running LED] 🎆 Memulai preset animasi '{}' (Loop: {}) [Rak Kalibrasi]", preset, if is_loop { "Ya" } else { "Tidak" }),
+                                                        message: format!("[Matrix 2D] 🎆 Memulai preset '{}' (Mode: {}, Kecepatan: {}s, Loop: {}) [Rak Kalibrasi]", preset, mode_text, speed, if is_loop { "Ya" } else { "Tidak" }),
                                                     };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
