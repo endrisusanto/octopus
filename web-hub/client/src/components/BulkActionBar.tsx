@@ -213,7 +213,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
                 }}
-                title={isAnyPending ? 'Memverifikasi status ke perangkat...' : "Ping ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Matrix 2D)"}
+                title={isAnyPending ? 'Memverifikasi status ke perangkat...' : "Ping ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Animate)"}
               >
                 <DotIcon size={10} style={{ color: '#f59e0b' }} />
                 <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Ping ON'}</span>
@@ -258,7 +258,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
             );
           })()}
 
-          {/* Action 3: 2D Matrix & Calibration Modal */}
+          {/* Action 3: Animate & Calibration Modal */}
           <button
             type="button"
             onClick={() => setIsLedModalOpen(true)}
@@ -281,7 +281,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
             title="Animasi Matrix 2D & Kalibrasi Rak 6x3"
           >
             <MatrixIcon size={14} style={{ color: '#60a5fa' }} />
-            <span className="bulk-btn-label">Matrix 2D</span>
+            <span className="bulk-btn-label">Animate</span>
           </button>
 
           {/* Action 4: Reboot System Normal */}

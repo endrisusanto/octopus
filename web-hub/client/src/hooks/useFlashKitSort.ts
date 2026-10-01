@@ -14,6 +14,8 @@ export interface DeviceItem {
   batteryLevel?: number;
   batteryTemp?: number;
   torchOn?: boolean;
+  buildType?: string;
+  pdaVersion?: string;
   lastSeen: number;
 }
 

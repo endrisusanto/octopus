@@ -11,6 +11,7 @@ interface FleetHeaderProps {
   torchMode?: 'flash' | 'screen' | 'tweet';
   onTorchModeChange?: (mode: 'flash' | 'screen' | 'tweet') => void;
   onRefresh?: () => void;
+  onOpenUpdateModal?: () => void;
   onReloadDevices?: () => void;
 }
 
@@ -21,6 +22,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   torchMode = 'flash',
   onTorchModeChange,
   onRefresh,
+  onOpenUpdateModal,
   onReloadDevices,
 }) => {
   const odinCount = devices.filter((d) => d.mode === 'odin').length;
@@ -29,7 +31,8 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
 
   return (
     <header className="header-bar">
-      <div className="brand-section">
+      <div className="header-inner">
+        <div className="brand-section">
         <img
           src="/logo-light.png"
           alt="Octopus Mascot"
@@ -43,10 +46,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
           }}
         />
         <div className="brand-text">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <h1 className="brand-title">OCTOPUS HUB</h1>
-          </div>
-          <div className="brand-subtitle">Automated Odin Firmware Orchestration Engine</div>
+          <h1 className="brand-title">OCTOPUS HUB</h1>
         </div>
       </div>
 
@@ -113,9 +113,9 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
 
         <button
           type="button"
-          onClick={() => onRefresh && onRefresh()}
+          onClick={() => (onOpenUpdateModal ? onOpenUpdateModal() : onRefresh && onRefresh())}
           className="btn btn-header-action"
-          title="Trigger Silent Update on all connected PC Bridges"
+          title="Buka Pusat Pembaruan Sistem, Unduh GitHub Artifacts & Trigger Silent Update"
         >
           Update
         </button>
@@ -162,6 +162,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         </div>
 
         <ThemeToggle />
+      </div>
       </div>
     </header>
   );

@@ -62,6 +62,7 @@ fn extract_percentage(line: &str) -> Option<u32> {
 fn check_odin_success(line: &str) -> bool {
     let upper = line.to_uppercase();
     upper.contains("SUCCEEDED 1")
+        || upper.contains("SUCCEED 1")
         || upper.contains("FAILED 0")
         || upper.contains("ALL THREADS COMPLETED")
         || upper.contains("PASS!")
@@ -597,68 +598,121 @@ pub async fn execute_workflow_pipeline(
                 err_collector
             });
 
-            let reader = BufReader::new(stdout);
+            // ponytail: Stream odin4 stdout splitting on both \r and \n to handle in-place progress updates
+            let mut reader = BufReader::new(stdout);
             let mut is_success = false;
             let mut last_emitted_pct: u32 = 0;
+            let mut line_buf = Vec::with_capacity(256);
 
-            for line in reader.lines().flatten() {
+            let process_odin_line = |line: &str, is_success_ref: &mut bool, last_pct_ref: &mut u32| {
                 let trimmed = line.trim().to_string();
-                if !trimmed.is_empty() {
-                    if check_odin_success(&trimmed) {
-                        is_success = true;
-                    }
+                if trimmed.is_empty() {
+                    return;
+                }
 
-                    // Extract live percentage (e.g., "super.img.lz4 ( 45%)" or "10%")
-                    if let Some(pct) = extract_percentage(&trimmed) {
-                        let task_name = trimmed.split('(').next().unwrap_or("").trim().to_string();
-                        let display_task = if task_name.is_empty() {
-                            "Flashing Firmware...".to_string()
-                        } else {
-                            format!("Flashing: {}", task_name)
-                        };
+                if check_odin_success(&trimmed) {
+                    *is_success_ref = true;
+                }
 
-                        if pct != last_emitted_pct {
-                            last_emitted_pct = pct;
-                            let tx = tx_odin.clone();
-                            let dev_id = dev_id_clone.clone();
-                            let t_name = display_task.clone();
-                            tokio::spawn(async move {
-                                let _ = tx.send(OutgoingMessage::DeviceProgress {
-                                    device_id: dev_id,
-                                    progress: pct,
-                                    status: Some("Flashing...".to_string()),
-                                    current_task: Some(t_name),
-                                }).await;
-                            });
-                        }
+                // Extract live percentage (e.g., "super.img.lz4 ( 45%)" or "10%")
+                if let Some(pct) = extract_percentage(&trimmed) {
+                    let task_name = trimmed.split('(').next().unwrap_or("").trim().to_string();
+                    let display_task = if task_name.is_empty() {
+                        "Flashing Firmware...".to_string()
                     } else {
-                        // If line indicates a new partition being flashed (e.g. "super.img.lz4")
-                        if trimmed.ends_with(".lz4") || trimmed.ends_with(".img") || trimmed.ends_with(".bin") || trimmed.starts_with("Upload") {
-                            let tx = tx_odin.clone();
-                            let dev_id = dev_id_clone.clone();
-                            let t_name = format!("Flashing: {}", trimmed);
-                            let cur_pct = last_emitted_pct;
-                            tokio::spawn(async move {
-                                let _ = tx.send(OutgoingMessage::DeviceProgress {
-                                    device_id: dev_id,
-                                    progress: cur_pct,
-                                    status: Some("Flashing...".to_string()),
-                                    current_task: Some(t_name),
-                                }).await;
-                            });
-                        }
+                        format!("Flashing: {}", task_name)
+                    };
 
-                        // Kirim log stdout
+                    if pct != *last_pct_ref {
+                        *last_pct_ref = pct;
                         let tx = tx_odin.clone();
                         let dev_id = dev_id_clone.clone();
+                        let t_name = display_task.clone();
+                        tokio::spawn(async move {
+                            let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                device_id: dev_id,
+                                progress: pct,
+                                status: Some("Flashing...".to_string()),
+                                current_task: Some(t_name),
+                            }).await;
+                        });
+
+                        // Emit log stream for every live percentage step
+                        let tx_l = tx_odin.clone();
+                        let dev_id_l = dev_id_clone.clone();
                         let log_text = trimmed.clone();
                         tokio::spawn(async move {
-                            let _ = tx.send(OutgoingMessage::LogStream {
-                                device_id: Some(dev_id),
+                            let _ = tx_l.send(OutgoingMessage::LogStream {
+                                device_id: Some(dev_id_l),
                                 level: "info".to_string(),
                                 message: format!("[Odin] {}", log_text),
                             }).await;
                         });
+                    }
+                } else {
+                    // If line indicates a new partition being flashed (e.g. "super.img.lz4")
+                    if trimmed.ends_with(".lz4") || trimmed.ends_with(".img") || trimmed.ends_with(".bin") || trimmed.starts_with("Upload") {
+                        let tx = tx_odin.clone();
+                        let dev_id = dev_id_clone.clone();
+                        let t_name = format!("Flashing: {}", trimmed);
+                        let cur_pct = *last_pct_ref;
+                        tokio::spawn(async move {
+                            let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                device_id: dev_id,
+                                progress: cur_pct,
+                                status: Some("Flashing...".to_string()),
+                                current_task: Some(t_name),
+                            }).await;
+                        });
+                    }
+
+                    // Kirim log stdout
+                    let tx = tx_odin.clone();
+                    let dev_id = dev_id_clone.clone();
+                    let log_text = trimmed.clone();
+                    tokio::spawn(async move {
+                        let _ = tx.send(OutgoingMessage::LogStream {
+                            device_id: Some(dev_id),
+                            level: "info".to_string(),
+                            message: format!("[Odin] {}", log_text),
+                        }).await;
+                    });
+                }
+            };
+
+            loop {
+                let mut byte = [0u8; 1];
+                match std::io::Read::read(&mut reader, &mut byte) {
+                    Ok(0) => {
+                        // EOF
+                        if !line_buf.is_empty() {
+                            let s = String::from_utf8_lossy(&line_buf).to_string();
+                            process_odin_line(&s, &mut is_success, &mut last_emitted_pct);
+                            line_buf.clear();
+                        }
+                        break;
+                    }
+                    Ok(_) => {
+                        let b = byte[0];
+                        if b == b'\r' || b == b'\n' {
+                            if !line_buf.is_empty() {
+                                let s = String::from_utf8_lossy(&line_buf).to_string();
+                                line_buf.clear();
+                                process_odin_line(&s, &mut is_success, &mut last_emitted_pct);
+                            }
+                        } else {
+                            line_buf.push(b);
+                            if line_buf.len() > 4096 {
+                                let s = String::from_utf8_lossy(&line_buf).to_string();
+                                line_buf.clear();
+                                process_odin_line(&s, &mut is_success, &mut last_emitted_pct);
+                            }
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) => {
+                        eprintln!("[Odin Error] Odin stdout stream error: {}", e);
+                        break;
                     }
                 }
             }

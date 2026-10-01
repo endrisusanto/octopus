@@ -48,11 +48,11 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
   const wifiLongPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isWifiLongPressedRef = React.useRef(false);
 
-  if (!Array.isArray(devices) || devices.length === 0) return null;
+  const validDevices = Array.isArray(devices) ? devices : [];
 
   // Group summary by model
   const modelCounts: Record<string, number> = {};
-  devices.forEach((d) => {
+  validDevices.forEach((d) => {
     if (!d) return;
     const modelKey = d.model || 'UNKNOWN';
     modelCounts[modelKey] = (modelCounts[modelKey] || 0) + 1;
@@ -83,10 +83,14 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
 
   const handleStepToggle = (stepKey: keyof WorkflowConfig) => {
     if (onUpdateWorkflowConfig) {
-      onUpdateWorkflowConfig((prev) => ({
-        ...prev,
-        [stepKey]: !prev[stepKey],
-      }));
+      onUpdateWorkflowConfig((prev) => {
+        const currentVal = prev[stepKey];
+        const isCurrentlyActive = currentVal !== false;
+        return {
+          ...prev,
+          [stepKey]: !isCurrentlyActive,
+        };
+      });
     }
   };
 
@@ -157,14 +161,14 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
             )}
           </div>
 
-          {/* Stepper & Action button when devices are selected */}
-          {selectedStandbyIds.length > 0 && workflowConfig && onRunAutomation && (
+          {/* Stepper & Action button */}
+          {workflowConfig && (
             <div className="ready-header-actions" onClick={(e) => e.stopPropagation()}>
               <div className="ready-stepper-row">
                 <button
                   type="button"
                   onClick={() => handleStepToggle('skipSuw')}
-                  className={`btn-step-pill ${workflowConfig.skipSuw ? 'active-blue' : ''}`}
+                  className={`btn-step-pill ${workflowConfig.skipSuw !== false ? 'active-blue' : ''}`}
                   title="Lewati Setup Wizard"
                 >
                   <CheckIcon size={12} /> <span>SKIP SUW</span>
@@ -173,7 +177,7 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                 <button
                   type="button"
                   onClick={() => handleStepToggle('setupGba')}
-                  className={`btn-step-pill ${workflowConfig.setupGba ? 'active-purple' : ''}`}
+                  className={`btn-step-pill ${workflowConfig.setupGba !== false ? 'active-purple' : ''}`}
                   title="Setup Google Basic Authentication"
                 >
                   <CheckIcon size={12} /> <span>SETUP GBA</span>
@@ -194,45 +198,47 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
                     e.stopPropagation();
                     if (onOpenWifiModal) onOpenWifiModal();
                   }}
-                  className={`btn-step-pill ${workflowConfig.wifiEnabled ? 'active-green' : ''}`}
+                  className={`btn-step-pill ${workflowConfig.wifiEnabled !== false ? 'active-green' : ''}`}
                   title="Klik: Toggle Wi-Fi | Tahan / Klik Kanan: Konfigurasi SSID/Password"
                 >
                   <CheckIcon size={12} /> <span>WIFI</span>
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onRunAutomation(selectedStandbyIds)}
-                className="btn btn-primary ready-run-btn"
-                disabled={isMd5Verifying}
-                title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
-              >
-                {isMd5Verifying && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      bottom: 0,
-                      width: `${md5VerifyProgress}%`,
-                      backgroundColor: 'rgba(59, 130, 246, 0.45)',
-                      transition: 'width 0.2s linear',
-                      pointerEvents: 'none',
-                      zIndex: 0,
-                    }}
-                  />
-                )}
-                {isMd5Verifying ? (
-                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <RefreshIcon size={14} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
-                  </span>
-                ) : (
-                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <PlayIcon size={14} /> Jalankan Automasi ({selectedStandbyIds.length} Unit)
-                  </span>
-                )}
-              </button>
+              {selectedStandbyIds.length > 0 && onRunAutomation && (
+                <button
+                  type="button"
+                  onClick={() => onRunAutomation(selectedStandbyIds)}
+                  className="btn btn-primary ready-run-btn"
+                  disabled={isMd5Verifying}
+                  title={isMd5Verifying ? `Sedang memverifikasi MD5 checksum (${md5VerifyProgress}%)` : undefined}
+                >
+                  {isMd5Verifying && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        width: `${md5VerifyProgress}%`,
+                        backgroundColor: 'rgba(59, 130, 246, 0.45)',
+                        transition: 'width 0.2s linear',
+                        pointerEvents: 'none',
+                        zIndex: 0,
+                      }}
+                    />
+                  )}
+                  {isMd5Verifying ? (
+                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <RefreshIcon size={14} className="spin" /> Verify MD5 . . . {md5VerifyProgress}%
+                    </span>
+                  ) : (
+                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <PlayIcon size={14} fill="currentColor" /> Jalankan Automasi
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -262,59 +268,58 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
               <button
                 type="button"
                 onClick={() => setModelFilter(null)}
-                className="btn btn-sm btn-icon"
-                style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', height: '24px', flexShrink: 0 }}
-                title="Reset Filter Model"
+                className="binary-chip-btn active"
+                style={{ fontSize: '0.72rem', height: '26px', flexShrink: 0 }}
+                title="Tampilkan Semua Model"
               >
-                Semua
+                <span>Semua</span>
+                <span className="binary-chip-count">{displayedDevices.length}</span>
               </button>
             )}
-            {Object.entries(modelCounts).map(([model, count]) => {
-              const isActive = modelFilter === model;
-              return (
-                <button
-                  key={model}
-                  type="button"
-                  onClick={(e) => handleChipClick(model, e)}
-                  className={`stat-pill ${isActive ? 'active' : ''}`}
-                  style={{
-                    fontSize: '0.7rem',
-                    padding: '0.15rem 0.45rem',
-                    cursor: 'pointer',
-                    border: isActive ? '1.5px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                    backgroundColor: isActive ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-subtle)',
-                    color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 700 : 500,
-                    whiteSpace: 'nowrap',
-                    flexShrink: 0,
-                    transition: 'all 0.15s ease',
-                  }}
-                  title={`Filter hanya model ${model}`}
-                >
-                  {model} <strong>({count})</strong>
-                </button>
-              );
-            })}
+            {Object.entries(modelCounts)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+              .map(([model, count]) => {
+                const isActive = modelFilter === model;
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={(e) => handleChipClick(model, e)}
+                    className={`binary-chip-btn ${isActive ? 'active' : ''}`}
+                    style={{ fontSize: '0.72rem', height: '26px', flexShrink: 0 }}
+                    title={`Filter hanya model ${model}`}
+                  >
+                    <span>{model}</span>
+                    <span className="binary-chip-count">{count}</span>
+                  </button>
+                );
+              })}
           </div>
         )}
       </div>
 
       {/* Body Accordion: Device Table */}
       {isOpen && (
-        <div className="accordion-body" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <DeviceTableView
-            devices={displayedDevices}
-            selectedIds={selectedIds}
-            sourcePcId={sourcePcId}
-            onToggleSelect={onToggleSelect}
-            onSelectAll={handleTableSelectAll}
-            onOpenLogs={onOpenLogs}
-            onAction={onAction}
-            onToggleTorch={onToggleTorch}
-            pendingTorchIds={pendingTorchIds}
-            apFilename={apFilename}
-            isFirmwareForModel={isFirmwareForModel}
-          />
+        <div className="accordion-body" style={{ borderTop: '1px solid var(--border-subtle)', padding: 0 }}>
+          {displayedDevices.length === 0 ? (
+            <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              Tidak ada perangkat standby terdeteksi. Hubungkan perangkat Android via USB.
+            </div>
+          ) : (
+            <DeviceTableView
+              devices={displayedDevices}
+              selectedIds={selectedIds}
+              sourcePcId={sourcePcId}
+              onToggleSelect={onToggleSelect}
+              onSelectAll={handleTableSelectAll}
+              onOpenLogs={onOpenLogs}
+              onAction={onAction}
+              onToggleTorch={onToggleTorch}
+              pendingTorchIds={pendingTorchIds}
+              apFilename={apFilename}
+              isFirmwareForModel={isFirmwareForModel}
+            />
+          )}
         </div>
       )}
     </div>

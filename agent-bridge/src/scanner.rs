@@ -18,21 +18,27 @@ pub fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     cmd
 }
 
-static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
+static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String, Option<String>, Option<String>)>>> = Mutex::new(None);
 
-pub fn update_port_history(port: &str, serial: &str, model: &str) {
+pub fn update_port_history(port: &str, serial: &str, model: &str, build_type: Option<&str>, pda_version: Option<&str>) {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:").to_string();
     if clean.is_empty() || serial.is_empty() {
         return;
     }
     if let Ok(mut lock) = PORT_HISTORY.lock() {
         let map = lock.get_or_insert_with(HashMap::new);
-        map.insert(clean.clone(), (serial.to_string(), model.to_string()));
-        map.insert(port.to_string(), (serial.to_string(), model.to_string()));
+        let val = (
+            serial.to_string(),
+            model.to_string(),
+            build_type.map(|s| s.to_string()),
+            pda_version.map(|s| s.to_string()),
+        );
+        map.insert(clean, val.clone());
+        map.insert(port.to_string(), val);
     }
 }
 
-pub fn get_port_history(port: &str) -> Option<(String, String)> {
+pub fn get_port_history(port: &str) -> Option<(String, String, Option<String>, Option<String>)> {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:");
     if let Ok(lock) = PORT_HISTORY.lock() {
         if let Some(map) = lock.as_ref() {
@@ -239,9 +245,6 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
                     .map(|p| p.replace("usb:", ""))
                     .unwrap_or_else(|| "USB-PORT".to_string());
 
-                // Lock USB topology port to serial and model history
-                update_port_history(&port, &serial, &model);
-
                 raw_list.push(RawDev {
                     serial,
                     state,
@@ -256,8 +259,8 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
         return Vec::new();
     }
 
-    // Query health in parallel threads
-    let health_results: Vec<(Option<u32>, Option<f32>, Option<bool>)> = std::thread::scope(|s| {
+    // Query health & getprops in parallel threads
+    let health_results: Vec<(Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>)> = std::thread::scope(|s| {
         let handles: Vec<_> = raw_list
             .iter()
             .map(|dev| {
@@ -265,17 +268,26 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
                     if dev.state == "device" {
                         get_device_health(&dev.serial)
                     } else {
-                        (None, None, None)
+                        (None, None, None, None, None)
                     }
                 })
             })
             .collect();
 
-        handles.into_iter().map(|h| h.join().unwrap_or((None, None, None))).collect()
+        handles.into_iter().map(|h| h.join().unwrap_or((None, None, None, None, None))).collect()
     });
 
     let mut devices = Vec::with_capacity(raw_list.len());
-    for (dev, (bat_lvl, bat_temp, torch_on)) in raw_list.into_iter().zip(health_results.into_iter()) {
+    for (dev, (bat_lvl, bat_temp, torch_on, build_type, pda_version)) in raw_list.into_iter().zip(health_results.into_iter()) {
+        // Lock USB topology port to serial, model, build_type, and PDA version
+        update_port_history(
+            &dev.port,
+            &dev.serial,
+            &dev.model,
+            build_type.as_deref(),
+            pda_version.as_deref(),
+        );
+
         devices.push(DeviceInfo {
             id: dev.serial.clone(),
             port: dev.port,
@@ -288,19 +300,21 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
             battery_level: bat_lvl,
             battery_temp: bat_temp,
             torch_on,
+            build_type,
+            pda_version,
         });
     }
 
     devices
 }
 
-fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>) {
+fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>, Option<String>, Option<String>) {
     let out = silent_command("adb")
         .args([
             "-s",
             serial,
             "shell",
-            "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"",
+            "dumpsys battery | grep -m 1 level:; dumpsys battery | grep -m 1 temperature:; echo \"torch:$(settings get secure flashlight_enabled)\"; echo \"build_type:$(getprop ro.build.type)\"; echo \"pda:$(getprop ro.build.PDA)\"; echo \"incremental:$(getprop ro.build.version.incremental)\"; echo \"boot_pda:$(getprop ro.boot.pda)\"; echo \"display_id:$(getprop ro.build.display.id)\"",
         ])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
@@ -309,6 +323,11 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>) {
     let mut level: Option<u32> = None;
     let mut temp: Option<f32> = None;
     let mut torch: Option<bool> = None;
+    let mut build_type: Option<String> = None;
+    let mut pda_version: Option<String> = None;
+    let mut incremental: Option<String> = None;
+    let mut boot_pda: Option<String> = None;
+    let mut display_id: Option<String> = None;
 
     for line in out.lines() {
         let line = line.trim();
@@ -327,13 +346,45 @@ fn get_device_health(serial: &str) -> (Option<u32>, Option<f32>, Option<bool>) {
             } else if val == "0" {
                 torch = Some(false);
             }
+        } else if line.starts_with("build_type:") {
+            let val = line.replace("build_type:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                build_type = Some(val);
+            }
+        } else if line.starts_with("pda:") {
+            let val = line.replace("pda:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                pda_version = Some(val);
+            }
+        } else if line.starts_with("incremental:") {
+            let val = line.replace("incremental:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                incremental = Some(val);
+            }
+        } else if line.starts_with("boot_pda:") {
+            let val = line.replace("boot_pda:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                boot_pda = Some(val);
+            }
+        } else if line.starts_with("display_id:") {
+            let val = line.replace("display_id:", "").trim().to_string();
+            if !val.is_empty() && val != "null" {
+                display_id = Some(val);
+            }
         }
     }
+
+    let final_pda = pda_version
+        .or(incremental)
+        .or(boot_pda)
+        .or(display_id);
 
     (
         level.or(Some(100)),
         temp.or(Some(31.5)),
         torch.or(Some(false)),
+        build_type,
+        final_pda,
     )
 }
 
@@ -369,8 +420,8 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             .map(|s| s.trim().to_string())
                             .unwrap_or_else(|_| "SAMSUNG (Download Mode)".to_string());
 
-                        // Recover serial and model from port history
-                        let (hist_serial, hist_model) = get_port_history(&port_id).unwrap_or_default();
+                        // Recover serial, model, build_type, and pda_version from port history
+                        let (hist_serial, hist_model, hist_build_type, hist_pda_version) = get_port_history(&port_id).unwrap_or_default();
                         let final_serial = if !hist_serial.is_empty() {
                             Some(hist_serial)
                         } else {
@@ -397,6 +448,8 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             battery_level: None,
                             battery_temp: None,
                             torch_on: None,
+                            build_type: hist_build_type,
+                            pda_version: hist_pda_version,
                         });
                     }
                 }
@@ -434,6 +487,8 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             battery_level: None,
                             battery_temp: None,
                             torch_on: None,
+                            build_type: None,
+                            pda_version: None,
                         });
                     }
                 }

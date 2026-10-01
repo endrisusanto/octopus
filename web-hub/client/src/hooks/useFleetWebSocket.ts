@@ -34,9 +34,11 @@ export interface Md5ProgressEvent {
 }
 
 export interface SessionStatePayload {
+  modelProfiles?: Record<string, any>;
   firmwareSlots?: any;
   workflowConfig?: any;
   selectedDeviceIds?: string[];
+  customSoundName?: string | null;
 }
 
 export interface RackSlotMapping {
@@ -114,7 +116,7 @@ export function useFleetWebSocket() {
                         (p.serial && inc.serial && p.serial === inc.serial))
                   );
 
-                  if (curr && inc.status === 'Ready') {
+                  if (curr && (curr.status === 'Flashing...' || curr.status === 'Busy')) {
                     return {
                       ...inc,
                       id: curr.id,
@@ -541,6 +543,28 @@ export function useFleetWebSocket() {
     setBinaryTransfers((prev) => prev.filter((t) => !(t.filename === filename && t.targetPcId === targetPcId)));
   }, []);
 
+  const syncModelProfiles = useCallback((modelProfiles: Record<string, any>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_MODEL_PROFILES',
+          payload: { modelProfiles },
+        })
+      );
+    }
+  }, []);
+
+  const startWorkflow = useCallback((deviceIds: string[], config: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'START_WORKFLOW',
+          payload: { deviceIds, config },
+        })
+      );
+    }
+  }, []);
+
   return {
     devices,
     setDevices,
@@ -560,6 +584,8 @@ export function useFleetWebSocket() {
     syncFirmwareSlots,
     syncWorkflowConfig,
     syncSelectedDevices,
+    syncModelProfiles,
+    startWorkflow,
     dispatchAction,
     toggleTorch,
     setTorchBulk,

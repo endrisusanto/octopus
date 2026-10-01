@@ -17,6 +17,8 @@ export interface DeviceInfo {
   batteryLevel?: number;
   batteryTemp?: number;
   torchOn?: boolean;
+  buildType?: string;
+  pdaVersion?: string;
   lastSeen: number;
 }
 
@@ -79,6 +81,32 @@ let globalWorkflowConfig: WorkflowConfig = {
   wifiEnabled: true,
   wifiSsid: 'RTT / IEEE 802.11',
   wifiPassword: '1234qwer',
+};
+
+export interface ModelProfile {
+  slots: FirmwareSlotsMap;
+  workflowConfig: WorkflowConfig;
+}
+
+let globalModelProfiles: Record<string, ModelProfile> = {
+  'SM-MODEL-1': {
+    slots: {
+      bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+      userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+    },
+    workflowConfig: {
+      binaryFile: '',
+      odinFlash: true,
+      skipSuw: true,
+      setupGba: true,
+      wifiEnabled: true,
+      wifiSsid: 'RTT / IEEE 802.11',
+      wifiPassword: '1234qwer',
+    },
+  },
 };
 
 let globalSelectedDeviceIds: string[] = [];
@@ -383,17 +411,20 @@ wss.on('connection', (ws, req) => {
               newKeys.add(fullKey);
 
               if (matchingActive) {
-                // If device was rebooting and is now detected back online in Ready state, clear Busy/Rebooting status!
-                const isRebootFinished = (matchingActive.currentTask?.toLowerCase().includes('reboot') || matchingActive.status === 'Busy') && d.status === 'Ready';
+                // If device was running a workflow (Flashing...), preserve its Flashing status and progress!
+                // Only clear Busy status if it was a manual reboot
+                const isRebootFinished = matchingActive.status === 'Busy' && d.status === 'Ready';
+                const preserveWorkflowStatus = matchingActive.status === 'Flashing...' && d.status === 'Ready';
+
                 fleetDevices.set(fullKey, {
                   ...d,
                   id: primaryId,
                   pcId: bridgePcId,
                   model: matchingActive.model && matchingActive.model !== 'SAMSUNG USB' && matchingActive.model !== 'SAMSUNG ODIN' && matchingActive.model !== 'SAMSUNG (Download Mode)' ? matchingActive.model : d.model,
                   serial: matchingActive.serial || d.serial,
-                  status: isRebootFinished ? 'Ready' : matchingActive.status,
-                  progress: isRebootFinished ? 0 : matchingActive.progress,
-                  currentTask: isRebootFinished ? undefined : matchingActive.currentTask,
+                  status: preserveWorkflowStatus ? 'Flashing...' : (isRebootFinished ? 'Ready' : matchingActive.status),
+                  progress: preserveWorkflowStatus ? matchingActive.progress : (isRebootFinished ? 0 : matchingActive.progress),
+                  currentTask: preserveWorkflowStatus ? matchingActive.currentTask : (isRebootFinished ? undefined : matchingActive.currentTask),
                   lastSeen: Date.now(),
                 });
               } else {
@@ -557,6 +588,7 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({
       type: 'SESSION_STATE_SYNC',
       payload: {
+        modelProfiles: globalModelProfiles,
         firmwareSlots: globalFirmwareSlots,
         workflowConfig: globalWorkflowConfig,
         selectedDeviceIds: globalSelectedDeviceIds,
@@ -580,14 +612,28 @@ wss.on('connection', (ws, req) => {
       try {
         const msg = JSON.parse(raw.toString());
         
-        // 1-Session state synchronization from UI clients
-        if (msg.type === 'SYNC_FIRMWARE_SLOTS') {
-          if (msg.payload?.firmwareSlots) {
-            globalFirmwareSlots = msg.payload.firmwareSlots;
+        // Multi-Model Profiles live state synchronization from UI clients
+        if (msg.type === 'SYNC_MODEL_PROFILES') {
+          if (msg.payload?.modelProfiles) {
+            globalModelProfiles = msg.payload.modelProfiles;
+            console.log(`[Model Profiles Sync] Synced ${Object.keys(globalModelProfiles).length} model profiles`);
             broadcastToUI('SESSION_STATE_SYNC', {
+              modelProfiles: globalModelProfiles,
               firmwareSlots: globalFirmwareSlots,
               workflowConfig: globalWorkflowConfig,
               selectedDeviceIds: globalSelectedDeviceIds,
+              customSoundName: globalCustomSound?.filename || null,
+            });
+          }
+        } else if (msg.type === 'SYNC_FIRMWARE_SLOTS') {
+          if (msg.payload?.firmwareSlots) {
+            globalFirmwareSlots = msg.payload.firmwareSlots;
+            broadcastToUI('SESSION_STATE_SYNC', {
+              modelProfiles: globalModelProfiles,
+              firmwareSlots: globalFirmwareSlots,
+              workflowConfig: globalWorkflowConfig,
+              selectedDeviceIds: globalSelectedDeviceIds,
+              customSoundName: globalCustomSound?.filename || null,
             });
           }
         } else if (msg.type === 'SAVE_RACK_CALIBRATION') {
@@ -642,15 +688,18 @@ wss.on('connection', (ws, req) => {
               selectedDeviceIds: globalSelectedDeviceIds,
             });
           }
-        } else if (msg.type === 'START_WORKFLOW') {
-          const { deviceIds, config: wfConfig } = msg.payload || {};
-          if (Array.isArray(deviceIds) && deviceIds.length > 0) {
-            for (const devId of deviceIds) {
-              // Find target bridge
+        } else if (msg.type === 'START_WORKFLOW' || msg.type === 'START_TASK') {
+          const { deviceIds, targetIds, config: wfConfig, ...directParams } = msg.payload || {};
+          const targets = deviceIds || targetIds || directParams.targetIds || [];
+          const effectiveConfig = wfConfig || directParams;
+          if (Array.isArray(targets) && targets.length > 0) {
+            for (const devId of targets) {
               let targetPcId = '';
+              let matchedDev: DeviceInfo | undefined;
               for (const [_, dev] of fleetDevices) {
                 if (dev.id === devId || dev.serial === devId || dev.port === devId) {
                   targetPcId = dev.pcId;
+                  matchedDev = dev;
                   break;
                 }
               }
@@ -660,7 +709,7 @@ wss.on('connection', (ws, req) => {
               const bridge = connectedBridges.get(targetPcId);
               if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
                 const fullKey = `${targetPcId}:${devId}`;
-                const dev = fleetDevices.get(fullKey);
+                const dev = fleetDevices.get(fullKey) || matchedDev;
                 if (dev) {
                   dev.status = 'Flashing...';
                   dev.progress = 10;
@@ -668,35 +717,57 @@ wss.on('connection', (ws, req) => {
                   broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
                 }
 
-                const apFile = globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || (wfConfig?.apFilename as string) || '';
-                const apPath = globalFirmwareSlots.ap.path || globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || (wfConfig?.apPath as string) || '';
+                const apFile = (effectiveConfig?.apFile as string) || (effectiveConfig?.apFilename as string) || (effectiveConfig?.binaryFile as string) || globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || '';
+                const apPath = (effectiveConfig?.apPath as string) || (effectiveConfig?.apFile as string) || (effectiveConfig?.apFilename as string) || (effectiveConfig?.binaryFile as string) || globalFirmwareSlots.ap.path || globalFirmwareSlots.ap.filename || globalWorkflowConfig.binaryFile || '';
+                const blPath = (effectiveConfig?.blPath as string) || (effectiveConfig?.blFile as string) || globalFirmwareSlots.bl.path || globalFirmwareSlots.bl.filename || '';
+                const cpPath = (effectiveConfig?.cpPath as string) || (effectiveConfig?.cpFile as string) || globalFirmwareSlots.cp.path || globalFirmwareSlots.cp.filename || '';
+                const cscPath = (effectiveConfig?.cscPath as string) || (effectiveConfig?.cscFile as string) || globalFirmwareSlots.csc.path || globalFirmwareSlots.csc.filename || '';
+                const userdataPath = (effectiveConfig?.userdataPath as string) || (effectiveConfig?.userdataFile as string) || globalFirmwareSlots.userdata.path || globalFirmwareSlots.userdata.filename || '';
+
+                const steps = effectiveConfig?.steps || {};
+                const odinFlash = effectiveConfig?.odinFlash !== undefined ? Boolean(effectiveConfig.odinFlash) : (steps.odinFlash !== undefined ? Boolean(steps.odinFlash) : Boolean(apFile));
+                const skipSuw = effectiveConfig?.skipSuw !== undefined ? Boolean(effectiveConfig.skipSuw) : (steps.skipSuw !== undefined ? Boolean(steps.skipSuw) : true);
+                const setupGba = effectiveConfig?.setupGba !== undefined ? Boolean(effectiveConfig.setupGba) : (steps.setupGba !== undefined ? Boolean(steps.setupGba) : true);
+                const wifiEnabled = effectiveConfig?.wifiEnabled !== undefined ? Boolean(effectiveConfig.wifiEnabled) : (steps.wifiEnabled !== undefined ? Boolean(steps.wifiEnabled) : true);
+                const wifiSsid = (effectiveConfig?.wifiSsid as string) || (steps.wifiSsid as string) || 'RTT / IEEE 802.11';
+                const wifiPassword = (effectiveConfig?.wifiPassword as string) || (steps.wifiPassword as string) || '1234qwer';
+                const postTorch = effectiveConfig?.postTorch !== false;
+                const postSound = Boolean(effectiveConfig?.postSound || effectiveConfig?.autoSoundOn || effectiveConfig?.autoTweetOn);
+                const torchMode = (effectiveConfig?.torchMode as string) || 'flash';
+
+                const targetSerial = (matchedDev && matchedDev.serial) ? matchedDev.serial : devId;
+
+                console.log(`[Workflow Start] Triggering WORKFLOW_PIPELINE for ${devId} (${targetSerial}) on bridge ${targetPcId}`);
 
                 bridge.ws.send(JSON.stringify({
                   type: 'EXECUTE_COMMAND',
                   payload: {
-                    deviceId: devId,
+                    deviceId: targetSerial,
                     action: 'WORKFLOW_PIPELINE',
                     params: {
                       apFilename: apFile,
                       apPath: apPath,
-                      apPcId: globalFirmwareSlots.ap.pcId || wfConfig?.apPcId || '',
-                      blPath: globalFirmwareSlots.bl.path || globalFirmwareSlots.bl.filename || (wfConfig?.blPath as string) || '',
-                      blPcId: globalFirmwareSlots.bl.pcId || wfConfig?.blPcId || '',
-                      cpPath: globalFirmwareSlots.cp.path || globalFirmwareSlots.cp.filename || (wfConfig?.cpPath as string) || '',
-                      cpPcId: globalFirmwareSlots.cp.pcId || wfConfig?.cpPcId || '',
-                      cscPath: globalFirmwareSlots.csc.path || globalFirmwareSlots.csc.filename || (wfConfig?.cscPath as string) || '',
-                      cscPcId: globalFirmwareSlots.csc.pcId || wfConfig?.cscPcId || '',
-                      userdataPath: globalFirmwareSlots.userdata.path || globalFirmwareSlots.userdata.filename || (wfConfig?.userdataPath as string) || '',
-                      userdataPcId: globalFirmwareSlots.userdata.pcId || wfConfig?.userdataPcId || '',
-                      odinFlash: wfConfig?.odinFlash !== false,
-                      skipSuw: wfConfig?.skipSuw !== false,
-                      setupGba: wfConfig?.setupGba !== false,
-                      wifiEnabled: wfConfig?.wifiEnabled !== false,
-                      wifiSsid: wfConfig?.wifiSsid || 'RTT / IEEE 802.11',
-                      wifiPassword: wfConfig?.wifiPassword || '1234qwer',
-                      postTorch: wfConfig?.postTorch !== false,
-                      postSound: Boolean(wfConfig?.postSound || wfConfig?.autoSoundOn || wfConfig?.autoTweetOn),
-                      torchMode: wfConfig?.torchMode || 'flash',
+                      apPcId: (effectiveConfig?.apPcId as string) || (effectiveConfig?.sourcePcId as string) || globalFirmwareSlots.ap.pcId || '',
+                      blPath: blPath,
+                      blPcId: (effectiveConfig?.blPcId as string) || globalFirmwareSlots.bl.pcId || '',
+                      cpPath: cpPath,
+                      cpPcId: (effectiveConfig?.cpPcId as string) || globalFirmwareSlots.cp.pcId || '',
+                      cscPath: cscPath,
+                      cscPcId: (effectiveConfig?.cscPcId as string) || globalFirmwareSlots.csc.pcId || '',
+                      userdataPath: userdataPath,
+                      userdataPcId: (effectiveConfig?.userdataPcId as string) || globalFirmwareSlots.userdata.pcId || '',
+                      odinFlash,
+                      skipSuw,
+                      setupGba,
+                      wifiEnabled,
+                      wifiSsid,
+                      wifiPassword,
+                      postTorch,
+                      postSound,
+                      torchMode,
+                      serialHint: matchedDev?.serial,
+                      portHint: matchedDev?.port,
+                      modeHint: matchedDev?.mode,
                     },
                   },
                 }));
@@ -855,6 +926,29 @@ wss.on('connection', (ws, req) => {
           }
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
+
+          if (action === 'RESET_STATUS') {
+            if (deviceId === 'all') {
+              for (const [_, d] of fleetDevices) {
+                if (d.status === 'Pass' || d.status === 'Fail' || d.status === 'Flashing...') {
+                  d.status = 'Ready';
+                  d.progress = 0;
+                  d.currentTask = undefined;
+                  broadcastToUI('DEVICE_PROGRESS_UPDATE', d);
+                }
+              }
+            } else {
+              for (const [_, d] of fleetDevices) {
+                if (d.id === deviceId || d.serial === deviceId || d.port === deviceId) {
+                  d.status = 'Ready';
+                  d.progress = 0;
+                  d.currentTask = undefined;
+                  broadcastToUI('DEVICE_PROGRESS_UPDATE', d);
+                }
+              }
+            }
+          }
+
           if (targetPcId === 'all' || !connectedBridges.has(targetPcId)) {
             // Broadcast command to all connected bridges
             for (const b of connectedBridges.values()) {

@@ -10,6 +10,7 @@ interface BinarySelectModalProps {
   binaries: BinaryItem[];
   bridges?: BridgeInfo[];
   devices?: DeviceItem[];
+  preferredPcId?: string;
   onSave: (binaryFile: string) => void;
   onRefreshBinaries?: () => void;
   onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
@@ -30,13 +31,36 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   binaries,
   bridges,
   devices,
+  preferredPcId,
   onSave,
   onRefreshBinaries,
   onCopyBinary,
 }) => {
   const [searchFilter, setSearchFilter] = useState('');
-  const [selectedPc, setSelectedPc] = useState('all');
+  const [selectedPc, setSelectedPc] = useState<string>(() => {
+    if (preferredPcId && preferredPcId.trim()) return preferredPcId;
+    return localStorage.getItem('octopus_binary_select_pc') || 'all';
+  });
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+
+  // Auto-align selected PC node to the first loaded file source node whenever modal is opened
+  React.useEffect(() => {
+    if (isOpen) {
+      if (preferredPcId && preferredPcId.trim()) {
+        setSelectedPc(preferredPcId);
+      } else {
+        const saved = localStorage.getItem('octopus_binary_select_pc');
+        if (saved) {
+          setSelectedPc(saved);
+        }
+      }
+    }
+  }, [isOpen, preferredPcId]);
+
+  const handleSelectPc = (pc: string) => {
+    setSelectedPc(pc);
+    localStorage.setItem('octopus_binary_select_pc', pc);
+  };
 
   const uniquePcs = Array.from(new Set(binaries.map((b) => b.pcId)));
 
@@ -149,7 +173,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
               <select
                 className="filter-select binary-modal-select"
                 value={selectedPc}
-                onChange={(e) => setSelectedPc(e.target.value)}
+                onChange={(e) => handleSelectPc(e.target.value)}
               >
                 <option value="all">Semua Workstation PC ({binaries.length})</option>
                 {uniquePcs.map((pc) => (

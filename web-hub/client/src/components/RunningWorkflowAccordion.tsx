@@ -108,6 +108,11 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                 apVersion = matched.filename;
               }
             }
+            const isWaitingBoot =
+              device.status === 'Flashing...' &&
+              (device.currentTask?.toLowerCase().includes('reboot') ||
+                device.currentTask?.toLowerCase().includes('boot') ||
+                device.currentTask?.toLowerCase().includes('menunggu'));
 
             return (
               <div
@@ -125,25 +130,15 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                   gap: '0.45rem',
                 }}
               >
-                {/* ponytail: Background filled loading overlay */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    bottom: 0,
-                    width: `${isOdinStage ? odinProgress : overallProgress}%`,
-                    backgroundColor: isOdinStage ? 'rgba(16, 185, 129, 0.18)' : 'rgba(59, 130, 246, 0.18)',
-                    borderRight:
-                      (isOdinStage ? odinProgress : overallProgress) > 0 &&
-                      (isOdinStage ? odinProgress : overallProgress) < 100
-                        ? `2px solid ${isOdinStage ? 'var(--accent-green, #10b981)' : '#3b82f6'}`
-                        : 'none',
-                    transition: 'width 0.25s linear',
-                    pointerEvents: 'none',
-                    zIndex: 0,
-                  }}
-                />
+                {/* Sleek Underline Progress Bar */}
+                <div className="underline-progress-track">
+                  <div
+                    className={`underline-progress-fill ${isWaitingBoot ? 'infinite' : isOdinStage ? 'odin' : 'workflow'}`}
+                    style={{
+                      width: isWaitingBoot ? undefined : `${isOdinStage ? odinProgress : overallProgress}%`,
+                    }}
+                  />
+                </div>
 
                 {/* Main Content Row */}
                 <div
@@ -329,20 +324,6 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                       />
                     </div>
                   </div>
-                </div>
-
-                {/* Progress Bar Track */}
-                <div
-                  className="progress-bar-bg"
-                  style={{ position: 'relative', zIndex: 1, height: '4px', marginTop: '0.2rem' }}
-                >
-                  <div
-                    className="progress-bar-fill"
-                    style={{
-                      width: `${isOdinStage ? odinProgress : overallProgress}%`,
-                      backgroundColor: isOdinStage ? 'var(--accent-green, #10b981)' : '#3b82f6',
-                    }}
-                  />
                 </div>
               </div>
             );

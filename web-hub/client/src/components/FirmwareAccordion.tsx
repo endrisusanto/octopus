@@ -55,6 +55,19 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
   const [isOpen, setIsOpen] = useState(true);
   const [activeSlotModal, setActiveSlotModal] = useState<keyof FirmwareSlotsMap | null>(null);
 
+  // Auto-detect the source workstation PC of the first loaded firmware file
+  const firstLoadedPcId = React.useMemo(() => {
+    if (slots.ap.filename && slots.ap.pcId) return slots.ap.pcId;
+    if (slots.bl.filename && slots.bl.pcId) return slots.bl.pcId;
+    if (slots.cp.filename && slots.cp.pcId) return slots.cp.pcId;
+    if (slots.csc.filename && slots.csc.pcId) return slots.csc.pcId;
+    if (slots.userdata.filename && slots.userdata.pcId) return slots.userdata.pcId;
+    for (const slot of Object.values(slots)) {
+      if (slot.filename && slot.pcId) return slot.pcId;
+    }
+    return undefined;
+  }, [slots]);
+
   const hasAnyFile = Object.values(slots).some((s) => s.filename.length > 0);
   const isApVerified = slots.ap.status === 'verified';
   const isAnyVerifying = Object.values(slots).some((s) => s.status === 'verifying');
@@ -69,7 +82,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
       filename,
       path: filename,
       sizeBytes: 0,
-      pcId: 'local',
+      pcId: firstLoadedPcId || 'local',
     };
 
     const updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[] = [
@@ -363,6 +376,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
           binaries={binaries}
           bridges={bridges}
           devices={devices}
+          preferredPcId={firstLoadedPcId}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);
             setActiveSlotModal(null);

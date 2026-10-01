@@ -608,14 +608,39 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   onResetCustomSound,
 }) => {
   const [activeTab, setActiveTab] = useState<'anim' | 'calibration'>('anim');
-  const [selectedPreset, setSelectedPreset] = useState<string>('matrix_showcase');
-  const [isLoop, setIsLoop] = useState<boolean>(true);
-  const [speed, setSpeed] = useState<number>(0.12);
-  const [filterCategory, setFilterCategory] = useState<'all' | 'matrix' | 'classic'>('matrix');
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => {
+    return localStorage.getItem('octopus_anim_preset') || 'matrix_showcase';
+  });
+  const [isLoop, setIsLoop] = useState<boolean>(() => {
+    return localStorage.getItem('octopus_anim_loop') !== 'false';
+  });
+  const [speed, setSpeed] = useState<number>(() => {
+    const saved = localStorage.getItem('octopus_anim_speed');
+    return saved ? parseFloat(saved) : 0.12;
+  });
+  const [filterCategory, setFilterCategory] = useState<'all' | 'matrix' | 'classic'>(() => {
+    return (localStorage.getItem('octopus_anim_cat') as 'all' | 'matrix' | 'classic') || 'matrix';
+  });
   const [activeSoundPattern, setActiveSoundPattern] = useState<string | null>(null);
   const [animMode, setAnimMode] = useState<'flash' | 'screen'>(() => {
     return (localStorage.getItem('octopus_matrix_anim_mode') as 'flash' | 'screen') || 'flash';
   });
+
+  useEffect(() => {
+    localStorage.setItem('octopus_anim_preset', selectedPreset);
+  }, [selectedPreset]);
+
+  useEffect(() => {
+    localStorage.setItem('octopus_anim_loop', String(isLoop));
+  }, [isLoop]);
+
+  useEffect(() => {
+    localStorage.setItem('octopus_anim_speed', String(speed));
+  }, [speed]);
+
+  useEffect(() => {
+    localStorage.setItem('octopus_anim_cat', filterCategory);
+  }, [filterCategory]);
 
   const handleAnimModeChange = (mode: 'flash' | 'screen') => {
     setAnimMode(mode);

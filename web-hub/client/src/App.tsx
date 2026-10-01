@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFleetWebSocket, BinaryItem } from './hooks/useFleetWebSocket';
 import { useFlashKitSort, isFirmwareForModel, extractModelFromFirmware } from './hooks/useFlashKitSort';
 import { FleetHeader } from './components/FleetHeader';
 import { WorkflowConfig } from './components/WorkflowStepper';
-import { FirmwareAccordion, FirmwareSlotsMap } from './components/FirmwareAccordion';
-import { SuggestionMatchAccordion } from './components/SuggestionMatchAccordion';
+import { FirmwareSlotsMap } from './components/FirmwareAccordion';
+import { ModelParentAccordion } from './components/ModelParentAccordion';
 import { RunningWorkflowAccordion } from './components/RunningWorkflowAccordion';
 import { CompletedWorkflowAccordion } from './components/CompletedWorkflowAccordion';
 import { ReadyDevicesAccordion } from './components/ReadyDevicesAccordion';
@@ -14,7 +14,30 @@ import { BulkActionBar } from './components/BulkActionBar';
 import { LedAnimationModal } from './components/LedAnimationModal';
 import { AutomationConfirmModal } from './components/AutomationConfirmModal';
 import { BinaryTransferToast } from './components/BinaryTransferToast';
-import { SearchIcon, TerminalIcon } from './components/Icons';
+import { SearchIcon, TerminalIcon, PlusIcon } from './components/Icons';
+
+export interface ModelProfile {
+  slots: FirmwareSlotsMap;
+  workflowConfig: WorkflowConfig;
+}
+
+const createInitialSlots = (): FirmwareSlotsMap => ({
+  bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+});
+
+const createInitialWorkflowConfig = (): WorkflowConfig => ({
+  binaryFile: '',
+  odinFlash: true,
+  skipSuw: true,
+  setupGba: true,
+  wifiEnabled: true,
+  wifiSsid: 'RTT / IEEE 802.11',
+  wifiPassword: '1234qwer',
+});
 
 export const App: React.FC = () => {
   const {
@@ -30,12 +53,11 @@ export const App: React.FC = () => {
     logs,
     md5Progress,
     serverSessionState,
+    syncModelProfiles,
+    startWorkflow,
     rackCalibration,
     saveRackCalibration,
     blinkDevice,
-    syncFirmwareSlots,
-    syncWorkflowConfig,
-    syncSelectedDevices,
     dispatchAction,
     toggleTorch,
     setTorchBulk,
@@ -53,25 +75,33 @@ export const App: React.FC = () => {
   const [selectedMode, setSelectedMode] = useState('all');
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
 
-  // Firmware 5-Slot State
-  const [firmwareSlots, setFirmwareSlots] = useState<FirmwareSlotsMap>({
-    bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-    ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-    cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-    csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-    userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
+  // Multi-Model Profiles (Each Model owns its independent 5-slot firmware form & stepper config)
+  const [modelProfiles, setModelProfiles] = useState<Record<string, ModelProfile>>(() => {
+    return {
+      'SM-MODEL-1': {
+        slots: createInitialSlots(),
+        workflowConfig: createInitialWorkflowConfig(),
+      },
+    };
   });
 
-  // Workflow Automation Checklist State with default preset
-  const [workflowConfig, setWorkflowConfig] = useState<WorkflowConfig>({
+  // Sync state from server when WebSocket session state updates
+  useEffect(() => {
+    if (serverSessionState?.modelProfiles && Object.keys(serverSessionState.modelProfiles).length > 0) {
+      setModelProfiles(serverSessionState.modelProfiles);
+    }
+  }, [serverSessionState?.modelProfiles]);
+
+  // Standby Ready Devices Independent Stepper State (Independent Algorithm)
+  const [standbyWorkflowConfig, setStandbyWorkflowConfig] = useState<WorkflowConfig>(() => ({
     binaryFile: '',
-    odinFlash: true,
+    odinFlash: false,
     skipSuw: true,
     setupGba: true,
     wifiEnabled: true,
     wifiSsid: 'RTT / IEEE 802.11',
     wifiPassword: '1234qwer',
-  });
+  }));
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -90,7 +120,16 @@ export const App: React.FC = () => {
   const [logDrawerState, setLogDrawerState] = useState<{ isOpen: boolean; pcId?: string; deviceId?: string }>({
     isOpen: false,
   });
-  const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
+  const [wifiModalTarget, setWifiModalTarget] = useState<{
+    isOpen: boolean;
+    config: WorkflowConfig;
+    onSave: (cfg: { enabled: boolean; ssid: string; password?: string }) => void;
+  }>({
+    isOpen: false,
+    config: standbyWorkflowConfig,
+    onSave: () => {},
+  });
+
   const [deviceApMap, setDeviceApMap] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('octopus_device_ap_map');
@@ -106,65 +145,47 @@ export const App: React.FC = () => {
     } catch (_) {}
   }, [deviceApMap]);
 
-  // Sync server session state into local state safely without cyclic re-render echo
-  useEffect(() => {
-    if (serverSessionState) {
-      if (serverSessionState.firmwareSlots) {
-        setFirmwareSlots((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(serverSessionState.firmwareSlots)) return prev;
-          return serverSessionState.firmwareSlots!;
-        });
-      }
-      if (serverSessionState.workflowConfig) {
-        setWorkflowConfig((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(serverSessionState.workflowConfig)) return prev;
-          return serverSessionState.workflowConfig!;
-        });
-      }
-      if (serverSessionState.selectedDeviceIds) {
-        setSelectedIds((prev) => {
-          const prevStr = prev.slice().sort().join(',');
-          const nextStr = (serverSessionState.selectedDeviceIds || []).slice().sort().join(',');
-          if (prevStr === nextStr) return prev;
-          return serverSessionState.selectedDeviceIds!;
-        });
-      }
-    }
-  }, [serverSessionState]);
-
-  // Sync real-time MD5 verification progress from Bridge
+  // Sync real-time MD5 verification progress into matching model profiles
   useEffect(() => {
     if (md5Progress && md5Progress.slotKey) {
       const key = md5Progress.slotKey as keyof FirmwareSlotsMap;
-      setFirmwareSlots((prev) => {
-        if (!prev[key]) return prev;
-        
-        // Anti-glitch guard: Discard progress if slot is currently empty/idle
-        if (!prev[key].filename || prev[key].filename.trim() === '') {
-          return prev;
-        }
-        // Anti-glitch guard: Discard progress if message is for an older or different file
-        if (md5Progress.filename && prev[key].filename !== md5Progress.filename) {
-          return prev;
+      setModelProfiles((prev) => {
+        let changed = false;
+        const next = { ...prev };
+
+        for (const [mKey, profile] of Object.entries(next)) {
+          const slot = profile.slots[key];
+          if (slot && slot.filename && (!md5Progress.filename || slot.filename === md5Progress.filename)) {
+            next[mKey] = {
+              ...profile,
+              slots: {
+                ...profile.slots,
+                [key]: {
+                  ...slot,
+                  status: md5Progress.status,
+                  progress: md5Progress.progress,
+                },
+              },
+            };
+            changed = true;
+          }
         }
 
-        return {
-          ...prev,
-          [key]: {
-            ...prev[key],
-            status: md5Progress.status,
-            progress: md5Progress.progress,
-          },
-        };
+        return changed ? next : prev;
       });
     }
   }, [md5Progress]);
 
-  // Atomic batch slot update with MD5 verification dispatch
-  const handleUpdateSlotsBatch = useCallback(
-    (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => {
-      setFirmwareSlots((prev) => {
-        const nextSlots = { ...prev };
+  // Batch slot update for a specific model profile
+  const handleUpdateSlotsBatchForModel = useCallback(
+    (modelKey: string, updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => {
+      setModelProfiles((prev) => {
+        const existingProfile = prev[modelKey] || {
+          slots: createInitialSlots(),
+          workflowConfig: createInitialWorkflowConfig(),
+        };
+
+        const nextSlots = { ...existingProfile.slots };
         const verificationsToDispatch: { targetPc: string; slotKey: string; path: string; filename: string }[] = [];
         const cancellationsToDispatch: string[] = [];
 
@@ -200,15 +221,10 @@ export const App: React.FC = () => {
           }
         }
 
-        // 1-Session state sync to server
-        syncFirmwareSlots(nextSlots);
-
-        // Cancel previous running verifications if cleared
         for (const slotKey of cancellationsToDispatch) {
           dispatchAction('all', 'system', 'CANCEL_VERIFY_MD5', { slotKey });
         }
 
-        // Dispatch new verification task(s)
         for (const v of verificationsToDispatch) {
           dispatchAction(v.targetPc, 'system', 'VERIFY_MD5', {
             slotKey: v.slotKey,
@@ -217,303 +233,249 @@ export const App: React.FC = () => {
           });
         }
 
-        // Keep workflowConfig.binaryFile in sync with AP slot
+        // Sync AP filename into workflow config
+        let nextConfig = { ...existingProfile.workflowConfig };
         const apUpdate = updates.find((u) => u.slotKey === 'ap');
         if (apUpdate !== undefined) {
           const nextAp = apUpdate.fileItem ? apUpdate.fileItem.filename : '';
-          setWorkflowConfig((cfg) => {
-            if (cfg.binaryFile === nextAp) return cfg;
-            const nextCfg = { ...cfg, binaryFile: nextAp };
-            syncWorkflowConfig(nextCfg);
-            return nextCfg;
-          });
+          nextConfig = { ...nextConfig, binaryFile: nextAp };
         }
 
-        return nextSlots;
+        // Auto rename model key if AP has clear model name
+        const apFile = nextSlots.ap.filename;
+        const detectedModel = apFile ? extractModelFromFirmware(apFile) : null;
+        let targetKey = modelKey;
+        if (detectedModel && modelKey === 'SM-A155F' && !prev[detectedModel]) {
+          targetKey = detectedModel;
+        }
+
+        const nextProfiles = { ...prev };
+        if (targetKey !== modelKey) {
+          delete nextProfiles[modelKey];
+        }
+        nextProfiles[targetKey] = {
+          slots: nextSlots,
+          workflowConfig: nextConfig,
+        };
+
+        syncModelProfiles(nextProfiles);
+        return nextProfiles;
       });
     },
-    [bridges, dispatchAction, syncFirmwareSlots, syncWorkflowConfig]
+    [bridges, dispatchAction, syncModelProfiles]
   );
 
-  const handleUpdateSlot = (slotKey: keyof FirmwareSlotsMap, fileItem: BinaryItem | null) => {
-    handleUpdateSlotsBatch([{ slotKey, fileItem }]);
-  };
-
-  const handleResetAllSlots = () => {
-    // Abort active verification tasks on all bridges immediately
+  const handleResetModelProfile = (modelKey: string) => {
     dispatchAction('all', 'system', 'CANCEL_VERIFY_MD5', { slotKey: 'all' });
-
-    const emptySlots: FirmwareSlotsMap = {
-      bl: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-      ap: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-      cp: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-      csc: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-      userdata: { filename: '', path: '', sizeBytes: 0, status: 'idle', progress: 0 },
-    };
-    setFirmwareSlots(emptySlots);
-    syncFirmwareSlots(emptySlots);
-    const newCfg = { ...workflowConfig, binaryFile: '' };
-    setWorkflowConfig(newCfg);
-    syncWorkflowConfig(newCfg);
-  };
-
-  const handleUpdateWorkflowConfig = (updater: (prev: WorkflowConfig) => WorkflowConfig) => {
-    setWorkflowConfig((prev) => {
-      const next = updater(prev);
-      syncWorkflowConfig(next);
+    setModelProfiles((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length <= 1) {
+        const cleanState = {
+          'SM-MODEL-1': {
+            slots: createInitialSlots(),
+            workflowConfig: createInitialWorkflowConfig(),
+          },
+        };
+        syncModelProfiles(cleanState);
+        return cleanState;
+      }
+      const next = { ...prev };
+      delete next[modelKey];
+      syncModelProfiles(next);
       return next;
     });
   };
 
-  // Sort & Filter All Devices
-  const sortedDevices = useFlashKitSort(devices, workflowConfig.binaryFile, searchQuery, selectedPcId, selectedMode);
+  const handleAddNewModel = () => {
+    const newKey = `SM-MODEL-${Object.keys(modelProfiles).length + 1}`;
+    setModelProfiles((prev) => {
+      const next = {
+        ...prev,
+        [newKey]: {
+          slots: createInitialSlots(),
+          workflowConfig: createInitialWorkflowConfig(),
+        },
+      };
+      syncModelProfiles(next);
+      return next;
+    });
+  };
 
-  // Group devices into: Running, Completed (Pass/Fail), Suggestion Match (matching AP), and Standby Ready
-  const runningDevices = sortedDevices.filter((d) => d.status === 'Flashing...' || d.status === 'Busy');
-  const completedDevices = sortedDevices.filter((d) => d.status === 'Pass' || d.status === 'Fail');
+  // Device Sorting & Filtering
+  const sortedDevices = useFlashKitSort(devices, undefined, searchQuery, selectedPcId, selectedMode);
 
-  // Active AP filename & Source PC ID
-  const activeAp = firmwareSlots.ap.filename || workflowConfig.binaryFile;
-  const sourcePcId = firmwareSlots.ap.pcId || firmwareSlots.bl.pcId || firmwareSlots.cp.pcId || firmwareSlots.csc.pcId || firmwareSlots.userdata.pcId;
-
-  const extractedFwModel = extractModelFromFirmware(activeAp);
-  const matchedModelName = extractedFwModel
-    ? (extractedFwModel.toUpperCase().startsWith('SM-') ? extractedFwModel.toUpperCase() : `SM-${extractedFwModel.toUpperCase()}`)
-    : 'SM-DEVICE';
-
-  const matchedDevices = activeAp
-    ? sortedDevices.filter(
-        (d) =>
-          !runningDevices.some((r) => r.id === d.id) &&
-          !completedDevices.some((c) => c.id === d.id) &&
-          isFirmwareForModel(activeAp, d.model)
-      )
-    : [];
-
-  const readyStandbyDevices = sortedDevices.filter(
-    (d) =>
-      !runningDevices.some((r) => r.id === d.id) &&
-      !completedDevices.some((c) => c.id === d.id) &&
-      !matchedDevices.some((m) => m.id === d.id)
+  // Group Devices by Workflow Status
+  const runningDevices = useMemo(
+    () => sortedDevices.filter((d) => d.status === 'Flashing...' || (typeof d.progress === 'number' && d.progress > 0 && d.progress < 100)),
+    [sortedDevices]
   );
 
-  // Check if any firmware slot is verifying MD5
-  const isMd5Verifying = Object.values(firmwareSlots).some((s) => s.status === 'verifying');
-  const md5VerifyProgress = (() => {
-    const verifying = Object.values(firmwareSlots).filter((s) => s.status === 'verifying');
-    if (verifying.length === 0) return 100;
-    const sum = verifying.reduce((acc, curr) => acc + (curr.progress || 0), 0);
-    return Math.round(sum / verifying.length);
-  })();
+  const completedDevices = useMemo(
+    () => sortedDevices.filter((d) => d.status === 'Pass' || d.status === 'Fail'),
+    [sortedDevices]
+  );
 
-  // Reset Completed Device Status back to Standby
-  const handleResetDeviceStatus = (deviceId: string) => {
-    setDevices((prev) =>
-      prev.map((d) => (d.id === deviceId ? { ...d, status: 'Ready', progress: 0, currentTask: 'Standby Ready' } : d))
-    );
-  };
+  const readyStandbyDevices = useMemo(
+    () => sortedDevices.filter((d) => d.status !== 'Flashing...' && d.status !== 'Pass' && d.status !== 'Fail'),
+    [sortedDevices]
+  );
 
-  const handleResetAllCompleted = () => {
-    setDevices((prev) =>
-      prev.map((d) =>
-        d.status === 'Pass' || d.status === 'Fail'
-          ? { ...d, status: 'Ready', progress: 0, currentTask: 'Standby Ready' }
-          : d
-      )
-    );
-  };
-
-  // Auto-select matched devices when matched model changes (across all connected nodes)
-  useEffect(() => {
-    if (matchedDevices.length > 0) {
-      const valid = matchedDevices.map((d) => d.id);
-      setSelectedIds((prev) => {
-        const prevStr = prev.slice().sort().join(',');
-        const validStr = valid.slice().sort().join(',');
-        if (prevStr === validStr) return prev;
-        syncSelectedDevices(valid);
-        return valid;
-      });
-    }
-  }, [activeAp, matchedDevices.length, syncSelectedDevices]);
-
+  // Selection handlers
   const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
-      syncSelectedDevices(next);
-      return next;
-    });
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
   const handleSelectAll = (ids: string[]) => {
     setSelectedIds(ids);
-    syncSelectedDevices(ids);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds([]);
+  };
+
+  // Single device actions
+  const handleDeviceAction = (pcId: string, deviceId: string, action: string) => {
+    dispatchAction(pcId, deviceId, action, {});
   };
 
   const handleOpenLogs = (pcId: string, deviceId: string) => {
     setLogDrawerState({ isOpen: true, pcId, deviceId });
   };
 
-  const handleDeviceAction = (pcId: string, deviceId: string, action: string) => {
-    const apToUse = firmwareSlots.ap.filename || workflowConfig.binaryFile;
-    if (apToUse) {
-      setDeviceApMap((prev) => ({ ...prev, [deviceId]: apToUse }));
-    }
-    dispatchAction(pcId, deviceId, action, {
-      apFilename: apToUse,
-      apPath: firmwareSlots.ap.path || firmwareSlots.ap.filename || workflowConfig.binaryFile,
-      blPath: firmwareSlots.bl.path || firmwareSlots.bl.filename,
-      cpPath: firmwareSlots.cp.path || firmwareSlots.cp.filename,
-      cscPath: firmwareSlots.csc.path || firmwareSlots.csc.filename,
-      userdataPath: firmwareSlots.userdata.path || firmwareSlots.userdata.filename,
-      odinFlash: true,
-      skipSuw: workflowConfig.skipSuw,
-      setupGba: workflowConfig.setupGba,
-      wifiEnabled: workflowConfig.wifiEnabled,
-      wifiSsid: workflowConfig.wifiSsid,
-      wifiPassword: workflowConfig.wifiPassword,
+  // Automation Execution State & Confirmation Modal
+  const [confirmTarget, setConfirmTarget] = useState<{
+    targetIds: string[];
+    config: WorkflowConfig;
+    slots: FirmwareSlotsMap;
+  } | null>(null);
+
+  const handleRunModelAutomation = (targetIds: string[], config: WorkflowConfig, slots: FirmwareSlotsMap) => {
+    if (targetIds.length === 0) return;
+    setConfirmTarget({ targetIds, config, slots });
+  };
+
+  const handleRunStandbyAutomation = (targetIds: string[]) => {
+    if (targetIds.length === 0) return;
+    setConfirmTarget({
+      targetIds,
+      config: standbyWorkflowConfig,
+      slots: createInitialSlots(),
     });
   };
 
-  // Automation Confirmation State
-  const [confirmTargetIds, setConfirmTargetIds] = useState<string[] | null>(null);
-
-  // Trigger Confirmation Modal when user clicks "Jalankan Automasi"
-  const handleRunAutomation = (targetDeviceIds: string[]) => {
-    if (!targetDeviceIds || targetDeviceIds.length === 0) return;
-    setConfirmTargetIds(targetDeviceIds);
-  };
-
-  // Execute Automation after user confirms in the modal
   const executeConfirmedAutomation = (postTorch: boolean, postSound: boolean) => {
-    if (!confirmTargetIds || confirmTargetIds.length === 0) return;
-    const targetDeviceIds = confirmTargetIds;
-    const targetDevices = devices.filter((d) => targetDeviceIds.includes(d.id));
-    if (targetDevices.length === 0) return;
+    if (!confirmTarget || confirmTarget.targetIds.length === 0) return;
+    const { targetIds, config, slots } = confirmTarget;
 
-    const apToUse = firmwareSlots.ap.filename || workflowConfig.binaryFile;
-    if (apToUse) {
+    const sourcePcId = slots.ap.pcId || bridges[0]?.pcId;
+
+    // Save AP mapping
+    if (slots.ap.filename) {
       setDeviceApMap((prev) => {
         const next = { ...prev };
-        targetDevices.forEach((d) => {
-          next[d.id] = apToUse;
-        });
+        for (const id of targetIds) {
+          next[id] = slots.ap.filename;
+        }
         return next;
       });
     }
 
-    // Optimistically update device states so they appear in RunningWorkflowAccordion immediately
+    // Build payload with full slot paths & per-slot metadata
+    const payload = {
+      targetIds,
+      sourcePcId,
+      binaryFile: slots.ap.filename || config.binaryFile || '',
+      blFile: slots.bl.filename || '',
+      blPath: slots.bl.path || slots.bl.filename || '',
+      blPcId: slots.bl.pcId || '',
+      apFile: slots.ap.filename || '',
+      apPath: slots.ap.path || slots.ap.filename || '',
+      apPcId: slots.ap.pcId || sourcePcId || '',
+      cpFile: slots.cp.filename || '',
+      cpPath: slots.cp.path || slots.cp.filename || '',
+      cpPcId: slots.cp.pcId || '',
+      cscFile: slots.csc.filename || '',
+      cscPath: slots.csc.path || slots.csc.filename || '',
+      cscPcId: slots.csc.pcId || '',
+      userdataFile: slots.userdata.filename || '',
+      userdataPath: slots.userdata.path || slots.userdata.filename || '',
+      userdataPcId: slots.userdata.pcId || '',
+      odinFlash: Boolean(config.odinFlash && slots.ap.filename),
+      skipSuw: config.skipSuw !== false,
+      setupGba: config.setupGba !== false,
+      wifiEnabled: config.wifiEnabled !== false,
+      wifiSsid: config.wifiSsid || 'RTT / IEEE 802.11',
+      wifiPassword: config.wifiPassword || '1234qwer',
+      postTorch,
+      postSound,
+      torchMode,
+    };
+
+    startWorkflow(targetIds, payload);
+    setConfirmTarget(null);
+  };
+
+  const handleResetDeviceStatus = (pcId: string, deviceId: string) => {
     setDevices((prev) =>
-      prev.map((d) =>
-        targetDeviceIds.includes(d.id)
-          ? {
-              ...d,
-              status: 'Flashing...',
-              progress: 10,
-              currentTask: 'Memulai automasi...',
-            }
-          : d
-      )
+      prev.map((d) => (d.id === deviceId && d.pcId === pcId ? { ...d, status: 'Ready', progress: 0, currentTask: undefined } : d))
     );
-
-    // Unselect targeted devices
-    setSelectedIds((prev) => {
-      const next = prev.filter((id) => !targetDeviceIds.includes(id));
-      syncSelectedDevices(next);
-      return next;
-    });
-
-    for (const dev of targetDevices) {
-      dispatchAction(dev.pcId, dev.id, 'WORKFLOW_PIPELINE', {
-        apFilename: apToUse,
-        apPath: firmwareSlots.ap.path || firmwareSlots.ap.filename || workflowConfig.binaryFile,
-        blPath: firmwareSlots.bl.path || firmwareSlots.bl.filename,
-        cpPath: firmwareSlots.cp.path || firmwareSlots.cp.filename,
-        cscPath: firmwareSlots.csc.path || firmwareSlots.csc.filename,
-        userdataPath: firmwareSlots.userdata.path || firmwareSlots.userdata.filename,
-        odinFlash: workflowConfig.odinFlash !== false && Boolean(apToUse),
-        skipSuw: workflowConfig.skipSuw,
-        setupGba: workflowConfig.setupGba,
-        wifiEnabled: workflowConfig.wifiEnabled,
-        wifiSsid: workflowConfig.wifiSsid,
-        wifiPassword: workflowConfig.wifiPassword,
-        postTorch,
-        postSound,
-        torchMode,
-      });
-    }
-
-    // Reset firmware slots after triggering automation
-    handleResetAllSlots();
-    setConfirmTargetIds(null);
+    dispatchAction(pcId, deviceId, 'RESET_STATUS', {});
   };
 
-  const handleBulkTorch = (targetDeviceIds: string[], state: 'on' | 'off') => {
-    setTorchBulk(targetDeviceIds, state, torchMode);
+  const handleResetAllCompleted = () => {
+    setDevices((prev) =>
+      prev.map((d) => (d.status === 'Pass' || d.status === 'Fail' ? { ...d, status: 'Ready', progress: 0, currentTask: undefined } : d))
+    );
+    dispatchAction('all', 'all', 'RESET_STATUS', {});
   };
 
-  const handleBulkDispatch = (targetDeviceIds: string[], action: string, params: any = {}) => {
-    if (action === 'RUN_LED_ANIM' || action === 'STOP_LED_ANIM') {
-      const targetPcId = bridges[0]?.pcId || 'all';
-      dispatchAction(targetPcId, 'all', action, params);
-      return;
-    }
-    targetDeviceIds.forEach((id) => {
+  // Bulk Actions
+  const handleBulkTorch = (deviceIds: string[], state: 'on' | 'off') => {
+    setTorchBulk(deviceIds, state, torchMode);
+  };
+
+  const handleBulkDispatch = (deviceIds: string[], action: string, params?: any) => {
+    for (const id of deviceIds) {
       const dev = devices.find((d) => d.id === id);
       if (dev) {
         dispatchAction(dev.pcId, dev.id, action, params);
       }
-    });
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedIds([]);
-    syncSelectedDevices([]);
-  };
-
-  const handleTriggerAgentUpdate = () => {
-    for (const b of bridges) {
-      dispatchAction(b.pcId, 'system', 'SELF_UPDATE', { targetVersion: 'latest' });
-    }
-    setLogDrawerState({ isOpen: true });
-  };
-
-  const handleReloadDevices = () => {
-    for (const b of bridges) {
-      dispatchAction(b.pcId, 'system', 'RELOAD_DEVICES', {});
     }
   };
 
   const handleRefreshBinaries = () => {
-    for (const b of bridges) {
-      dispatchAction(b.pcId, 'system', 'SCAN_BINARIES', {});
+    for (const bridge of bridges) {
+      dispatchAction(bridge.pcId, 'system', 'SCAN_BINARIES', {});
     }
   };
 
+  const profileEntries = Object.entries(modelProfiles);
+
   return (
     <div className="app-container">
+      {/* Top Fixed Header Navbar */}
       <FleetHeader
-        bridges={bridges}
-        devices={devices}
         isConnected={isConnected}
+        devices={devices}
+        bridges={bridges}
         torchMode={torchMode}
         onTorchModeChange={handleTorchModeChange}
-        onRefresh={handleTriggerAgentUpdate}
-        onReloadDevices={handleReloadDevices}
+        onRefresh={handleRefreshBinaries}
       />
 
+      {/* Main Container */}
       <main className="main-content">
-        {/* Global Toolbar Filters - Located Above Firmware Card */}
+        {/* Global Toolbar Filters */}
         <section className="toolbar-section" style={{ marginBottom: '1rem' }}>
           <div className="toolbar-row">
             <div className="search-input-wrapper">
-              <SearchIcon size={16} className="search-icon" />
+              <SearchIcon className="search-icon" size={16} />
               <input
                 type="text"
-                className="search-input"
-                placeholder="Cari Model, Serial, Port, atau PC ID..."
+                placeholder="Cari serial number, model, PC ID, atau devnode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
               />
             </div>
 
@@ -525,7 +487,7 @@ export const App: React.FC = () => {
               <option value="all">Semua Workstation PC ({bridges.length})</option>
               {bridges.map((b) => (
                 <option key={b.pcId} value={b.pcId}>
-                  {b.pcId} ({b.os})
+                  {b.pcId}
                 </option>
               ))}
             </select>
@@ -551,46 +513,119 @@ export const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Accordion 1: Firmware Binary Slots (BL, AP, CP, CSC, USERDATA) */}
-        <FirmwareAccordion
-          slots={firmwareSlots}
-          onUpdateSlot={handleUpdateSlot}
-          onUpdateSlotsBatch={handleUpdateSlotsBatch}
-          onResetAll={handleResetAllSlots}
-          binaries={binaries}
-          bridges={bridges}
-          devices={devices}
-          onRefreshBinaries={handleRefreshBinaries}
-          onCopyBinary={requestCopyBinary}
-        />
+        {/* =========================================================================
+            PARENT ACCORDIONS PER MODEL (Wraps Firmware 5-Slot Form + Matched Devices)
+            ========================================================================= */}
+        {profileEntries.map(([mKey, profile]) => {
+          const apFile = profile.slots.ap?.filename;
+          const detectedModel = apFile ? extractModelFromFirmware(apFile) : null;
+          const targetModel = detectedModel || mKey;
 
-        {/* Accordion 2: Suggestion Match (Highlighted with Accent Glow Outline) */}
-        {activeAp && (
-          <SuggestionMatchAccordion
-            matchedModel={matchedModelName}
-            apFilename={activeAp}
-            sourcePcId={sourcePcId}
-            devices={matchedDevices}
-            selectedIds={selectedIds}
-            onToggleSelect={handleToggleSelect}
-            onSelectAll={handleSelectAll}
-            onRunAutomation={handleRunAutomation}
-            workflowConfig={workflowConfig}
-            onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
-            onOpenLogs={handleOpenLogs}
-            onOpenWifiModal={() => setIsWifiModalOpen(true)}
-            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
-            pendingTorchIds={pendingTorchIds}
-            isMd5Verifying={isMd5Verifying}
-            md5VerifyProgress={md5VerifyProgress}
-          />
-        )}
+          const modelDevices = sortedDevices.filter((d) => {
+            if (apFile) {
+              return isFirmwareForModel(apFile, d.model);
+            }
+            if (profileEntries.length === 1) {
+              return true;
+            }
+            return Boolean(d.model && d.model.toUpperCase().includes(targetModel.toUpperCase().replace(/^SM[-_]/i, '')));
+          });
+
+          return (
+            <ModelParentAccordion
+              key={mKey}
+              modelKey={mKey}
+              slots={profile.slots}
+              onUpdateSlotsBatch={(updates) => handleUpdateSlotsBatchForModel(mKey, updates)}
+              onResetModel={() => handleResetModelProfile(mKey)}
+              binaries={binaries}
+              bridges={bridges}
+              devices={modelDevices}
+              selectedIds={selectedIds}
+              onToggleSelect={handleToggleSelect}
+              onSelectAllModel={handleSelectAll}
+              onRunAutomation={(targetIds, cfg, sls) => handleRunModelAutomation(targetIds, cfg, sls)}
+              workflowConfig={profile.workflowConfig}
+              onUpdateWorkflowConfig={(updater) => {
+                setModelProfiles((prev) => {
+                  const curr = prev[mKey];
+                  if (!curr) return prev;
+                  const next = {
+                    ...prev,
+                    [mKey]: {
+                      ...curr,
+                      workflowConfig: updater(curr.workflowConfig),
+                    },
+                  };
+                  syncModelProfiles(next);
+                  return next;
+                });
+              }}
+              onOpenLogs={handleOpenLogs}
+              onOpenWifiModal={() => {
+                setWifiModalTarget({
+                  isOpen: true,
+                  config: profile.workflowConfig,
+                  onSave: (cfg) => {
+                    setModelProfiles((prev) => {
+                      const curr = prev[mKey];
+                      if (!curr) return prev;
+                      const next = {
+                        ...prev,
+                        [mKey]: {
+                          ...curr,
+                          workflowConfig: {
+                            ...curr.workflowConfig,
+                            wifiEnabled: cfg.enabled,
+                            wifiSsid: cfg.ssid,
+                            wifiPassword: cfg.password || '1234qwer',
+                          },
+                        },
+                      };
+                      syncModelProfiles(next);
+                      return next;
+                    });
+                  },
+                });
+              }}
+              onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
+              pendingTorchIds={pendingTorchIds}
+              torchMode={torchMode}
+              onRefreshBinaries={handleRefreshBinaries}
+              onCopyBinary={requestCopyBinary}
+              isFirmwareForModel={isFirmwareForModel}
+            />
+          );
+        })}
+
+        {/* Tactile Button to Add Another Model Profile */}
+        <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={handleAddNewModel}
+            className="btn btn-secondary btn-tactile"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              padding: '0.55rem 1.25rem',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1.5px dashed var(--border-subtle)',
+              backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <PlusIcon size={16} /> Tambah Model Firmware Baru
+          </button>
+        </div>
 
         {/* Accordion 3: Workflow Sedang Berjalan (In-Progress Executions) */}
         {runningDevices.length > 0 && (
           <RunningWorkflowAccordion
             devices={runningDevices}
-            apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
+            apFilename={profileEntries[0]?.[1]?.slots.ap.filename || ''}
             deviceApMap={deviceApMap}
             binaries={binaries}
             onOpenLogs={handleOpenLogs}
@@ -603,43 +638,51 @@ export const App: React.FC = () => {
           <CompletedWorkflowAccordion
             devices={completedDevices}
             onOpenLogs={handleOpenLogs}
-            onResetStatus={handleResetDeviceStatus}
+            onResetStatus={(deviceId) => {
+              const dev = devices.find((d) => d.id === deviceId);
+              const pcId = dev?.pcId || 'all';
+              handleResetDeviceStatus(pcId, deviceId);
+            }}
             onResetAllCompleted={handleResetAllCompleted}
-            onRerunAutomation={handleRunAutomation}
+            onRerunAutomation={(targetIds) => handleRunStandbyAutomation(targetIds)}
             onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
             pendingTorchIds={pendingTorchIds}
           />
         )}
 
-        {/* Accordion 5: Standby Ready Devices List */}
-        {sortedDevices.length === 0 ? (
-          <div className="empty-state">
-            <h3 className="empty-state-title">Tidak Ada Perangkat Terdeteksi</h3>
-            <p className="empty-state-desc">
-              Pastikan Agent Bridge (Windows atau Ubuntu) sedang berjalan dan perangkat Android terhubung via USB.
-            </p>
-          </div>
-        ) : (
-          <ReadyDevicesAccordion
-            devices={readyStandbyDevices}
-            selectedIds={selectedIds}
-            sourcePcId={sourcePcId}
-            onToggleSelect={handleToggleSelect}
-            onSelectAll={handleSelectAll}
-            onOpenLogs={handleOpenLogs}
-            onAction={handleDeviceAction}
-            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
-            pendingTorchIds={pendingTorchIds}
-            onRunAutomation={handleRunAutomation}
-            workflowConfig={workflowConfig}
-            onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
-            onOpenWifiModal={() => setIsWifiModalOpen(true)}
-            apFilename={workflowConfig.binaryFile}
-            isFirmwareForModel={isFirmwareForModel}
-            isMd5Verifying={isMd5Verifying}
-            md5VerifyProgress={md5VerifyProgress}
-          />
-        )}
+        {/* Accordion 5: Standby Ready Devices List (Decoupled with Independent Stepper) */}
+        <ReadyDevicesAccordion
+          devices={readyStandbyDevices}
+          selectedIds={selectedIds}
+          sourcePcId={bridges[0]?.pcId}
+          onToggleSelect={handleToggleSelect}
+          onSelectAll={handleSelectAll}
+          onOpenLogs={handleOpenLogs}
+          onAction={handleDeviceAction}
+          onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
+          pendingTorchIds={pendingTorchIds}
+          onRunAutomation={handleRunStandbyAutomation}
+          workflowConfig={standbyWorkflowConfig}
+          onUpdateWorkflowConfig={setStandbyWorkflowConfig}
+          onOpenWifiModal={() => {
+            setWifiModalTarget({
+              isOpen: true,
+              config: standbyWorkflowConfig,
+              onSave: (cfg) => {
+                setStandbyWorkflowConfig((prev) => ({
+                  ...prev,
+                  wifiEnabled: cfg.enabled,
+                  wifiSsid: cfg.ssid,
+                  wifiPassword: cfg.password || '1234qwer',
+                }));
+              },
+            });
+          }}
+          apFilename={profileEntries[0]?.[1]?.slots.ap.filename || ''}
+          isFirmwareForModel={isFirmwareForModel}
+          isMd5Verifying={false}
+          md5VerifyProgress={100}
+        />
       </main>
 
       {/* Floating Multi-Device Bulk Action Bar */}
@@ -700,30 +743,23 @@ export const App: React.FC = () => {
 
       {/* Wi-Fi Credentials Config Modal */}
       <WifiConfigModal
-        isOpen={isWifiModalOpen}
-        onClose={() => setIsWifiModalOpen(false)}
-        enabled={workflowConfig.wifiEnabled}
-        ssid={workflowConfig.wifiSsid}
-        password={workflowConfig.wifiPassword}
-        onSave={(cfg) =>
-          setWorkflowConfig((prev) => ({
-            ...prev,
-            wifiEnabled: cfg.enabled,
-            wifiSsid: cfg.ssid,
-            wifiPassword: cfg.password,
-          }))
-        }
+        isOpen={wifiModalTarget.isOpen}
+        onClose={() => setWifiModalTarget((prev) => ({ ...prev, isOpen: false }))}
+        enabled={wifiModalTarget.config.wifiEnabled}
+        ssid={wifiModalTarget.config.wifiSsid}
+        password={wifiModalTarget.config.wifiPassword}
+        onSave={wifiModalTarget.onSave}
       />
 
-      {/* Automation Confirmation & Post-Torch Option Modal */}
+      {/* Automation Confirmation Modal */}
       <AutomationConfirmModal
-        isOpen={Boolean(confirmTargetIds && confirmTargetIds.length > 0)}
-        onClose={() => setConfirmTargetIds(null)}
+        isOpen={Boolean(confirmTarget && confirmTarget.targetIds.length > 0)}
+        onClose={() => setConfirmTarget(null)}
         onConfirm={executeConfirmedAutomation}
-        targetDeviceIds={confirmTargetIds || []}
+        targetDeviceIds={confirmTarget?.targetIds || []}
         devices={devices}
-        workflowConfig={workflowConfig}
-        apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
+        workflowConfig={confirmTarget?.config || standbyWorkflowConfig}
+        apFilename={confirmTarget?.slots.ap.filename || confirmTarget?.config.binaryFile}
         torchMode={torchMode}
       />
 
