@@ -544,6 +544,7 @@ export const App: React.FC = () => {
               binaries={binaries}
               bridges={bridges}
               devices={modelDevices}
+              allDevices={devices}
               selectedIds={selectedIds}
               onToggleSelect={handleToggleSelect}
               onSelectAllModel={handleSelectAll}

@@ -25,6 +25,7 @@ interface ModelParentAccordionProps {
   binaries: BinaryItem[];
   bridges?: BridgeInfo[];
   devices: DeviceItem[];
+  allDevices?: DeviceItem[];
   selectedIds: string[];
   onToggleSelect: (deviceId: string) => void;
   onSelectAllModel: (deviceIds: string[]) => void;
@@ -57,6 +58,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
   binaries,
   bridges,
   devices,
+  allDevices,
   selectedIds,
   onToggleSelect,
   onSelectAllModel,
@@ -930,7 +932,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
           currentBinary={safeSlots[activeSlotModal]?.filename || ''}
           binaries={binaries}
           bridges={bridges}
-          devices={devices}
+          devices={allDevices || devices}
           preferredPcId={firstLoadedPcId}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);
