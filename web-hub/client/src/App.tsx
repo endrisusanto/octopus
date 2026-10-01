@@ -10,6 +10,7 @@ import { CompletedWorkflowAccordion } from './components/CompletedWorkflowAccord
 import { ReadyDevicesAccordion } from './components/ReadyDevicesAccordion';
 import { LogDrawer } from './components/LogDrawer';
 import { WifiConfigModal } from './components/WifiConfigModal';
+import { UpdateModal } from './components/UpdateModal';
 import { BulkActionBar } from './components/BulkActionBar';
 import { LedAnimationModal } from './components/LedAnimationModal';
 import { AutomationConfirmModal } from './components/AutomationConfirmModal';
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
   const [selectedPcId, setSelectedPcId] = useState('all');
   const [selectedMode, setSelectedMode] = useState('all');
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
   // Multi-Model Profiles (Each Model owns its independent 5-slot firmware form & stepper config)
   const [modelProfiles, setModelProfiles] = useState<Record<string, ModelProfile>>(() => {
@@ -461,6 +463,7 @@ export const App: React.FC = () => {
         torchMode={torchMode}
         onTorchModeChange={handleTorchModeChange}
         onRefresh={handleRefreshBinaries}
+        onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -654,7 +657,6 @@ export const App: React.FC = () => {
         <ReadyDevicesAccordion
           devices={readyStandbyDevices}
           selectedIds={selectedIds}
-          sourcePcId={bridges[0]?.pcId}
           onToggleSelect={handleToggleSelect}
           onSelectAll={handleSelectAll}
           onOpenLogs={handleOpenLogs}
@@ -768,6 +770,13 @@ export const App: React.FC = () => {
         transfers={binaryTransfers}
         onDismiss={dismissBinaryTransfer}
         onControl={controlBinaryTransfer}
+      />
+
+      {/* System Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        bridgeCount={bridges.length}
       />
     </div>
   );
