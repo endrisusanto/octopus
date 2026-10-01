@@ -2549,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "octopus-agent-bridge"
-version = "1.0.29"
+version = "1.0.30"
 dependencies = [
  "base64 0.22.1",
  "futures-util",

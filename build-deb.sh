@@ -63,7 +63,7 @@ Architecture: ${ARCH}
 Maintainer: Endri Susanto <endri@endrisusanto.my.id>
 Section: utils
 Priority: optional
-Depends: libc6, libgtk-3-0, libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libayatana-appindicator3-1, adb
+Depends: libc6, libgtk-3-0, libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37, libayatana-appindicator3-1, adb | android-tools-adb
 Description: Distributed Provisioning Suite Desktop Bridge
  Native daemon connecting local ADB & Odin USB devices to Octopus Web Hub.
  Includes system tray support, auto silent updater, and local binary folder scanner.

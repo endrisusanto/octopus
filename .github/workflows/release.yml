@@ -86,10 +86,10 @@ jobs:
           cd web-hub/client && npm install && npm run build
           cd ../server && npm install && npm run build
 
-      - name: Build Direct Linux Installer & Binary
-        working-directory: ./agent-bridge
+      - name: Build Direct Linux Deb & Binary
         run: |
-          npx -y @tauri-apps/cli build --bundles deb,appimage || cargo build --release
+          chmod +x ./build-deb.sh
+          ./build-deb.sh
 
       - name: Stage Direct Linux Installers & Generate .sig
         run: |
@@ -101,12 +101,9 @@ jobs:
           # Copy standalone direct binary
           cp agent-bridge/target/release/octopus-agent-bridge "release_artifacts/octopus-agent-bridge-${TAG}-linux-x86_64"
           
-          # Copy .deb installer if built
-          find agent-bridge/target/release/bundle/deb -name "*.deb" -exec cp {} release_artifacts/ \; 2>/dev/null || true
+          # Copy .deb installer built by build-deb.sh
+          cp dist/*.deb release_artifacts/
           
-          # Copy .AppImage if built
-          find agent-bridge/target/release/bundle/appimage -name "*.AppImage" -exec cp {} release_artifacts/ \; 2>/dev/null || true
-
           # Generate .sig checksums for all installer files
           cd release_artifacts
           for f in *; do
