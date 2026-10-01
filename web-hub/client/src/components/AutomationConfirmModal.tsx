@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { PlayIcon, CloseIcon, FlashlightIcon, SunIcon, CheckIcon } from './Icons';
+import { PlayIcon, CloseIcon, FlashlightIcon, SunIcon, Volume2Icon, CheckIcon } from './Icons';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
 
 interface AutomationConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (postTorch: boolean) => void;
+  onConfirm: (postTorch: boolean, postSound: boolean) => void;
   targetDeviceIds: string[];
   devices: DeviceItem[];
   workflowConfig: WorkflowConfig;
   apFilename?: string;
-  torchMode?: 'flash' | 'screen';
+  torchMode?: 'flash' | 'screen' | 'tweet';
 }
 
 export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
@@ -24,7 +24,15 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   apFilename,
   torchMode = 'flash',
 }) => {
-  const [postTorch, setPostTorch] = useState<boolean>(true);
+  const [postTorch, setPostTorch] = useState<boolean>(torchMode !== 'tweet');
+  const [postSound, setPostSound] = useState<boolean>(torchMode === 'tweet');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setPostTorch(torchMode !== 'tweet');
+      setPostSound(torchMode === 'tweet');
+    }
+  }, [isOpen, torchMode]);
 
   if (!isOpen || targetDeviceIds.length === 0) return null;
 
@@ -32,7 +40,7 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   const count = targetDevices.length;
 
   const handleStart = () => {
-    onConfirm(postTorch);
+    onConfirm(postTorch, postSound);
     onClose();
   };
 
@@ -162,47 +170,87 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
           )}
         </div>
 
-        {/* Post Completed Action Checkbox (Torch Option) */}
-        <div
-          style={{
-            backgroundColor: postTorch ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-subtle, #0f172a)',
-            border: postTorch ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-subtle, #334155)',
-            borderRadius: '10px',
-            padding: '0.75rem 0.9rem',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={postTorch}
-              onChange={(e) => setPostTorch(e.target.checked)}
-              style={{
-                width: '18px',
-                height: '18px',
-                marginTop: '2px',
-                cursor: 'pointer',
-                accentColor: '#f59e0b',
-              }}
-            />
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                {torchMode === 'screen' ? (
-                  <SunIcon size={15} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
-                ) : (
-                  <FlashlightIcon size={15} fill={postTorch ? '#f59e0b' : 'none'} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
-                )}
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: postTorch ? '#f59e0b' : 'var(--text-primary, #f8fafc)' }}>
-                  Nyalakan Senter ({torchMode === 'screen' ? 'Screen Brightness 100%' : 'Flash Kamera Belakang'}) Setelah Workflow Selesai
-                </span>
+        {/* Post Completed Action Checkboxes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Torch Option */}
+          <div
+            style={{
+              backgroundColor: postTorch ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-subtle, #0f172a)',
+              border: postTorch ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-subtle, #334155)',
+              borderRadius: '10px',
+              padding: '0.65rem 0.85rem',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={postTorch}
+                onChange={(e) => setPostTorch(e.target.checked)}
+                style={{
+                  width: '17px',
+                  height: '17px',
+                  marginTop: '2px',
+                  cursor: 'pointer',
+                  accentColor: '#f59e0b',
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  {torchMode === 'screen' ? (
+                    <SunIcon size={14} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
+                  ) : (
+                    <FlashlightIcon size={14} fill={postTorch ? '#f59e0b' : 'none'} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
+                  )}
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: postTorch ? '#f59e0b' : 'var(--text-primary, #f8fafc)' }}>
+                    Nyalakan Senter ({torchMode === 'screen' ? 'Screen Brightness 100%' : 'Flash Kamera Belakang'})
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px', lineHeight: 1.3 }}>
+                  {torchMode === 'screen'
+                    ? 'Layar perangkat otomatis menyala putih terang 100% di rak sampel sebagai penanda visual Pass.'
+                    : 'Flash HP otomatis menyala di rak sampel fisik sebagai penanda visual Pass.'}
+                </p>
               </div>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '3px', lineHeight: 1.35 }}>
-                {torchMode === 'screen'
-                  ? 'Layar perangkat akan otomatis menyala putih terang 100% di rak sampel fisik sebagai penanda visual jelas bahwa provisioning telah sukses 100% (Pass).'
-                  : 'Flash HP akan otomatis menyala di rak sampel fisik sebagai penanda visual yang jelas bahwa seluruh proses provisioning telah sukses 100% (Pass).'}
-              </p>
-            </div>
-          </label>
+            </label>
+          </div>
+
+          {/* Sound Tweet Option */}
+          <div
+            style={{
+              backgroundColor: postSound ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-subtle, #0f172a)',
+              border: postSound ? '1.5px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border-subtle, #334155)',
+              borderRadius: '10px',
+              padding: '0.65rem 0.85rem',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={postSound}
+                onChange={(e) => setPostSound(e.target.checked)}
+                style={{
+                  width: '17px',
+                  height: '17px',
+                  marginTop: '2px',
+                  cursor: 'pointer',
+                  accentColor: '#3b82f6',
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Volume2Icon size={14} style={{ color: postSound ? '#60a5fa' : 'var(--text-secondary)' }} />
+                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: postSound ? '#60a5fa' : 'var(--text-primary, #f8fafc)' }}>
+                    Putar Suara Notifikasi Tweet (Audio Pass)
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px', lineHeight: 1.3 }}>
+                  Perangkat memutar suara notifikasi Tweet via SoundPool DEX runner sebagai penanda audio alur selesai.
+                </p>
+              </div>
+            </label>
+          </div>
         </div>
 
         {/* Action Buttons */}

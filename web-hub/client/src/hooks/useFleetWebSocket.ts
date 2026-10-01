@@ -343,7 +343,7 @@ export function useFleetWebSocket() {
     }
   }, []);
 
-  const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string, mode: 'flash' | 'screen' = 'flash') => {
+  const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string, mode: 'flash' | 'screen' | 'tweet' = 'flash') => {
     const targetIds = [deviceId, ...(serial ? [serial] : [])];
     setPendingTorchIds((prev) => Array.from(new Set([...prev, ...targetIds])));
 
@@ -366,7 +366,7 @@ export function useFleetWebSocket() {
     }
   }, [devices]);
 
-  const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off', mode: 'flash' | 'screen' = 'flash') => {
+  const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off', mode: 'flash' | 'screen' | 'tweet' = 'flash') => {
     setPendingTorchIds((prev) => Array.from(new Set([...prev, ...deviceIds])));
 
     setTimeout(() => {
@@ -381,6 +381,23 @@ export function useFleetWebSocket() {
             deviceIds,
             state,
             mode,
+          },
+        })
+      );
+    }
+  }, []);
+
+  const playSound = useCallback((pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter' = 'single', deviceId?: string, targetPcId?: string, serial?: string, deviceIds?: string[]) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'PLAY_SOUND',
+          payload: {
+            deviceId,
+            targetPcId,
+            serial,
+            deviceIds,
+            pattern,
           },
         })
       );
@@ -469,6 +486,7 @@ export function useFleetWebSocket() {
     dispatchAction,
     toggleTorch,
     setTorchBulk,
+    playSound,
     pendingTorchIds,
   };
 }

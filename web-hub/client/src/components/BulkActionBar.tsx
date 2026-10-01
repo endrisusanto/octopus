@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FlashlightIcon, RotateCcwIcon, CloseIcon } from './Icons';
+import { DotIcon, RotateCcwIcon, CloseIcon, MatrixIcon } from './Icons';
 import { LedAnimationModal } from './LedAnimationModal';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { RackCalibrationData } from '../hooks/useFleetWebSocket';
@@ -12,6 +12,7 @@ interface BulkActionBarProps {
   onBlinkDevice: (serial: string) => void;
   onDeselectAll: () => void;
   onToggleTorchBulk: (deviceIds: string[], state: 'on' | 'off') => void;
+  onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
   onDispatchActionBulk: (deviceIds: string[], action: string, params?: any) => void;
   pendingTorchIds?: string[];
 }
@@ -24,6 +25,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onBlinkDevice,
   onDeselectAll,
   onToggleTorchBulk,
+  onPlaySound,
   onDispatchActionBulk,
   pendingTorchIds,
 }) => {
@@ -162,7 +164,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
             flexShrink: 0,
           }}
         >
-          {/* Action 1: Flash ON */}
+          {/* Action 1: Ping ON */}
           {(() => {
             const isAnyPending = Boolean(
               pendingTorchIds &&
@@ -194,6 +196,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: '0.35rem',
                   backgroundColor: isAnyPending ? undefined : 'rgba(245, 158, 11, 0.15)',
                   color: 'var(--accent-warning, #f59e0b)',
                   border: isAnyPending ? undefined : '1px solid rgba(245, 158, 11, 0.35)',
@@ -201,15 +204,15 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
                 }}
-                title={isAnyPending ? 'Memverifikasi status flash perangkat...' : "Flash ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Matrix 2D)"}
+                title={isAnyPending ? 'Memverifikasi status ke perangkat...' : "Ping ON (Klik Kiri: Nyalakan | Klik Kanan/Tahan: Matrix 2D)"}
               >
-                <FlashlightIcon size={14} fill="currentColor" />
-                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Flash ON'}</span>
+                <DotIcon size={10} style={{ color: '#f59e0b' }} />
+                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Ping ON'}</span>
               </button>
             );
           })()}
 
-          {/* Action 2: Flash OFF */}
+          {/* Action 2: Ping OFF */}
           {(() => {
             const isAnyPending = Boolean(
               pendingTorchIds &&
@@ -230,6 +233,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: '0.35rem',
                   backgroundColor: isAnyPending ? undefined : 'transparent',
                   color: isAnyPending ? 'var(--accent-warning, #f59e0b)' : 'var(--text-secondary, #94a3b8)',
                   border: isAnyPending ? undefined : '1px solid transparent',
@@ -237,10 +241,10 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease',
                 }}
-                title={isAnyPending ? 'Memverifikasi status flash perangkat...' : "Flash OFF (Matikan Semua)"}
+                title={isAnyPending ? 'Memverifikasi status ke perangkat...' : "Ping OFF (Matikan Semua)"}
               >
-                <FlashlightIcon size={14} fill="none" />
-                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Flash OFF'}</span>
+                <DotIcon size={10} style={{ color: isAnyPending ? '#f59e0b' : 'currentColor', opacity: 0.5 }} />
+                <span className="bulk-btn-label">{isAnyPending ? 'CEK...' : 'Ping OFF'}</span>
               </button>
             );
           })()}
@@ -267,7 +271,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
             }}
             title="Animasi Matrix 2D & Kalibrasi Rak 6x3"
           >
-            <span role="img" aria-label="matrix" style={{ fontSize: '0.9rem' }}>🎆</span>
+            <MatrixIcon size={14} style={{ color: '#60a5fa' }} />
             <span className="bulk-btn-label">Matrix 2D</span>
           </button>
 
@@ -334,6 +338,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
         onBlinkDevice={onBlinkDevice}
         onStartAnimation={handleStartAnimation}
         onStopAnimation={handleStopAnimation}
+        onPlaySound={onPlaySound}
       />
     </>
   );

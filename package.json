@@ -1,6 +1,6 @@
 {
   "name": "octopus",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "Distributed Fleet Web-Managed Provisioning Suite with Rust Agent Bridge",
   "private": true,
   "scripts": {

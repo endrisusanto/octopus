@@ -375,6 +375,7 @@ pub async fn execute_workflow_pipeline(
     wifi_ssid: String,
     wifi_password: String,
     post_torch: bool,
+    post_sound: bool,
     torch_mode: String,
     hub_url: Option<String>,
     tx: Sender<OutgoingMessage>,
@@ -1044,6 +1045,15 @@ pub async fn execute_workflow_pipeline(
             let _ = silent_command("adb")
                 .args(["-s", &target_serial, "shell", "settings", "put", "system", "screen_brightness", "255"])
                 .output();
+        } else if torch_mode == "tweet" {
+            send_log(
+                "info",
+                format!(
+                    "[Workflow] 🎵 Memutar suara notifikasi Tweet untuk {} sebagai penanda workflow selesai (Post Completed Action)...",
+                    target_serial
+                ),
+            );
+            crate::sound::play_sound_device(&target_serial).await;
         } else {
             send_log(
                 "info",
@@ -1058,8 +1068,29 @@ pub async fn execute_workflow_pipeline(
                 .output();
         }
 
-        send_progress(100, Some("Pass"), Some("Automasi Selesai (Senter ON)"));
+        if post_sound && torch_mode != "tweet" {
+            send_log(
+                "info",
+                format!(
+                    "[Workflow] 🎵 Memutar suara notifikasi Tweet untuk {} (Post Action Sound)...",
+                    target_serial
+                ),
+            );
+            crate::sound::play_sound_device(&target_serial).await;
+        }
+
+        send_progress(100, Some("Pass"), Some("Automasi Selesai (Senter/Suara ON)"));
     } else {
+        if post_sound {
+            send_log(
+                "info",
+                format!(
+                    "[Workflow] 🎵 Memutar suara notifikasi Tweet untuk {} sebagai penanda workflow selesai...",
+                    target_serial
+                ),
+            );
+            crate::sound::play_sound_device(&target_serial).await;
+        }
         send_progress(100, Some("Pass"), Some("Automasi Selesai"));
     }
 }

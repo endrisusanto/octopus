@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { ChevronDownIcon, ChevronUpIcon, CheckIcon, TerminalIcon, PlayIcon, RefreshIcon, BatteryIcon, ThermometerIcon, FlashlightIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, CheckIcon, TerminalIcon, PlayIcon, RefreshIcon, BatteryIcon, ThermometerIcon, DotIcon } from './Icons';
 
 interface CompletedWorkflowAccordionProps {
   devices: DeviceItem[];
@@ -188,7 +188,7 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
                     <span>{device.batteryTemp ? (device.batteryTemp > 100 ? (device.batteryTemp / 10).toFixed(1) : device.batteryTemp.toFixed(1)) : '32.0'}°C</span>
                   </span>
 
-                  {/* Button: Toggle Flash */}
+                  {/* Button: Toggle Ping */}
                   {(() => {
                     const isTorchPending = Boolean(
                       pendingTorchIds &&
@@ -230,19 +230,25 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
                         }}
                         title={
                           isTorchPending
-                            ? 'Memverifikasi status flash ke perangkat...'
+                            ? 'Memverifikasi status ke perangkat...'
                             : device.torchOn
-                            ? 'Matikan Flash'
-                            : 'Nyalakan Flash'
+                            ? 'Matikan Ping'
+                            : 'Nyalakan Ping'
                         }
                       >
-                        <FlashlightIcon size={12} style={{ color: device.torchOn || isTorchPending ? '#f59e0b' : 'currentColor' }} />
+                        <DotIcon
+                          size={10}
+                          style={{
+                            color: device.torchOn || isTorchPending ? '#f59e0b' : 'currentColor',
+                            opacity: isTorchPending ? 0.8 : 1,
+                          }}
+                        />
                         <span>
                           {isTorchPending
                             ? 'CEK...'
                             : device.torchOn
-                            ? 'FLASH ON'
-                            : 'FLASH'}
+                            ? 'PING ON'
+                            : 'PING'}
                         </span>
                       </button>
                     );

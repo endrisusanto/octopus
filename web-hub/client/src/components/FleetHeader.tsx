@@ -2,14 +2,14 @@ import React from 'react';
 import { ThemeToggle } from './ThemeToggle';
 import { BridgeInfo } from '../hooks/useFleetWebSocket';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { ServerIcon, SmartphoneIcon, FlashlightIcon, SunIcon } from './Icons';
+import { ServerIcon, SmartphoneIcon, FlashlightIcon, SunIcon, Volume2Icon } from './Icons';
 
 interface FleetHeaderProps {
   bridges: BridgeInfo[];
   devices: DeviceItem[];
   isConnected: boolean;
-  torchMode?: 'flash' | 'screen';
-  onTorchModeChange?: (mode: 'flash' | 'screen') => void;
+  torchMode?: 'flash' | 'screen' | 'tweet';
+  onTorchModeChange?: (mode: 'flash' | 'screen' | 'tweet') => void;
   onRefresh?: () => void;
   onReloadDevices?: () => void;
 }
@@ -120,17 +120,23 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
           Update
         </button>
 
-        {/* Senter (Torch) Mode Toggle Switch: Flash Camera vs Screen Brightness */}
+        {/* Senter / Sound Mode Toggle Switch: Flash vs Screen vs Tweet */}
         <div
           className="torch-mode-toggle"
-          title={`Mode Senter Aktif: ${torchMode === 'flash' ? 'Flash Kamera (LED Belakang)' : 'Screen Brightness (Layar Putih Maksimal)'}. Klik untuk beralih mode.`}
-          aria-label="Pilih Mode Senter"
+          title={`Mode Senter / Sound Aktif: ${
+            torchMode === 'flash'
+              ? 'Flash Kamera (LED Belakang)'
+              : torchMode === 'screen'
+              ? 'Screen Brightness (Layar Putih Maksimal)'
+              : 'Sound Tweet (Suara Notifikasi Tweet)'
+          }. Klik untuk beralih mode.`}
+          aria-label="Pilih Mode Senter atau Sound"
         >
           <button
             type="button"
             className={`torch-mode-btn ${torchMode === 'flash' ? 'active' : ''}`}
             onClick={() => onTorchModeChange && onTorchModeChange('flash')}
-            title="Mode Senter: Flash Kamera (LED Belakang)"
+            title="Mode: Flash Kamera (LED Belakang)"
           >
             <FlashlightIcon size={12} fill={torchMode === 'flash' ? '#f59e0b' : 'none'} />
             <span>Flash</span>
@@ -139,10 +145,19 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
             type="button"
             className={`torch-mode-btn ${torchMode === 'screen' ? 'active' : ''}`}
             onClick={() => onTorchModeChange && onTorchModeChange('screen')}
-            title="Mode Senter: Screen Brightness (Layar Putih Maksimal)"
+            title="Mode: Screen Brightness (Layar Putih Maksimal)"
           >
             <SunIcon size={12} />
             <span>Screen</span>
+          </button>
+          <button
+            type="button"
+            className={`torch-mode-btn ${torchMode === 'tweet' ? 'active' : ''}`}
+            onClick={() => onTorchModeChange && onTorchModeChange('tweet')}
+            title="Mode: Sound Tweet (Notifikasi Suara Tweet)"
+          >
+            <Volume2Icon size={12} />
+            <span>Tweet</span>
           </button>
         </div>
 

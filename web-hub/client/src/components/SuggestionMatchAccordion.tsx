@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
-import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon, RefreshIcon, BatteryIcon, ThermometerIcon, FlashlightIcon } from './Icons';
+import { ChevronDownIcon, ChevronUpIcon, PlayIcon, CheckIcon, RefreshIcon, BatteryIcon, ThermometerIcon, DotIcon } from './Icons';
 
 interface SuggestionMatchAccordionProps {
   matchedModel: string;
@@ -688,7 +688,7 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                           <span>{device.batteryTemp ? (device.batteryTemp > 100 ? (device.batteryTemp / 10).toFixed(1) : device.batteryTemp.toFixed(1)) : '32.0'}°C</span>
                         </span>
 
-                        {/* Button: Toggle Flash */}
+                        {/* Button: Toggle Ping */}
                         {(() => {
                           const isTorchPending = Boolean(
                             pendingTorchIds &&
@@ -737,19 +737,25 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
                               }}
                               title={
                                 isTorchPending
-                                  ? 'Memverifikasi status flash ke perangkat...'
+                                  ? 'Memverifikasi status ke perangkat...'
                                   : device.torchOn
-                                  ? 'Flash Aktif (Klik untuk Mematikan)'
-                                  : 'Flash Mati (Klik untuk Menyalakan)'
+                                  ? 'Matikan Ping'
+                                  : 'Nyalakan Ping'
                               }
                             >
-                              <FlashlightIcon size={13} fill={device.torchOn ? 'currentColor' : 'none'} />
+                              <DotIcon
+                                size={10}
+                                style={{
+                                  color: device.torchOn || isTorchPending ? '#f59e0b' : 'currentColor',
+                                  opacity: isTorchPending ? 0.8 : 1,
+                                }}
+                              />
                               <span>
                                 {isTorchPending
                                   ? 'CEK...'
                                   : device.torchOn
-                                  ? 'Flash ON'
-                                  : 'Flash OFF'}
+                                  ? 'PING ON'
+                                  : 'PING'}
                               </span>
                             </button>
                           );

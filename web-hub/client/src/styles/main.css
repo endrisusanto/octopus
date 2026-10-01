@@ -1849,9 +1849,13 @@ body {
 
   .header-actions-row .torch-mode-btn {
     height: 22px !important;
-    padding: 0 0.35rem !important;
+    padding: 0 0.45rem !important;
     font-size: 0.65rem !important;
-    gap: 0.25rem !important;
+    gap: 0 !important;
+  }
+
+  .header-actions-row .torch-mode-btn span {
+    display: none !important;
   }
 
   .header-actions-row .btn-icon {

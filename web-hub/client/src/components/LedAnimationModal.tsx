@@ -1,5 +1,36 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CloseIcon, PlayIcon, FlashlightIcon } from './Icons';
+import {
+  CloseIcon,
+  PlayIcon,
+  PauseIcon,
+  StopIcon,
+  CheckIcon,
+  DotIcon,
+  Volume2Icon,
+  MatrixIcon,
+  SlidersIcon,
+  RainIcon,
+  WaveHorizontalIcon,
+  WaveVerticalIcon,
+  DiagonalIcon,
+  RippleIcon,
+  CheckerboardIcon,
+  SparkleStarIcon,
+  SnakePathIcon,
+  ZapIcon,
+  PingPongIcon,
+  CometIcon,
+  CenterOutIcon,
+  StrobeIcon,
+  SpeakerChorusIcon,
+  RepeatIcon,
+  ShuffleIcon,
+  ChatterIcon,
+  SaveIcon,
+  AutoAssignIcon,
+  LightbulbIcon,
+  TrashIcon,
+} from './Icons';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { RackCalibrationData, RackSlotMapping } from '../hooks/useFleetWebSocket';
 
@@ -13,122 +44,160 @@ interface LedAnimationModalProps {
   onBlinkDevice: (serial: string) => void;
   onStartAnimation: (preset: string, isLoop: boolean, speed?: number) => void;
   onStopAnimation: () => void;
+  onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
 }
 
 interface PresetOption {
   id: string;
   name: string;
   desc: string;
-  icon: string;
   badge?: string;
   category: 'matrix' | 'classic';
+  color: string;
 }
 
 const PRESETS: PresetOption[] = [
   // 2D Matrix Presets
   {
     id: 'matrix_showcase',
-    name: 'Showcase Semua Matrix',
-    desc: 'Menjalankan seluruh variasi pola 2D Matrix secara bergantian.',
-    icon: '🌟',
+    name: 'Siklus Semua Pola (Demo)',
+    desc: 'Menjalankan seluruh variasi pola 2D secara bergiliran.',
     badge: 'Matrix 6x3',
     category: 'matrix',
+    color: '#f59e0b',
   },
   {
     id: 'matrix_rain',
-    name: 'Matrix Code Rain',
-    desc: 'Tetesan cahaya vertikal mengalir deras jatuh di setiap kolom rak.',
-    icon: '🌧️',
-    badge: 'Popular',
+    name: 'Aliran Vertikal (Code Rain)',
+    desc: 'Cahaya bergerak mengalir ke bawah di setiap kolom.',
+    badge: 'Populer',
     category: 'matrix',
+    color: '#38bdf8',
   },
   {
     id: 'matrix_wave_h',
-    name: 'Horizontal Wave Scan',
-    desc: 'Gelombang sapuan bergerak bolak-balik dari kiri ke kanan kolom rak.',
-    icon: '🌊',
+    name: 'Gelombang Horizontal',
+    desc: 'Sapuan kolom bergerak bolak-balik dari kiri ke kanan.',
     category: 'matrix',
+    color: '#34d399',
   },
   {
     id: 'matrix_wave_v',
-    name: 'Vertical Wave Scan',
-    desc: 'Gelombang baris bergerak memindai dari baris atas ke baris bawah.',
-    icon: '📶',
+    name: 'Gelombang Vertikal',
+    desc: 'Sapuan baris bergerak dari atas ke bawah rak.',
     category: 'matrix',
+    color: '#a78bfa',
   },
   {
     id: 'matrix_diagonal',
-    name: 'Diagonal Sweep',
-    desc: 'Sapuan diagonal melintasi rak sampel secara berirama.',
-    icon: '↗️',
+    name: 'Sapuan Diagonal',
+    desc: 'Gelombang cahaya melintasi koordinat diagonal.',
     category: 'matrix',
+    color: '#fb923c',
   },
   {
     id: 'matrix_ripple',
-    name: 'Ripple / Center Pulse',
-    desc: 'Penyebaran gelombang melingkar dari titik pusat rak ke arah luar.',
-    icon: '🎯',
+    name: 'Pusat Melingkar (Ripple)',
+    desc: 'Penyebaran gelombang konsentris dari pusat rak ke arah luar.',
     category: 'matrix',
+    color: '#f43f5e',
   },
   {
     id: 'matrix_checkerboard',
-    name: 'Checkerboard (Papan Catur)',
-    desc: 'Pola kotak-kotak catur berkedip bergantian selang-seling.',
-    icon: '🏁',
+    name: 'Pola Papan Catur',
+    desc: 'Kotak selang-seling berkedip bergantian.',
     category: 'matrix',
+    color: '#94a3b8',
   },
   {
     id: 'matrix_sparkle',
-    name: 'Random Sparkle / Stars',
-    desc: 'Kelap-kelip acak menyerupai bintang berkilauan di rak.',
-    icon: '✨',
+    name: 'Kilau Acak (Sparkle)',
+    desc: 'Kelap-kelip cahaya acak di seluruh slot aktif.',
     category: 'matrix',
+    color: '#fbbf24',
   },
   {
     id: 'matrix_snake',
-    name: 'Snake Path Matrix',
-    desc: 'Jalur ular menyusuri seluruh 18 slot rak secara berkelok.',
-    icon: '🐍',
+    name: 'Jalur Berkelok (Snake)',
+    desc: 'Titik cahaya menyusuri seluruh 18 slot secara berkelok.',
     category: 'matrix',
+    color: '#4ade80',
   },
 
   // Classic 1D Presets
   {
     id: 'chaser',
-    name: '1D Chaser Wave',
-    desc: 'Satu LED berjalan bergerak berantai berdasarkan urutan perangkat.',
-    icon: '⚡',
+    name: 'Gelombang Berantai 1D',
+    desc: 'Satu LED berjalan berurutan melintasi setiap perangkat.',
     category: 'classic',
+    color: '#f59e0b',
   },
   {
     id: 'knight_rider',
-    name: '1D Knight Rider (Ping-Pong)',
-    desc: 'Cahaya bergerak bolak-balik dari ujung ke ujung.',
-    icon: '🏓',
+    name: 'Bolak-Balik 1D (Knight Rider)',
+    desc: 'Cahaya bergerak memantul dari ujung ke ujung.',
     category: 'classic',
+    color: '#38bdf8',
   },
   {
     id: 'comet_wave',
-    name: '1D Comet Wave (3 LED)',
-    desc: 'Ekor 3 LED bergerak mengalir bersamaan menghasilkan efek komet.',
-    icon: '☄️',
+    name: 'Ekor 3 LED (Comet)',
+    desc: 'Jejak 3 titik cahaya bergerak mengalir bersamaan.',
     category: 'classic',
+    color: '#c084fc',
   },
   {
     id: 'center_out',
-    name: '1D In-Out Wave (Center to Edge)',
-    desc: 'Cahaya menyebar keluar dari titik tengah lalu mengerut kembali.',
-    icon: '🔀',
+    name: 'Pusat ke Tepi 1D',
+    desc: 'Cahaya menyebar dari titik tengah ke kedua ujung.',
     category: 'classic',
+    color: '#2dd4bf',
   },
   {
     id: 'strobe_all',
-    name: 'Strobe Flash All',
-    desc: 'Seluruh senter berkedip serempak dengan ritme strobo cepat.',
-    icon: '💥',
+    name: 'Kedip Serentak (Strobe)',
+    desc: 'Seluruh LED berkedip bersamaan dengan tempo cepat.',
     category: 'classic',
+    color: '#f87171',
   },
 ];
+
+const renderPresetIcon = (id: string, isSelected: boolean, size = 18) => {
+  const preset = PRESETS.find((p) => p.id === id);
+  const color = isSelected ? 'var(--accent-primary, #60a5fa)' : (preset?.color || '#f59e0b');
+  switch (id) {
+    case 'matrix_showcase':
+      return <MatrixIcon size={size} style={{ color }} />;
+    case 'matrix_rain':
+      return <RainIcon size={size} style={{ color }} />;
+    case 'matrix_wave_h':
+      return <WaveHorizontalIcon size={size} style={{ color }} />;
+    case 'matrix_wave_v':
+      return <WaveVerticalIcon size={size} style={{ color }} />;
+    case 'matrix_diagonal':
+      return <DiagonalIcon size={size} style={{ color }} />;
+    case 'matrix_ripple':
+      return <RippleIcon size={size} style={{ color }} />;
+    case 'matrix_checkerboard':
+      return <CheckerboardIcon size={size} style={{ color }} />;
+    case 'matrix_sparkle':
+      return <SparkleStarIcon size={size} style={{ color }} />;
+    case 'matrix_snake':
+      return <SnakePathIcon size={size} style={{ color }} />;
+    case 'chaser':
+      return <ZapIcon size={size} style={{ color }} />;
+    case 'knight_rider':
+      return <PingPongIcon size={size} style={{ color }} />;
+    case 'comet_wave':
+      return <CometIcon size={size} style={{ color }} />;
+    case 'center_out':
+      return <CenterOutIcon size={size} style={{ color }} />;
+    case 'strobe_all':
+      return <StrobeIcon size={size} style={{ color }} />;
+    default:
+      return <MatrixIcon size={size} style={{ color }} />;
+  }
+};
 
 const DEFAULT_LAYOUT = [
   [1, 1, 0, 1, 1, 0, 1, 1],
@@ -319,30 +388,38 @@ const MatrixPreviewCard: React.FC<MatrixPreviewCardProps> = ({
     >
       {/* Top Status Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {renderPresetIcon(activePresetInfo.id, true, 16)}
           <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>
-            {activePresetInfo.icon} {activePresetInfo.name}
+            {activePresetInfo.name}
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
               fontSize: '0.72rem',
               fontWeight: 700,
               color: 'var(--accent-warning, #f59e0b)',
               backgroundColor: 'rgba(245, 158, 11, 0.12)',
-              padding: '0.15rem 0.45rem',
+              padding: '0.15rem 0.5rem',
               borderRadius: '6px',
             }}
           >
-            💡 {activeCount}/18 LED Menyala
+            <DotIcon size={8} style={{ color: '#f59e0b' }} />
+            <span>{activeCount}/18 LED Aktif</span>
           </span>
 
           <button
             type="button"
             onClick={() => setIsPaused(!isPaused)}
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.3rem',
               fontSize: '0.68rem',
               fontWeight: 700,
               padding: '0.2rem 0.55rem',
@@ -353,7 +430,17 @@ const MatrixPreviewCard: React.FC<MatrixPreviewCardProps> = ({
               cursor: 'pointer',
             }}
           >
-            {isPaused ? '▶ Play' : '⏸ Pause'}
+            {isPaused ? (
+              <>
+                <PlayIcon size={10} />
+                <span>Putar</span>
+              </>
+            ) : (
+              <>
+                <PauseIcon size={10} />
+                <span>Jeda</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -505,12 +592,22 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   onBlinkDevice,
   onStartAnimation,
   onStopAnimation,
+  onPlaySound,
 }) => {
   const [activeTab, setActiveTab] = useState<'anim' | 'calibration'>('anim');
   const [selectedPreset, setSelectedPreset] = useState<string>('matrix_showcase');
   const [isLoop, setIsLoop] = useState<boolean>(true);
   const [speed, setSpeed] = useState<number>(0.12);
   const [filterCategory, setFilterCategory] = useState<'all' | 'matrix' | 'classic'>('matrix');
+  const [activeSoundPattern, setActiveSoundPattern] = useState<string | null>(null);
+
+  const handlePlaySoundGimmick = (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter') => {
+    setActiveSoundPattern(pattern);
+    onPlaySound?.(pattern);
+    setTimeout(() => {
+      setActiveSoundPattern((curr) => (curr === pattern ? null : curr));
+    }, 2000);
+  };
 
   // Local Calibration State
   const [slotsState, setSlotsState] = useState<RackSlotMapping[]>([]);
@@ -645,26 +742,26 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  backgroundColor: activeTab === 'anim' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'var(--accent-warning, #f59e0b)',
+                  color: activeTab === 'anim' ? 'var(--accent-warning, #f59e0b)' : 'var(--accent-primary, #60a5fa)',
                   flexShrink: 0,
                 }}
               >
-                <FlashlightIcon size={16} fill="currentColor" />
+                {activeTab === 'anim' ? <MatrixIcon size={18} /> : <SlidersIcon size={18} />}
               </div>
               <div style={{ minWidth: 0 }}>
                 <h3 style={{ fontSize: '0.92rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)', margin: 0 }}>
-                  {activeTab === 'anim' ? 'Visualisasi & Preset Matrix 2D' : 'Kalibrasi Posisi Fisik Rak (6x3 Grid)'}
+                  {activeTab === 'anim' ? 'Kontrol Pola & Matriks 2D' : 'Kalibrasi Slot Rak (6x3 Matriks)'}
                 </h3>
                 <p style={{ fontSize: '0.68rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {activeTab === 'anim'
                     ? selectedCount > 0
                       ? `Dijalankan pada ${selectedCount} perangkat terpilih`
-                      : 'Dijalankan pada seluruh 18 slot rak terkalibrasi'
-                    : 'Topologi 3 Baris × 8 Kolom (11011011) — 18 Slot Sampel'}
+                      : 'Dijalankan pada seluruh 18 slot rak fisik'
+                    : 'Pemetaan 3 baris x 8 kolom (18 slot aktif)'}
                 </p>
               </div>
             </div>
@@ -711,6 +808,10 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
               className="led-tab-btn"
               style={{
                 flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
                 padding: '0.35rem 0.5rem',
                 fontSize: '0.76rem',
                 fontWeight: 700,
@@ -722,7 +823,8 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              🎆 Animasi & Preview
+              <MatrixIcon size={14} />
+              <span>Pola Animasi</span>
             </button>
             <button
               type="button"
@@ -730,6 +832,10 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
               className="led-tab-btn"
               style={{
                 flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
                 padding: '0.35rem 0.5rem',
                 fontSize: '0.76rem',
                 fontWeight: 700,
@@ -741,7 +847,8 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 transition: 'all 0.15s ease',
               }}
             >
-              🎛️ Kalibrasi Rak
+              <SlidersIcon size={14} />
+              <span>Kalibrasi Slot</span>
             </button>
           </div>
         </div>
@@ -763,24 +870,34 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 onClick={() => setFilterCategory('matrix')}
                 className="led-category-btn"
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
                   border: filterCategory === 'matrix' ? '1.5px solid var(--accent-primary, #3b82f6)' : '1px solid var(--border-subtle, #334155)',
                   backgroundColor: filterCategory === 'matrix' ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-subtle, #0f172a)',
                   color: filterCategory === 'matrix' ? 'var(--accent-primary, #60a5fa)' : 'var(--text-secondary, #94a3b8)',
                 }}
               >
-                ✨ 2D Matrix (6x3)
+                <MatrixIcon size={13} />
+                <span>Matriks 2D (6x3)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setFilterCategory('classic')}
                 className="led-category-btn"
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
                   border: filterCategory === 'classic' ? '1.5px solid var(--accent-primary, #3b82f6)' : '1px solid var(--border-subtle, #334155)',
                   backgroundColor: filterCategory === 'classic' ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-subtle, #0f172a)',
                   color: filterCategory === 'classic' ? 'var(--accent-primary, #60a5fa)' : 'var(--text-secondary, #94a3b8)',
                 }}
               >
-                ⚡ Klasik 1D
+                <ZapIcon size={13} />
+                <span>Klasik 1D</span>
               </button>
               <button
                 type="button"
@@ -792,7 +909,7 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   color: filterCategory === 'all' ? 'var(--accent-primary, #60a5fa)' : 'var(--text-secondary, #94a3b8)',
                 }}
               >
-                Semua
+                Semua Pola
               </button>
             </div>
 
@@ -826,8 +943,22 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                       gap: '0.5rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-                      <span style={{ fontSize: '1.15rem', flexShrink: 0 }}>{preset.icon}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.04)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {renderPresetIcon(preset.id, isSelected, 16)}
+                      </div>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <span
@@ -900,9 +1031,12 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
                 <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)' }}>
-                    🔁 Ulangi Terus (Loop)
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <RepeatIcon size={13} style={{ color: '#60a5fa' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary, #f8fafc)' }}>
+                      Ulangi Pola (Loop)
+                    </span>
+                  </div>
                   <p style={{ fontSize: '0.68rem', color: 'var(--text-muted, #94a3b8)', margin: 0 }}>
                     Pola animasi berulang tanpa henti.
                   </p>
@@ -911,7 +1045,10 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
-                  <span style={{ color: 'var(--text-primary, #f8fafc)' }}>⚡ Kecepatan</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--text-primary, #f8fafc)' }}>
+                    <ZapIcon size={12} style={{ color: '#f59e0b' }} />
+                    <span>Kecepatan</span>
+                  </span>
                   <span style={{ color: 'var(--accent-primary, #60a5fa)' }}>{speed}s</span>
                 </div>
                 <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -943,6 +1080,69 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
               </div>
             </div>
 
+            {/* Audio Tweet (Sound FX) Section */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem',
+                backgroundColor: 'var(--bg-subtle, #0f172a)',
+                padding: '0.65rem 0.85rem',
+                borderRadius: 'var(--radius-md, 8px)',
+                border: '1px solid var(--border-subtle, #334155)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Volume2Icon size={14} style={{ color: 'var(--accent-primary, #60a5fa)' }} />
+                  <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>
+                    Pola Notifikasi Audio (Tweet)
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+                  SoundPool ADB Headless
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
+                {[
+                  { id: 'chorus', label: 'Chorus', desc: 'Serentak', icon: <SpeakerChorusIcon size={15} style={{ color: '#60a5fa' }} /> },
+                  { id: 'sequential', label: 'Sequential', desc: 'Berurutan', icon: <RepeatIcon size={15} style={{ color: '#38bdf8' }} /> },
+                  { id: 'random', label: 'Random', desc: 'Acak', icon: <ShuffleIcon size={15} style={{ color: '#a78bfa' }} /> },
+                  { id: 'chatter', label: 'Bersautan', desc: 'Polifoni', icon: <ChatterIcon size={15} style={{ color: '#34d399' }} /> },
+                ].map((item) => {
+                  const isPlaying = activeSoundPattern === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handlePlaySoundGimmick(item.id as any)}
+                      className={`btn btn-sm ${isPlaying ? 'flash-loading-shimmer' : ''}`}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.2rem',
+                        padding: '0.45rem 0.3rem',
+                        borderRadius: '6px',
+                        border: isPlaying ? '1px solid #3b82f6' : '1px solid var(--border-subtle, #334155)',
+                        backgroundColor: isPlaying ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-surface, #1e293b)',
+                        color: isPlaying ? '#93c5fd' : 'var(--text-primary, #f8fafc)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title={`Putar Suara: ${item.label} (${item.desc})`}
+                    >
+                      {item.icon}
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ fontSize: '0.6rem', color: 'var(--text-secondary, #94a3b8)', whiteSpace: 'nowrap' }}>{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Actions */}
             <div
               style={{
@@ -959,6 +1159,9 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 onClick={handleStop}
                 className="btn btn-sm"
                 style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
                   fontSize: '0.8rem',
                   padding: '0.45rem 0.85rem',
                   color: 'var(--accent-red, #ef4444)',
@@ -969,7 +1172,8 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   cursor: 'pointer',
                 }}
               >
-                ⏹️ Hentikan Animasi
+                <StopIcon size={13} />
+                <span>Hentikan</span>
               </button>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1010,7 +1214,7 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   }}
                 >
                   <PlayIcon size={14} />
-                  <span>Jalankan ke HP Fisik</span>
+                  <span>Jalankan ke Rak Fisik</span>
                 </button>
               </div>
             </div>
@@ -1034,8 +1238,11 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 gap: '0.5rem',
               }}
             >
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.4, flex: 1, minWidth: '240px' }}>
-                💡 <strong>Fitur Kalibrasi Posisi:</strong> Klik tombol <strong>Tes Senter</strong> pada slot untuk melihat HP fisik yang menyala di rak, lalu pilih serial yang sesuai. Posisi disimpan langsung sehingga Anda tidak perlu repot menata ulang kabel / HP secara manual!
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.76rem', color: 'var(--text-secondary, #cbd5e1)', lineHeight: 1.4, flex: 1, minWidth: '240px' }}>
+                <LightbulbIcon size={16} style={{ color: '#60a5fa', flexShrink: 0 }} />
+                <span>
+                  Gunakan tombol <strong>Tes</strong> pada tiap slot untuk menyalakan senter perangkat di rak, lalu tentukan nomor serial yang sesuai.
+                </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexShrink: 0 }}>
@@ -1044,6 +1251,9 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   onClick={handleAutoAssign}
                   className="btn btn-sm"
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
                     fontSize: '0.75rem',
                     padding: '0.35rem 0.65rem',
                     fontWeight: 700,
@@ -1055,13 +1265,17 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                   }}
                   title="Otomatis isi slot kosong dengan perangkat terhubung"
                 >
-                  ⚡ Auto-Isi Perangkat
+                  <AutoAssignIcon size={13} />
+                  <span>Isi Otomatis</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleClearSlots}
                   className="btn btn-sm"
                   style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
                     fontSize: '0.75rem',
                     padding: '0.35rem 0.65rem',
                     fontWeight: 600,
@@ -1071,8 +1285,10 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                     borderRadius: '6px',
                     cursor: 'pointer',
                   }}
+                  title="Kosongkan seluruh pemetaan slot"
                 >
-                  🔄 Kosongkan
+                  <TrashIcon size={13} />
+                  <span>Kosongkan Slot</span>
                 </button>
               </div>
             </div>
@@ -1207,7 +1423,7 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '2px',
+                                gap: '3px',
                                 fontSize: '0.62rem',
                                 fontWeight: 700,
                                 padding: '0.1rem 0.35rem',
@@ -1217,9 +1433,10 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                                 color: isBlinking ? '#000' : 'var(--accent-warning, #f59e0b)',
                                 cursor: 'pointer',
                               }}
-                              title="Tes senter HP ini sekarang"
+                              title="Tes senter perangkat ini"
                             >
-                              💡 Tes
+                              <LightbulbIcon size={10} />
+                              <span>Tes</span>
                             </button>
                           )}
                         </div>
@@ -1243,9 +1460,9 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          <option value="">— Kosong —</option>
+                          <option value="">(Kosong)</option>
                           {currentSerial && !availableDevicesForSlot.some((d) => (d.serial || d.id) === currentSerial) && (
-                            <option value={currentSerial}>{currentSerial} (Disimpan)</option>
+                            <option value={currentSerial}>{currentSerial} (Tersimpan)</option>
                           )}
                           {availableDevicesForSlot.map((d) => {
                             const devSerial = d.serial || d.id;
@@ -1304,6 +1521,9 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                 {saveToast && (
                   <span
                     style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       color: 'var(--accent-success, #10b981)',
@@ -1313,7 +1533,8 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                       animation: 'fadeIn 0.2s ease',
                     }}
                   >
-                    ✓ Berhasil Disimpan ke Controller!
+                    <CheckIcon size={12} />
+                    <span>Pemetaan berhasil disimpan</span>
                   </span>
                 )}
               </div>
@@ -1355,7 +1576,8 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  💾 Simpan Kalibrasi Posisi
+                  <SaveIcon size={14} />
+                  <span>Simpan Pemetaan</span>
                 </button>
               </div>
             </div>

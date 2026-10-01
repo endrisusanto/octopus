@@ -678,6 +678,9 @@ wss.on('connection', (ws, req) => {
                       wifiEnabled: wfConfig?.wifiEnabled !== false,
                       wifiSsid: wfConfig?.wifiSsid || 'RTT / IEEE 802.11',
                       wifiPassword: wfConfig?.wifiPassword || '1234qwer',
+                      postTorch: wfConfig?.postTorch !== false,
+                      postSound: Boolean(wfConfig?.postSound || wfConfig?.autoSoundOn || wfConfig?.autoTweetOn),
+                      torchMode: wfConfig?.torchMode || 'flash',
                     },
                   },
                 }));
@@ -687,7 +690,7 @@ wss.on('connection', (ws, req) => {
         } else if (msg.type === 'TOGGLE_TORCH' || msg.type === 'SET_TORCH') {
           const { deviceId, targetPcId, serial, deviceIds, state, mode } = msg.payload || {};
           const targetState = state || (msg.type === 'TOGGLE_TORCH' ? 'toggle' : 'off');
-          const torchMode = mode === 'screen' ? 'screen' : 'flash';
+          const torchMode = mode === 'screen' ? 'screen' : (mode === 'tweet' ? 'tweet' : 'flash');
           const targetSerials: string[] = [];
 
           if (Array.isArray(deviceIds) && deviceIds.length > 0) {
@@ -712,6 +715,36 @@ wss.on('connection', (ws, req) => {
                     state: targetState,
                     deviceIds: targetSerials,
                     mode: torchMode,
+                  },
+                },
+              }));
+            }
+          }
+        } else if (msg.type === 'PLAY_SOUND' || msg.type === 'PLAY_TWEET') {
+          const { deviceId, targetPcId, serial, deviceIds, pattern } = msg.payload || {};
+          const soundPattern = pattern || 'single';
+          const targetSerials: string[] = [];
+
+          if (Array.isArray(deviceIds) && deviceIds.length > 0) {
+            deviceIds.forEach((id: string) => {
+              const dev = Array.from(fleetDevices.values()).find((d) => d.id === id || d.serial === id);
+              if (dev && dev.serial) targetSerials.push(dev.serial);
+              else targetSerials.push(id);
+            });
+          } else if (serial || deviceId) {
+            targetSerials.push(serial || deviceId);
+          }
+
+          for (const [_, bridge] of connectedBridges) {
+            if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: targetSerials.length === 1 ? targetSerials[0] : (targetSerials.length === 0 ? 'ALL' : targetSerials[0]),
+                  action: 'PLAY_SOUND',
+                  params: {
+                    pattern: soundPattern,
+                    deviceIds: targetSerials,
                   },
                 },
               }));

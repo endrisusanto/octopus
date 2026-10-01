@@ -39,6 +39,7 @@ export const App: React.FC = () => {
     dispatchAction,
     toggleTorch,
     setTorchBulk,
+    playSound,
     pendingTorchIds,
   } = useFleetWebSocket();
 
@@ -71,12 +72,12 @@ export const App: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Senter (Torch) Mode: Flash Camera vs Screen Brightness
-  const [torchMode, setTorchMode] = useState<'flash' | 'screen'>(() => {
-    return (localStorage.getItem('octopus_torch_mode') as 'flash' | 'screen') || 'flash';
+  // Senter (Torch) / Sound Mode: Flash Camera vs Screen Brightness vs Tweet
+  const [torchMode, setTorchMode] = useState<'flash' | 'screen' | 'tweet'>(() => {
+    return (localStorage.getItem('octopus_torch_mode') as 'flash' | 'screen' | 'tweet') || 'flash';
   });
 
-  const handleTorchModeChange = (mode: 'flash' | 'screen') => {
+  const handleTorchModeChange = (mode: 'flash' | 'screen' | 'tweet') => {
     setTorchMode(mode);
     localStorage.setItem('octopus_torch_mode', mode);
   };
@@ -380,7 +381,7 @@ export const App: React.FC = () => {
   };
 
   // Execute Automation after user confirms in the modal
-  const executeConfirmedAutomation = (postTorch: boolean) => {
+  const executeConfirmedAutomation = (postTorch: boolean, postSound: boolean) => {
     if (!confirmTargetIds || confirmTargetIds.length === 0) return;
     const targetDeviceIds = confirmTargetIds;
     const targetDevices = devices.filter((d) => targetDeviceIds.includes(d.id));
@@ -433,6 +434,8 @@ export const App: React.FC = () => {
         wifiSsid: workflowConfig.wifiSsid,
         wifiPassword: workflowConfig.wifiPassword,
         postTorch,
+        postSound,
+        torchMode,
       });
     }
 
@@ -639,6 +642,7 @@ export const App: React.FC = () => {
         onBlinkDevice={blinkDevice}
         onDeselectAll={handleDeselectAll}
         onToggleTorchBulk={handleBulkTorch}
+        onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
         onDispatchActionBulk={handleBulkDispatch}
         pendingTorchIds={pendingTorchIds}
       />
@@ -652,6 +656,7 @@ export const App: React.FC = () => {
         rackCalibration={rackCalibration}
         onSaveCalibration={saveRackCalibration}
         onBlinkDevice={blinkDevice}
+        onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
         onStartAnimation={(preset, loop, speed) => {
           const targetPcId = bridges[0]?.pcId || 'ubuntu-desktop';
           dispatchAction(targetPcId, 'all', 'RUN_LED_ANIM', {
@@ -701,6 +706,7 @@ export const App: React.FC = () => {
         devices={devices}
         workflowConfig={workflowConfig}
         apFilename={firmwareSlots.ap.filename || workflowConfig.binaryFile}
+        torchMode={torchMode}
       />
 
       {/* Floating Bottom-Left Cross-Node Binary Transfer Progress Toast */}

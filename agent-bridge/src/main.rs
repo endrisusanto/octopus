@@ -2,6 +2,7 @@
 
 mod protocol;
 mod scanner;
+mod sound;
 mod stream_server;
 mod transfer;
 mod updater;
@@ -384,7 +385,13 @@ async fn run_bridge_worker(state: AppState) {
                                                         let _ = silent_command("pkill").args(["-f", "running_led.py"]).output();
                                                     }
 
-                                                    let mode_label = if torch_mode == "screen" { "Layar (Screen)" } else { "Flash Kamera" };
+                                                    let mode_label = if torch_mode == "screen" {
+                                                        "Layar (Screen)"
+                                                    } else if torch_mode == "tweet" {
+                                                        "Suara Tweet"
+                                                    } else {
+                                                        "Flash Kamera"
+                                                    };
 
                                                     // Immediate UI log feedback (0ms latency)
                                                     let log_msg = OutgoingMessage::LogStream {
@@ -411,7 +418,9 @@ async fn run_bridge_worker(state: AppState) {
                                                             target_devs.clone()
                                                         };
 
-                                                        if torch_mode == "screen" {
+                                                        if torch_mode == "tweet" {
+                                                            sound::play_sound_pattern("chorus", &check_targets).await;
+                                                        } else if torch_mode == "screen" {
                                                             for serial in &check_targets {
                                                                 let is_on = if target_state == "toggle" {
                                                                     let curr_on = {
@@ -500,6 +509,54 @@ async fn run_bridge_worker(state: AppState) {
                                                             st.devices.clone()
                                                         };
                                                         let _ = tx_torch.send(OutgoingMessage::DeviceList { devices }).await;
+                                                    });
+                                                } else if exec.action == "PLAY_SOUND" || exec.action == "PLAY_TWEET" || exec.action == "TWEET" {
+                                                    let serial = exec.device_id.clone();
+                                                    let pattern = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("pattern").or_else(|| p.get("mode")))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("single")
+                                                        .to_string();
+
+                                                    let target_devs: Vec<String> = if let Some(params) = &exec.params {
+                                                        if let Some(arr) = params.get("deviceIds").or_else(|| params.get("devices")).and_then(|v| v.as_array()) {
+                                                            arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()
+                                                        } else if let Some(s) = params.get("devices").or_else(|| params.get("deviceIds")).and_then(|v| v.as_str()) {
+                                                            s.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()
+                                                        } else if !serial.is_empty() && serial != "ALL" {
+                                                            vec![serial.clone()]
+                                                        } else {
+                                                            Vec::new()
+                                                        }
+                                                    } else if !serial.is_empty() && serial != "ALL" {
+                                                        vec![serial.clone()]
+                                                    } else {
+                                                        Vec::new()
+                                                    };
+
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: if target_devs.len() == 1 { Some(target_devs[0].clone()) } else { None },
+                                                        level: "info".to_string(),
+                                                        message: format!(
+                                                            "[Audio Tweet] 🎵 Memutar suara Tweet (Pola: {}) pada {} perangkat",
+                                                            pattern.to_uppercase(),
+                                                            if target_devs.is_empty() { "SEMUA".to_string() } else { target_devs.len().to_string() }
+                                                        ),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                    }
+
+                                                    let scanner_state_snd = state.clone();
+                                                    tokio::task::spawn(async move {
+                                                        let targets = if target_devs.is_empty() {
+                                                            let st = scanner_state_snd.status.lock().unwrap();
+                                                            st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
+                                                        } else {
+                                                            target_devs
+                                                        };
+                                                        sound::play_sound_pattern(&pattern, &targets).await;
                                                     });
                                                 } else if exec.action == "RUN_LED_ANIM" || exec.action == "RUNNING_LED" {
                                                     let preset = exec.params
@@ -895,6 +952,11 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|p| p.get("postTorch").or_else(|| p.get("autoTorchOn")))
                                                         .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "true" || s == "1")))
                                                         .unwrap_or(true);
+                                                    let post_sound = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("postSound").or_else(|| p.get("autoSoundOn")).or_else(|| p.get("autoTweetOn")))
+                                                        .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "true" || s == "1")))
+                                                        .unwrap_or(false);
                                                     let torch_mode = exec.params
                                                         .as_ref()
                                                         .and_then(|p| p.get("torchMode").or_else(|| p.get("mode")))
@@ -947,6 +1009,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             wifi_ssid,
                                                             wifi_password,
                                                             post_torch,
+                                                            post_sound,
                                                             torch_mode,
                                                             wf_hub_url,
                                                             tx_wf,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { BatteryIcon, ThermometerIcon, FlashlightIcon } from './Icons';
+import { BatteryIcon, ThermometerIcon, DotIcon } from './Icons';
 
 interface DeviceTableViewProps {
   devices: DeviceItem[];
@@ -244,14 +244,14 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                           }}
                           title={
                             isTorchPending
-                              ? 'Memverifikasi status flash ke perangkat...'
+                              ? 'Memverifikasi status ke perangkat...'
                               : device.torchOn
-                              ? 'Matikan Flash'
-                              : 'Nyalakan Flash'
+                              ? 'Matikan Ping'
+                              : 'Nyalakan Ping'
                           }
                         >
-                          <FlashlightIcon
-                            size={13}
+                          <DotIcon
+                            size={10}
                             style={{
                               color: device.torchOn || isTorchPending ? '#f59e0b' : 'currentColor',
                               opacity: isTorchPending ? 0.8 : 1,
@@ -261,8 +261,8 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                             {isTorchPending
                               ? 'CEK...'
                               : device.torchOn
-                              ? 'FLASH ON'
-                              : 'FLASH'}
+                              ? 'PING ON'
+                              : 'PING'}
                           </span>
                         </button>
                       );
