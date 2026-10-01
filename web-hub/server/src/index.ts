@@ -685,8 +685,9 @@ wss.on('connection', (ws, req) => {
             }
           }
         } else if (msg.type === 'TOGGLE_TORCH' || msg.type === 'SET_TORCH') {
-          const { deviceId, targetPcId, serial, deviceIds, state } = msg.payload || {};
+          const { deviceId, targetPcId, serial, deviceIds, state, mode } = msg.payload || {};
           const targetState = state || (msg.type === 'TOGGLE_TORCH' ? 'toggle' : 'off');
+          const torchMode = mode === 'screen' ? 'screen' : 'flash';
           const targetSerials: string[] = [];
 
           if (Array.isArray(deviceIds) && deviceIds.length > 0) {
@@ -710,6 +711,7 @@ wss.on('connection', (ws, req) => {
                   params: {
                     state: targetState,
                     deviceIds: targetSerials,
+                    mode: torchMode,
                   },
                 },
               }));

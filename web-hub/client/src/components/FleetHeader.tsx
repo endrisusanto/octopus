@@ -2,12 +2,14 @@ import React from 'react';
 import { ThemeToggle } from './ThemeToggle';
 import { BridgeInfo } from '../hooks/useFleetWebSocket';
 import { DeviceItem } from '../hooks/useFlashKitSort';
-import { ServerIcon, SmartphoneIcon } from './Icons';
+import { ServerIcon, SmartphoneIcon, FlashlightIcon, SunIcon } from './Icons';
 
 interface FleetHeaderProps {
   bridges: BridgeInfo[];
   devices: DeviceItem[];
   isConnected: boolean;
+  torchMode?: 'flash' | 'screen';
+  onTorchModeChange?: (mode: 'flash' | 'screen') => void;
   onRefresh?: () => void;
   onReloadDevices?: () => void;
 }
@@ -16,6 +18,8 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
   bridges,
   devices,
   isConnected,
+  torchMode = 'flash',
+  onTorchModeChange,
   onRefresh,
   onReloadDevices,
 }) => {
@@ -77,7 +81,7 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         )}
       </div>
 
-      {/* Action Group: Online Badge, Reload, Update, ThemeToggle - 1 inline row with equal height */}
+      {/* Action Group: Online Badge, Reload, Update, Torch Mode Toggle, ThemeToggle */}
       <div className="header-actions-row">
         <div
           className="stat-pill online-pill"
@@ -115,6 +119,32 @@ export const FleetHeader: React.FC<FleetHeaderProps> = ({
         >
           Update
         </button>
+
+        {/* Senter (Torch) Mode Toggle Switch: Flash Camera vs Screen Brightness */}
+        <div
+          className="torch-mode-toggle"
+          title={`Mode Senter Aktif: ${torchMode === 'flash' ? 'Flash Kamera (LED Belakang)' : 'Screen Brightness (Layar Putih Maksimal)'}. Klik untuk beralih mode.`}
+          aria-label="Pilih Mode Senter"
+        >
+          <button
+            type="button"
+            className={`torch-mode-btn ${torchMode === 'flash' ? 'active' : ''}`}
+            onClick={() => onTorchModeChange && onTorchModeChange('flash')}
+            title="Mode Senter: Flash Kamera (LED Belakang)"
+          >
+            <FlashlightIcon size={12} fill={torchMode === 'flash' ? '#f59e0b' : 'none'} />
+            <span>Flash</span>
+          </button>
+          <button
+            type="button"
+            className={`torch-mode-btn ${torchMode === 'screen' ? 'active' : ''}`}
+            onClick={() => onTorchModeChange && onTorchModeChange('screen')}
+            title="Mode Senter: Screen Brightness (Layar Putih Maksimal)"
+          >
+            <SunIcon size={12} />
+            <span>Screen</span>
+          </button>
+        </div>
 
         <ThemeToggle />
       </div>

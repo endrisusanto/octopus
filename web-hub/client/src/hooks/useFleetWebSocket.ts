@@ -343,7 +343,7 @@ export function useFleetWebSocket() {
     }
   }, []);
 
-  const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string) => {
+  const toggleTorch = useCallback((deviceId: string, targetPcId?: string, serial?: string, mode: 'flash' | 'screen' = 'flash') => {
     const targetIds = [deviceId, ...(serial ? [serial] : [])];
     setPendingTorchIds((prev) => Array.from(new Set([...prev, ...targetIds])));
 
@@ -360,13 +360,13 @@ export function useFleetWebSocket() {
       wsRef.current.send(
         JSON.stringify({
           type: 'TOGGLE_TORCH',
-          payload: { deviceId, targetPcId, serial, state: nextState },
+          payload: { deviceId, targetPcId, serial, state: nextState, mode },
         })
       );
     }
   }, [devices]);
 
-  const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off') => {
+  const setTorchBulk = useCallback((deviceIds: string[], state: 'on' | 'off', mode: 'flash' | 'screen' = 'flash') => {
     setPendingTorchIds((prev) => Array.from(new Set([...prev, ...deviceIds])));
 
     setTimeout(() => {
@@ -380,6 +380,7 @@ export function useFleetWebSocket() {
           payload: {
             deviceIds,
             state,
+            mode,
           },
         })
       );

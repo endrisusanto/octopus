@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlayIcon, CloseIcon, FlashlightIcon, CheckIcon } from './Icons';
+import { PlayIcon, CloseIcon, FlashlightIcon, SunIcon, CheckIcon } from './Icons';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
 
@@ -11,6 +11,7 @@ interface AutomationConfirmModalProps {
   devices: DeviceItem[];
   workflowConfig: WorkflowConfig;
   apFilename?: string;
+  torchMode?: 'flash' | 'screen';
 }
 
 export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
@@ -21,6 +22,7 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   devices,
   workflowConfig,
   apFilename,
+  torchMode = 'flash',
 }) => {
   const [postTorch, setPostTorch] = useState<boolean>(true);
 
@@ -185,13 +187,19 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
             />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <FlashlightIcon size={15} fill={postTorch ? '#f59e0b' : 'none'} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
+                {torchMode === 'screen' ? (
+                  <SunIcon size={15} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
+                ) : (
+                  <FlashlightIcon size={15} fill={postTorch ? '#f59e0b' : 'none'} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
+                )}
                 <span style={{ fontSize: '0.82rem', fontWeight: 800, color: postTorch ? '#f59e0b' : 'var(--text-primary, #f8fafc)' }}>
-                  Nyalakan Flash (Torch) Setelah Workflow Selesai
+                  Nyalakan Senter ({torchMode === 'screen' ? 'Screen Brightness 100%' : 'Flash Kamera Belakang'}) Setelah Workflow Selesai
                 </span>
               </div>
               <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '3px', lineHeight: 1.35 }}>
-                Flash HP akan otomatis menyala di rak sampel fisik sebagai penanda visual yang jelas bahwa seluruh proses provisioning telah sukses 100% (Pass).
+                {torchMode === 'screen'
+                  ? 'Layar perangkat akan otomatis menyala putih terang 100% di rak sampel fisik sebagai penanda visual jelas bahwa provisioning telah sukses 100% (Pass).'
+                  : 'Flash HP akan otomatis menyala di rak sampel fisik sebagai penanda visual yang jelas bahwa seluruh proses provisioning telah sukses 100% (Pass).'}
               </p>
             </div>
           </label>

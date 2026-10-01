@@ -71,6 +71,16 @@ export const App: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  // Senter (Torch) Mode: Flash Camera vs Screen Brightness
+  const [torchMode, setTorchMode] = useState<'flash' | 'screen'>(() => {
+    return (localStorage.getItem('octopus_torch_mode') as 'flash' | 'screen') || 'flash';
+  });
+
+  const handleTorchModeChange = (mode: 'flash' | 'screen') => {
+    setTorchMode(mode);
+    localStorage.setItem('octopus_torch_mode', mode);
+  };
+
   // Drawer & Modal State
   const [logDrawerState, setLogDrawerState] = useState<{ isOpen: boolean; pcId?: string; deviceId?: string }>({
     isOpen: false,
@@ -432,7 +442,7 @@ export const App: React.FC = () => {
   };
 
   const handleBulkTorch = (targetDeviceIds: string[], state: 'on' | 'off') => {
-    setTorchBulk(targetDeviceIds, state);
+    setTorchBulk(targetDeviceIds, state, torchMode);
   };
 
   const handleBulkDispatch = (targetDeviceIds: string[], action: string, params: any = {}) => {
@@ -474,6 +484,8 @@ export const App: React.FC = () => {
         bridges={bridges}
         devices={devices}
         isConnected={isConnected}
+        torchMode={torchMode}
+        onTorchModeChange={handleTorchModeChange}
         onRefresh={handleTriggerAgentUpdate}
         onReloadDevices={handleReloadDevices}
       />
@@ -555,7 +567,7 @@ export const App: React.FC = () => {
             onUpdateWorkflowConfig={handleUpdateWorkflowConfig}
             onOpenLogs={handleOpenLogs}
             onOpenWifiModal={() => setIsWifiModalOpen(true)}
-            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
             pendingTorchIds={pendingTorchIds}
             isMd5Verifying={isMd5Verifying}
             md5VerifyProgress={md5VerifyProgress}
@@ -582,7 +594,7 @@ export const App: React.FC = () => {
             onResetStatus={handleResetDeviceStatus}
             onResetAllCompleted={handleResetAllCompleted}
             onRerunAutomation={handleRunAutomation}
-            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
             pendingTorchIds={pendingTorchIds}
           />
         )}
@@ -604,7 +616,7 @@ export const App: React.FC = () => {
             onSelectAll={handleSelectAll}
             onOpenLogs={handleOpenLogs}
             onAction={handleDeviceAction}
-            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial)}
+            onToggleTorch={(id, pcId, serial) => toggleTorch(id, pcId, serial, torchMode)}
             pendingTorchIds={pendingTorchIds}
             onRunAutomation={handleRunAutomation}
             workflowConfig={workflowConfig}

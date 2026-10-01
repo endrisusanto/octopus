@@ -375,6 +375,7 @@ pub async fn execute_workflow_pipeline(
     wifi_ssid: String,
     wifi_password: String,
     post_torch: bool,
+    torch_mode: String,
     hub_url: Option<String>,
     tx: Sender<OutgoingMessage>,
 ) {
@@ -1026,17 +1027,36 @@ pub async fn execute_workflow_pipeline(
 
     // Post Completed Action: Menyalakan senter jika opsi diaktifkan
     if post_torch {
-        send_log(
-            "info",
-            format!(
-                "[Workflow] 💡 Menyalakan senter untuk {} sebagai penanda workflow selesai (Post Completed Action)...",
-                target_serial
-            ),
-        );
-        let _ = silent_command("python3")
-            .args(["/home/endri-pro/led.py", "on", &target_serial])
-            .current_dir("/home/endri-pro")
-            .output();
+        if torch_mode == "screen" {
+            send_log(
+                "info",
+                format!(
+                    "[Workflow] 💡 Menyalakan screen brightness 100% untuk {} sebagai penanda workflow selesai (Post Completed Action)...",
+                    target_serial
+                ),
+            );
+            let _ = silent_command("adb")
+                .args(["-s", &target_serial, "shell", "input", "keyevent", "224"])
+                .output();
+            let _ = silent_command("adb")
+                .args(["-s", &target_serial, "shell", "settings", "put", "system", "screen_brightness_mode", "0"])
+                .output();
+            let _ = silent_command("adb")
+                .args(["-s", &target_serial, "shell", "settings", "put", "system", "screen_brightness", "255"])
+                .output();
+        } else {
+            send_log(
+                "info",
+                format!(
+                    "[Workflow] 💡 Menyalakan senter flash kamera untuk {} sebagai penanda workflow selesai (Post Completed Action)...",
+                    target_serial
+                ),
+            );
+            let _ = silent_command("python3")
+                .args(["/home/endri-pro/led.py", "on", &target_serial])
+                .current_dir("/home/endri-pro")
+                .output();
+        }
 
         send_progress(100, Some("Pass"), Some("Automasi Selesai (Senter ON)"));
     } else {

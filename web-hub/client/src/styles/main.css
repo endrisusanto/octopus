@@ -174,6 +174,52 @@ body {
   box-sizing: border-box;
 }
 
+/* Senter / Torch Mode Segmented Toggle Switch */
+.torch-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.torch-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 28px;
+  padding: 0 0.6rem;
+  font-size: 0.775rem;
+  font-weight: 600;
+  border-radius: calc(var(--radius-md) - 2px);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.torch-mode-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background-color: var(--bg-hover);
+}
+
+.torch-mode-btn.active {
+  background-color: var(--bg-surface);
+  color: var(--warning-color, #f59e0b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  font-weight: 700;
+}
+
 /* Workflow Stepper Breadcrumb (better-ui + ponytail) */
 .workflow-stepper {
   background-color: var(--bg-surface);
@@ -1791,6 +1837,21 @@ body {
     max-height: 28px !important;
     font-size: 0.7rem !important;
     padding: 0 0.45rem !important;
+  }
+
+  .header-actions-row .torch-mode-toggle {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 2px !important;
+    gap: 2px !important;
+  }
+
+  .header-actions-row .torch-mode-btn {
+    height: 22px !important;
+    padding: 0 0.35rem !important;
+    font-size: 0.65rem !important;
+    gap: 0.25rem !important;
   }
 
   .header-actions-row .btn-icon {

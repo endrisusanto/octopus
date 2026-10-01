@@ -356,6 +356,12 @@ async fn run_bridge_worker(state: AppState) {
                                                         "toggle".to_string()
                                                     };
 
+                                                    let torch_mode = exec.params.as_ref()
+                                                        .and_then(|p| p.get("mode").or_else(|| p.get("torchMode")))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("flash")
+                                                        .to_string();
+
                                                     // Extract device list if provided in params
                                                     let target_devs: Vec<String> = if let Some(params) = &exec.params {
                                                         if let Some(arr) = params.get("deviceIds").or_else(|| params.get("devices")).and_then(|v| v.as_array()) {
@@ -378,48 +384,26 @@ async fn run_bridge_worker(state: AppState) {
                                                         let _ = silent_command("pkill").args(["-f", "running_led.py"]).output();
                                                     }
 
+                                                    let mode_label = if torch_mode == "screen" { "Layar (Screen)" } else { "Flash Kamera" };
+
                                                     // Immediate UI log feedback (0ms latency)
                                                     let log_msg = OutgoingMessage::LogStream {
                                                         device_id: if target_devs.len() == 1 { Some(target_devs[0].clone()) } else { None },
                                                         level: "info".to_string(),
                                                         message: if is_all || target_devs.is_empty() {
-                                                            format!("[Senter] Memproses senter SEMUA perangkat ke status: {}", target_state.to_uppercase())
+                                                            format!("[Senter - {}] Memproses senter SEMUA perangkat ke status: {}", mode_label, target_state.to_uppercase())
                                                         } else {
-                                                            format!("[Senter] Memproses senter ({} perangkat) ke status: {}", target_devs.len(), target_state.to_uppercase())
+                                                            format!("[Senter - {}] Memproses senter ({} perangkat) ke status: {}", mode_label, target_devs.len(), target_state.to_uppercase())
                                                         },
                                                     };
                                                     if let Ok(json) = serde_json::to_string(&log_msg) {
                                                         let _ = write.send(Message::Text(json.into())).await;
                                                     }
 
-                                                    // Spawn background task for fast parallel Python execution and immediate verified status broadcast
+                                                    // Spawn background task for fast parallel execution and immediate verified status broadcast
                                                     let tx_torch = tx.clone();
                                                     let scanner_state_torch = state.clone();
                                                     tokio::task::spawn(async move {
-                                                        let state_arg = if target_state == "toggle" {
-                                                            if target_devs.len() == 1 {
-                                                                let curr = silent_tokio_command("adb")
-                                                                    .args(["-s", &target_devs[0], "shell", "settings", "get", "secure", "flashlight_enabled"])
-                                                                    .output()
-                                                                    .await
-                                                                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                                                                    .unwrap_or_default();
-                                                                if curr == "1" { "off" } else { "on" }
-                                                            } else {
-                                                                "on"
-                                                            }
-                                                        } else {
-                                                            &target_state
-                                                        };
-
-                                                        let mut cmd = silent_tokio_command("python3");
-                                                        cmd.arg("/home/endri-pro/led.py").arg(state_arg);
-                                                        if !target_devs.is_empty() {
-                                                            cmd.arg(target_devs.join(","));
-                                                        }
-                                                        let _ = cmd.current_dir("/home/endri-pro").output().await;
-
-                                                        // Query actual status directly from physical devices via ADB
                                                         let check_targets = if target_devs.is_empty() {
                                                             let st = scanner_state_torch.status.lock().unwrap();
                                                             st.devices.iter().filter_map(|d| d.serial.clone()).collect::<Vec<_>>()
@@ -427,28 +411,88 @@ async fn run_bridge_worker(state: AppState) {
                                                             target_devs.clone()
                                                         };
 
-                                                        for serial in check_targets {
-                                                            let out = silent_tokio_command("adb")
-                                                                .args(["-s", &serial, "shell", "settings", "get", "secure", "flashlight_enabled"])
-                                                                .output()
-                                                                .await
-                                                                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                                                                .unwrap_or_default();
-                                                            let is_on = out == "1";
+                                                        if torch_mode == "screen" {
+                                                            for serial in &check_targets {
+                                                                let is_on = if target_state == "toggle" {
+                                                                    let curr_on = {
+                                                                        let st = scanner_state_torch.status.lock().unwrap();
+                                                                        st.devices.iter().find(|d| d.id == *serial || d.serial.as_deref() == Some(serial)).and_then(|d| d.torch_on).unwrap_or(false)
+                                                                    };
+                                                                    !curr_on
+                                                                } else {
+                                                                    target_state == "on"
+                                                                };
 
-                                                            {
-                                                                let mut st = scanner_state_torch.status.lock().unwrap();
-                                                                for d in &mut st.devices {
-                                                                    if d.id == serial || d.serial.as_deref() == Some(&serial) {
-                                                                        d.torch_on = Some(is_on);
+                                                                if is_on {
+                                                                    let _ = silent_tokio_command("adb").args(["-s", serial, "shell", "input", "keyevent", "224"]).output().await;
+                                                                    let _ = silent_tokio_command("adb").args(["-s", serial, "shell", "settings", "put", "system", "screen_brightness_mode", "0"]).output().await;
+                                                                    let _ = silent_tokio_command("adb").args(["-s", serial, "shell", "settings", "put", "system", "screen_brightness", "255"]).output().await;
+                                                                } else {
+                                                                    let _ = silent_tokio_command("adb").args(["-s", serial, "shell", "settings", "put", "system", "screen_brightness", "20"]).output().await;
+                                                                    let _ = silent_tokio_command("adb").args(["-s", serial, "shell", "input", "keyevent", "223"]).output().await;
+                                                                }
+
+                                                                {
+                                                                    let mut st = scanner_state_torch.status.lock().unwrap();
+                                                                    for d in &mut st.devices {
+                                                                        if d.id == *serial || d.serial.as_deref() == Some(serial) {
+                                                                            d.torch_on = Some(is_on);
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
 
-                                                            let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
-                                                                device_id: serial,
-                                                                torch_on: is_on,
-                                                            }).await;
+                                                                let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
+                                                                    device_id: serial.clone(),
+                                                                    torch_on: is_on,
+                                                                }).await;
+                                                            }
+                                                        } else {
+                                                            let state_arg = if target_state == "toggle" {
+                                                                if target_devs.len() == 1 {
+                                                                    let curr = silent_tokio_command("adb")
+                                                                        .args(["-s", &target_devs[0], "shell", "settings", "get", "secure", "flashlight_enabled"])
+                                                                        .output()
+                                                                        .await
+                                                                        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                                                                        .unwrap_or_default();
+                                                                    if curr == "1" { "off" } else { "on" }
+                                                                } else {
+                                                                    "on"
+                                                                }
+                                                            } else {
+                                                                &target_state
+                                                            };
+
+                                                            let mut cmd = silent_tokio_command("python3");
+                                                            cmd.arg("/home/endri-pro/led.py").arg(state_arg);
+                                                            if !target_devs.is_empty() {
+                                                                cmd.arg(target_devs.join(","));
+                                                            }
+                                                            let _ = cmd.current_dir("/home/endri-pro").output().await;
+
+                                                            for serial in &check_targets {
+                                                                let out = silent_tokio_command("adb")
+                                                                    .args(["-s", serial, "shell", "settings", "get", "secure", "flashlight_enabled"])
+                                                                    .output()
+                                                                    .await
+                                                                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                                                                    .unwrap_or_default();
+                                                                let is_on = out == "1";
+
+                                                                {
+                                                                    let mut st = scanner_state_torch.status.lock().unwrap();
+                                                                    for d in &mut st.devices {
+                                                                        if d.id == *serial || d.serial.as_deref() == Some(serial) {
+                                                                            d.torch_on = Some(is_on);
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                let _ = tx_torch.send(OutgoingMessage::TorchStatusUpdate {
+                                                                    device_id: serial.clone(),
+                                                                    torch_on: is_on,
+                                                                }).await;
+                                                            }
                                                         }
 
                                                         let devices = {
@@ -851,6 +895,12 @@ async fn run_bridge_worker(state: AppState) {
                                                         .and_then(|p| p.get("postTorch").or_else(|| p.get("autoTorchOn")))
                                                         .and_then(|v| v.as_bool().or_else(|| v.as_str().map(|s| s == "true" || s == "1")))
                                                         .unwrap_or(true);
+                                                    let torch_mode = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("torchMode").or_else(|| p.get("mode")))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("flash")
+                                                        .to_string();
 
                                                     let device_id = exec.device_id.clone();
                                                     // Find serial and usb port if device_id is port devnode
@@ -897,6 +947,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             wifi_ssid,
                                                             wifi_password,
                                                             post_torch,
+                                                            torch_mode,
                                                             wf_hub_url,
                                                             tx_wf,
                                                         ).await;
