@@ -40,6 +40,9 @@ export const App: React.FC = () => {
     toggleTorch,
     setTorchBulk,
     playSound,
+    customSoundName,
+    uploadCustomSound,
+    resetCustomSound,
     pendingTorchIds,
   } = useFleetWebSocket();
 
@@ -644,6 +647,9 @@ export const App: React.FC = () => {
         onToggleTorchBulk={handleBulkTorch}
         onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
         onDispatchActionBulk={handleBulkDispatch}
+        customSoundName={customSoundName}
+        onUploadCustomSound={uploadCustomSound}
+        onResetCustomSound={resetCustomSound}
         pendingTorchIds={pendingTorchIds}
       />
 
@@ -657,6 +663,9 @@ export const App: React.FC = () => {
         onSaveCalibration={saveRackCalibration}
         onBlinkDevice={blinkDevice}
         onPlaySound={(pattern, targetIds) => playSound(pattern, undefined, undefined, undefined, targetIds)}
+        customSoundName={customSoundName}
+        onUploadCustomSound={uploadCustomSound}
+        onResetCustomSound={resetCustomSound}
         onStartAnimation={(preset, loop, speed) => {
           const targetPcId = bridges[0]?.pcId || 'ubuntu-desktop';
           dispatchAction(targetPcId, 'all', 'RUN_LED_ANIM', {

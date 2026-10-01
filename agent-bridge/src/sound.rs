@@ -20,19 +20,42 @@ fn silent_tokio_cmd<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     }
 }
 
+pub fn set_custom_sound(data: &[u8]) -> Result<(), String> {
+    let tmp_dir = std::env::temp_dir();
+    let custom_path = tmp_dir.join("octopus_custom_sound.bin");
+    std::fs::write(&custom_path, data).map_err(|e| format!("Failed to save custom sound: {}", e))?;
+    Ok(())
+}
+
+pub fn reset_custom_sound() -> Result<(), String> {
+    let tmp_dir = std::env::temp_dir();
+    let custom_path = tmp_dir.join("octopus_custom_sound.bin");
+    if custom_path.exists() {
+        let _ = std::fs::remove_file(&custom_path);
+    }
+    Ok(())
+}
+
 pub fn ensure_host_assets() -> Result<(PathBuf, PathBuf), String> {
     let tmp_dir = std::env::temp_dir();
     let dex_path = tmp_dir.join("octopus_playsound.dex");
-    let ogg_path = tmp_dir.join("octopus_tweet.ogg");
+    let default_ogg_path = tmp_dir.join("octopus_tweet.ogg");
+    let custom_sound_path = tmp_dir.join("octopus_custom_sound.bin");
 
     if !dex_path.exists() || std::fs::metadata(&dex_path).map(|m| m.len()).unwrap_or(0) == 0 {
         let _ = std::fs::write(&dex_path, PLAYSOUND_DEX);
     }
-    if !ogg_path.exists() || std::fs::metadata(&ogg_path).map(|m| m.len()).unwrap_or(0) == 0 {
-        let _ = std::fs::write(&ogg_path, TWEET_OGG);
+    if !default_ogg_path.exists() || std::fs::metadata(&default_ogg_path).map(|m| m.len()).unwrap_or(0) == 0 {
+        let _ = std::fs::write(&default_ogg_path, TWEET_OGG);
     }
 
-    Ok((dex_path, ogg_path))
+    let active_sound_path = if custom_sound_path.exists() && std::fs::metadata(&custom_sound_path).map(|m| m.len()).unwrap_or(0) > 0 {
+        custom_sound_path
+    } else {
+        default_ogg_path
+    };
+
+    Ok((dex_path, active_sound_path))
 }
 
 pub async fn deploy_sound_to_device(serial: &str) -> Result<(), String> {

@@ -26,6 +26,7 @@ use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use scanner::silent_command;
+use base64::prelude::*;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -670,6 +671,48 @@ async fn run_bridge_worker(state: AppState) {
                                                         if let Ok(json) = serde_json::to_string(&log_msg) {
                                                             let _ = write.send(Message::Text(json.into())).await;
                                                         }
+                                                    }
+                                                } else if exec.action == "SET_CUSTOM_SOUND" {
+                                                    let sound_b64 = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("dataBase64").or_else(|| p.get("data")).or_else(|| p.get("soundData")))
+                                                        .and_then(|v| v.as_str());
+                                                    let sound_name = exec.params
+                                                        .as_ref()
+                                                        .and_then(|p| p.get("filename").or_else(|| p.get("name")))
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("custom_sound.ogg");
+
+                                                    if let Some(b64) = sound_b64 {
+                                                        match BASE64_STANDARD.decode(b64) {
+                                                            Ok(decoded_bytes) => {
+                                                                if let Err(e) = sound::set_custom_sound(&decoded_bytes) {
+                                                                    eprintln!("[Custom Sound Error] {}", e);
+                                                                } else {
+                                                                    let log_msg = OutgoingMessage::LogStream {
+                                                                        device_id: None,
+                                                                        level: "info".to_string(),
+                                                                        message: format!("[Audio Tweet] 🎵 Custom sound aktif: '{}' ({} bytes)", sound_name, decoded_bytes.len()),
+                                                                    };
+                                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                                        let _ = write.send(Message::Text(json.into())).await;
+                                                                    }
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                eprintln!("[Custom Sound Base64 Decode Error] {}", e);
+                                                            }
+                                                        }
+                                                    }
+                                                } else if exec.action == "RESET_CUSTOM_SOUND" {
+                                                    let _ = sound::reset_custom_sound();
+                                                    let log_msg = OutgoingMessage::LogStream {
+                                                        device_id: None,
+                                                        level: "info".to_string(),
+                                                        message: "[Audio Tweet] 🔄 Suara notifikasi direset ke default (tweet.ogg)".to_string(),
+                                                    };
+                                                    if let Ok(json) = serde_json::to_string(&log_msg) {
+                                                        let _ = write.send(Message::Text(json.into())).await;
                                                     }
                                                 } else if exec.action == "BLINK_SLOT" || exec.action == "BLINK_DEVICE" {
                                                     let serial = exec.device_id.clone();

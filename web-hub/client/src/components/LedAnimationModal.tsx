@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   CloseIcon,
   PlayIcon,
@@ -30,6 +30,9 @@ import {
   AutoAssignIcon,
   LightbulbIcon,
   TrashIcon,
+  RotateCcwIcon,
+  UploadAudioIcon,
+  MusicIcon,
 } from './Icons';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { RackCalibrationData, RackSlotMapping } from '../hooks/useFleetWebSocket';
@@ -45,6 +48,9 @@ interface LedAnimationModalProps {
   onStartAnimation: (preset: string, isLoop: boolean, speed?: number) => void;
   onStopAnimation: () => void;
   onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
+  customSoundName?: string | null;
+  onUploadCustomSound?: (file: File) => Promise<void>;
+  onResetCustomSound?: () => void;
 }
 
 interface PresetOption {
@@ -593,6 +599,9 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   onStartAnimation,
   onStopAnimation,
   onPlaySound,
+  customSoundName,
+  onUploadCustomSound,
+  onResetCustomSound,
 }) => {
   const [activeTab, setActiveTab] = useState<'anim' | 'calibration'>('anim');
   const [selectedPreset, setSelectedPreset] = useState<string>('matrix_showcase');
@@ -600,6 +609,33 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
   const [speed, setSpeed] = useState<number>(0.12);
   const [filterCategory, setFilterCategory] = useState<'all' | 'matrix' | 'classic'>('matrix');
   const [activeSoundPattern, setActiveSoundPattern] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingSound, setIsUploadingSound] = useState(false);
+  const [soundFeedbackMsg, setSoundFeedbackMsg] = useState<string | null>(null);
+
+  const handleSoundFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      alert('Ukuran file audio maksimal 25 MB');
+      return;
+    }
+    try {
+      setIsUploadingSound(true);
+      if (onUploadCustomSound) {
+        await onUploadCustomSound(file);
+      }
+      setSoundFeedbackMsg(`Audio '${file.name}' siap digunakan.`);
+      setTimeout(() => setSoundFeedbackMsg(null), 3500);
+    } catch (err: any) {
+      console.error(err);
+      alert('Gagal mengunggah file audio: ' + (err?.message || 'Error'));
+    } finally {
+      setIsUploadingSound(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handlePlaySoundGimmick = (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter') => {
     setActiveSoundPattern(pattern);
@@ -1085,24 +1121,141 @@ export const LedAnimationModal: React.FC<LedAnimationModalProps> = ({
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.45rem',
+                gap: '0.55rem',
                 backgroundColor: 'var(--bg-subtle, #0f172a)',
-                padding: '0.65rem 0.85rem',
+                padding: '0.75rem 0.85rem',
                 borderRadius: 'var(--radius-md, 8px)',
                 border: '1px solid var(--border-subtle, #334155)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Volume2Icon size={14} style={{ color: 'var(--accent-primary, #60a5fa)' }} />
                   <span style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)' }}>
                     Pola Notifikasi Audio (Tweet)
                   </span>
                 </div>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
-                  SoundPool ADB Headless
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span
+                    style={{
+                      fontSize: '0.62rem',
+                      padding: '0.12rem 0.4rem',
+                      borderRadius: '4px',
+                      backgroundColor: customSoundName ? 'rgba(56, 189, 248, 0.15)' : 'rgba(148, 163, 184, 0.12)',
+                      color: customSoundName ? '#38bdf8' : 'var(--text-secondary, #94a3b8)',
+                      border: `1px solid ${customSoundName ? 'rgba(56, 189, 248, 0.3)' : 'var(--border-subtle, #334155)'}`,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {customSoundName ? 'Custom Sound' : 'Default Sound'}
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+                    SoundPool Engine
+                  </span>
+                </div>
               </div>
+
+              {/* Custom Sound Upload & Active Audio Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.45rem',
+                  padding: '0.45rem 0.6rem',
+                  borderRadius: '6px',
+                  backgroundColor: 'var(--bg-surface, #1e293b)',
+                  border: '1px dashed var(--border-subtle, #334155)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, flex: 1 }}>
+                  <MusicIcon size={14} style={{ color: customSoundName ? '#38bdf8' : '#94a3b8', flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: customSoundName ? '#e2e8f0' : 'var(--text-secondary, #94a3b8)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={customSoundName || 'tweet.ogg (Default Sound)'}
+                    >
+                      {customSoundName || 'tweet.ogg (Default Sound)'}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted, #64748b)' }}>
+                      Mendukung .ogg, .mp3, .wav (SoundPool ADB)
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*,.ogg,.mp3,.wav,.m4a"
+                    style={{ display: 'none' }}
+                    onChange={handleSoundFileChange}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingSound}
+                    className="btn btn-sm"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.25rem 0.55rem',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      backgroundColor: 'var(--bg-subtle, #0f172a)',
+                      border: '1px solid var(--border-subtle, #334155)',
+                      color: 'var(--text-primary, #f8fafc)',
+                      borderRadius: '5px',
+                      cursor: isUploadingSound ? 'not-allowed' : 'pointer',
+                    }}
+                    title="Unggah audio kustom (.ogg, .mp3, .wav)"
+                  >
+                    <UploadAudioIcon size={12} />
+                    <span>{isUploadingSound ? 'Mengunggah...' : customSoundName ? 'Ganti Suara' : 'Upload Suara'}</span>
+                  </button>
+
+                  {customSoundName && onResetCustomSound && (
+                    <button
+                      type="button"
+                      onClick={onResetCustomSound}
+                      className="btn btn-sm"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: 'var(--accent-red, #ef4444)',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                      }}
+                      title="Reset ke suara bawaan (tweet.ogg)"
+                    >
+                      <RotateCcwIcon size={11} />
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {soundFeedbackMsg && (
+                <div style={{ fontSize: '0.68rem', color: '#34d399', fontWeight: 600, paddingLeft: '0.2rem' }}>
+                  {soundFeedbackMsg}
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
                 {[

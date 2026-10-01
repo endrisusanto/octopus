@@ -75,6 +75,9 @@ export function useFleetWebSocket() {
   const [serverSessionState, setServerSessionState] = useState<SessionStatePayload | null>(null);
   const [rackCalibration, setRackCalibration] = useState<RackCalibrationData | null>(null);
   const [pendingTorchIds, setPendingTorchIds] = useState<string[]>([]);
+  const [customSoundName, setCustomSoundName] = useState<string | null>(() => {
+    return localStorage.getItem('octopus_custom_sound_name') || null;
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -217,6 +220,25 @@ export function useFleetWebSocket() {
             case 'SESSION_STATE_SYNC': {
               if (msg.payload) {
                 setServerSessionState(msg.payload);
+                if (msg.payload.customSoundName !== undefined) {
+                  setCustomSoundName(msg.payload.customSoundName || null);
+                  if (msg.payload.customSoundName) {
+                    localStorage.setItem('octopus_custom_sound_name', msg.payload.customSoundName);
+                  } else {
+                    localStorage.removeItem('octopus_custom_sound_name');
+                  }
+                }
+              }
+              break;
+            }
+
+            case 'CUSTOM_SOUND_SYNC': {
+              const name = msg.payload?.customSoundName || null;
+              setCustomSoundName(name);
+              if (name) {
+                localStorage.setItem('octopus_custom_sound_name', name);
+              } else {
+                localStorage.removeItem('octopus_custom_sound_name');
               }
               break;
             }
@@ -404,6 +426,48 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const uploadCustomSound = useCallback((file: File) => {
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const result = reader.result as string;
+          const base64Data = result.includes(',') ? result.split(',')[1] : result;
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(
+              JSON.stringify({
+                type: 'UPLOAD_CUSTOM_SOUND',
+                payload: {
+                  filename: file.name,
+                  dataBase64: base64Data,
+                },
+              })
+            );
+          }
+          setCustomSoundName(file.name);
+          localStorage.setItem('octopus_custom_sound_name', file.name);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const resetCustomSound = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'RESET_CUSTOM_SOUND',
+        })
+      );
+    }
+    setCustomSoundName(null);
+    localStorage.removeItem('octopus_custom_sound_name');
+  }, []);
+
   const requestCopyBinary = useCallback((sourcePcId: string, targetPcId: string, filename: string, path?: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -487,6 +551,9 @@ export function useFleetWebSocket() {
     toggleTorch,
     setTorchBulk,
     playSound,
+    customSoundName,
+    uploadCustomSound,
+    resetCustomSound,
     pendingTorchIds,
   };
 }

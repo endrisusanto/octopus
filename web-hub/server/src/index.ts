@@ -93,6 +93,8 @@ let globalRackCalibration: any = {
   slots: []
 };
 
+let globalCustomSound: { filename: string; dataBase64: string } | null = null;
+
 // ponytail: Memory-efficient fleet & binary registry
 const connectedBridges = new Map<string, BridgeNode>();
 const fleetDevices = new Map<string, DeviceInfo>();
@@ -317,6 +319,19 @@ wss.on('connection', (ws, req) => {
               ws,
             });
             console.log(`[Bridge Connected] PC: ${bridgePcId} (${msg.payload.os}) from ${ip}`);
+            if (globalCustomSound) {
+              ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: 'all',
+                  action: 'SET_CUSTOM_SOUND',
+                  params: {
+                    filename: globalCustomSound.filename,
+                    dataBase64: globalCustomSound.dataBase64,
+                  },
+                },
+              }));
+            }
             broadcastFleetState();
             break;
           }
@@ -545,6 +560,7 @@ wss.on('connection', (ws, req) => {
         firmwareSlots: globalFirmwareSlots,
         workflowConfig: globalWorkflowConfig,
         selectedDeviceIds: globalSelectedDeviceIds,
+        customSoundName: globalCustomSound?.filename || null,
       },
       timestamp: Date.now(),
     }));
@@ -746,6 +762,43 @@ wss.on('connection', (ws, req) => {
                     pattern: soundPattern,
                     deviceIds: targetSerials,
                   },
+                },
+              }));
+            }
+          }
+        } else if (msg.type === 'UPLOAD_CUSTOM_SOUND') {
+          const { filename, dataBase64 } = msg.payload || {};
+          if (filename && dataBase64) {
+            globalCustomSound = { filename, dataBase64 };
+            console.log(`[Custom Sound] Uploaded custom sound '${filename}' (${Math.round(dataBase64.length * 0.75 / 1024)} KB)`);
+            broadcastToUI('CUSTOM_SOUND_SYNC', { customSoundName: filename });
+            for (const [_, bridge] of connectedBridges) {
+              if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+                bridge.ws.send(JSON.stringify({
+                  type: 'EXECUTE_COMMAND',
+                  payload: {
+                    deviceId: 'all',
+                    action: 'SET_CUSTOM_SOUND',
+                    params: {
+                      filename,
+                      dataBase64,
+                    },
+                  },
+                }));
+              }
+            }
+          }
+        } else if (msg.type === 'RESET_CUSTOM_SOUND') {
+          globalCustomSound = null;
+          console.log(`[Custom Sound] Reset custom sound to default tweet.ogg`);
+          broadcastToUI('CUSTOM_SOUND_SYNC', { customSoundName: null });
+          for (const [_, bridge] of connectedBridges) {
+            if (bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
+              bridge.ws.send(JSON.stringify({
+                type: 'EXECUTE_COMMAND',
+                payload: {
+                  deviceId: 'all',
+                  action: 'RESET_CUSTOM_SOUND',
                 },
               }));
             }

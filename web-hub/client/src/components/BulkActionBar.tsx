@@ -14,6 +14,9 @@ interface BulkActionBarProps {
   onToggleTorchBulk: (deviceIds: string[], state: 'on' | 'off') => void;
   onPlaySound?: (pattern: 'single' | 'chorus' | 'sequential' | 'random' | 'chatter', targetIds?: string[]) => void;
   onDispatchActionBulk: (deviceIds: string[], action: string, params?: any) => void;
+  customSoundName?: string | null;
+  onUploadCustomSound?: (file: File) => Promise<void>;
+  onResetCustomSound?: () => void;
   pendingTorchIds?: string[];
 }
 
@@ -27,6 +30,9 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
   onToggleTorchBulk,
   onPlaySound,
   onDispatchActionBulk,
+  customSoundName,
+  onUploadCustomSound,
+  onResetCustomSound,
   pendingTorchIds,
 }) => {
   const [isLedModalOpen, setIsLedModalOpen] = useState(false);
@@ -339,6 +345,9 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
         onStartAnimation={handleStartAnimation}
         onStopAnimation={handleStopAnimation}
         onPlaySound={onPlaySound}
+        customSoundName={customSoundName}
+        onUploadCustomSound={onUploadCustomSound}
+        onResetCustomSound={onResetCustomSound}
       />
     </>
   );
