@@ -42,6 +42,7 @@ export interface SessionStatePayload {
   deviceApMap?: Record<string, string>;
   accordionStates?: Record<string, boolean>;
   torchMode?: 'flash' | 'screen' | 'tweet';
+  automationSettings?: { postTorch: boolean; postSound: boolean };
   standbyWorkflowConfig?: any;
 }
 
@@ -577,6 +578,17 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const syncAutomationSettings = useCallback((automationSettings: { postTorch: boolean; postSound: boolean }) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_AUTOMATION_SETTINGS',
+          payload: { automationSettings },
+        })
+      );
+    }
+  }, []);
+
   const syncStandbyWorkflowConfig = useCallback((standbyWorkflowConfig: any) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -622,6 +634,7 @@ export function useFleetWebSocket() {
     syncDeviceApMap,
     syncAccordionStates,
     syncTorchMode,
+    syncAutomationSettings,
     syncStandbyWorkflowConfig,
     startWorkflow,
     dispatchAction,

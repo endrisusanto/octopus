@@ -58,6 +58,7 @@ export const App: React.FC = () => {
     syncDeviceApMap,
     syncAccordionStates,
     syncTorchMode,
+    syncAutomationSettings,
     syncStandbyWorkflowConfig,
     startWorkflow,
     rackCalibration,
@@ -156,6 +157,26 @@ export const App: React.FC = () => {
     setTorchMode(mode);
     syncTorchMode(mode);
   };
+
+  // Post-Automation Completion Action Settings (Unified State, defaults to Sound)
+  const [automationSettings, setAutomationSettings] = useState<{ postTorch: boolean; postSound: boolean }>({
+    postTorch: false,
+    postSound: true,
+  });
+
+  useEffect(() => {
+    if (serverSessionState?.automationSettings) {
+      setAutomationSettings(serverSessionState.automationSettings);
+    }
+  }, [serverSessionState?.automationSettings]);
+
+  const handleUpdateAutomationSettings = useCallback(
+    (settings: { postTorch: boolean; postSound: boolean }) => {
+      setAutomationSettings(settings);
+      syncAutomationSettings(settings);
+    },
+    [syncAutomationSettings]
+  );
 
   // Drawer & Modal State
   const [logDrawerState, setLogDrawerState] = useState<{ isOpen: boolean; pcId?: string; deviceId?: string }>({
@@ -878,6 +899,9 @@ export const App: React.FC = () => {
         workflowConfig={confirmTarget?.config || standbyWorkflowConfig}
         apFilename={confirmTarget?.slots.ap.filename || confirmTarget?.config.binaryFile}
         torchMode={torchMode}
+        postTorchDefault={automationSettings.postTorch}
+        postSoundDefault={automationSettings.postSound}
+        onSettingsChange={handleUpdateAutomationSettings}
       />
 
       {/* Floating Bottom-Left Cross-Node Binary Transfer Progress Toast */}

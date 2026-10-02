@@ -11,6 +11,9 @@ interface AutomationConfirmModalProps {
   workflowConfig: WorkflowConfig;
   apFilename?: string;
   torchMode?: 'flash' | 'screen' | 'tweet';
+  postTorchDefault?: boolean;
+  postSoundDefault?: boolean;
+  onSettingsChange?: (settings: { postTorch: boolean; postSound: boolean }) => void;
 }
 
 export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
@@ -22,21 +25,34 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   workflowConfig,
   apFilename,
   torchMode = 'flash',
+  postTorchDefault = false,
+  postSoundDefault = true,
+  onSettingsChange,
 }) => {
-  const [postTorch, setPostTorch] = useState<boolean>(torchMode !== 'tweet');
-  const [postSound, setPostSound] = useState<boolean>(torchMode === 'tweet');
+  const [postTorch, setPostTorch] = useState<boolean>(postTorchDefault);
+  const [postSound, setPostSound] = useState<boolean>(postSoundDefault);
 
   useEffect(() => {
     if (isOpen) {
-      setPostTorch(torchMode !== 'tweet');
-      setPostSound(torchMode === 'tweet');
+      setPostTorch(postTorchDefault);
+      setPostSound(postSoundDefault);
     }
-  }, [isOpen, torchMode]);
+  }, [isOpen, postTorchDefault, postSoundDefault]);
 
   if (!isOpen || targetDeviceIds.length === 0) return null;
 
   const targetDevices = devices.filter((d) => targetDeviceIds.includes(d.id));
   const count = targetDevices.length;
+
+  const handleTorchToggle = (checked: boolean) => {
+    setPostTorch(checked);
+    onSettingsChange?.({ postTorch: checked, postSound });
+  };
+
+  const handleSoundToggle = (checked: boolean) => {
+    setPostSound(checked);
+    onSettingsChange?.({ postTorch, postSound: checked });
+  };
 
   const handleStart = () => {
     onConfirm(postTorch, postSound);
@@ -166,7 +182,7 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
             <input
               type="checkbox"
               checked={postTorch}
-              onChange={(e) => setPostTorch(e.target.checked)}
+              onChange={(e) => handleTorchToggle(e.target.checked)}
               style={{
                 width: '16px',
                 height: '16px',
@@ -203,7 +219,7 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
             <input
               type="checkbox"
               checked={postSound}
-              onChange={(e) => setPostSound(e.target.checked)}
+              onChange={(e) => handleSoundToggle(e.target.checked)}
               style={{
                 width: '16px',
                 height: '16px',

@@ -209,7 +209,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
     if (lower.includes('userdebug')) {
       return (
         <span
-          className="badge"
+          className="badge badge-userdebug"
           style={{
             backgroundColor: 'rgba(245, 158, 11, 0.12)',
             color: 'var(--accent-amber, #f59e0b)',
@@ -219,9 +219,12 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
             fontWeight: 800,
             textTransform: 'uppercase',
             borderRadius: '4px',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
         >
-          USERDEBUG
+          <span className="badge-text-full">USERDEBUG</span>
+          <span className="badge-text-short">DEBUG</span>
         </span>
       );
     }

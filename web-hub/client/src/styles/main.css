@@ -794,6 +794,22 @@ body {
   }
 }
 
+/* Responsive USERDEBUG / DEBUG Badge */
+.badge-userdebug .badge-text-short {
+  display: none;
+}
+.badge-userdebug .badge-text-full {
+  display: inline;
+}
+@media (max-width: 768px) {
+  .badge-userdebug .badge-text-short {
+    display: inline !important;
+  }
+  .badge-userdebug .badge-text-full {
+    display: none !important;
+  }
+}
+
 /* Base Card & Accordion Card Styles */
 .card {
   background-color: var(--bg-surface);

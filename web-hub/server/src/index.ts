@@ -117,6 +117,10 @@ let globalAccordionStates: Record<string, boolean> = {
   'ready': true,
 };
 let globalTorchMode: 'flash' | 'screen' | 'tweet' = 'flash';
+let globalAutomationSettings = {
+  postTorch: false,
+  postSound: true,
+};
 let globalStandbyWorkflowConfig: WorkflowConfig = {
   binaryFile: '',
   odinFlash: false,
@@ -151,6 +155,7 @@ function broadcastSessionState() {
     deviceApMap: globalDeviceApMap,
     accordionStates: globalAccordionStates,
     torchMode: globalTorchMode,
+    automationSettings: globalAutomationSettings,
     standbyWorkflowConfig: globalStandbyWorkflowConfig,
   });
 }
@@ -628,6 +633,7 @@ wss.on('connection', (ws, req) => {
         deviceApMap: globalDeviceApMap,
         accordionStates: globalAccordionStates,
         torchMode: globalTorchMode,
+        automationSettings: globalAutomationSettings,
         standbyWorkflowConfig: globalStandbyWorkflowConfig,
       },
       timestamp: Date.now(),
@@ -683,6 +689,11 @@ wss.on('connection', (ws, req) => {
         } else if (msg.type === 'SYNC_TORCH_MODE') {
           if (msg.payload?.torchMode) {
             globalTorchMode = msg.payload.torchMode;
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_AUTOMATION_SETTINGS') {
+          if (msg.payload?.automationSettings) {
+            globalAutomationSettings = { ...globalAutomationSettings, ...msg.payload.automationSettings };
             broadcastSessionState();
           }
         } else if (msg.type === 'SYNC_STANDBY_WORKFLOW_CONFIG') {
@@ -767,9 +778,9 @@ wss.on('connection', (ws, req) => {
                 const wifiEnabled = effectiveConfig?.wifiEnabled !== undefined ? Boolean(effectiveConfig.wifiEnabled) : (steps.wifiEnabled !== undefined ? Boolean(steps.wifiEnabled) : true);
                 const wifiSsid = (effectiveConfig?.wifiSsid as string) || (steps.wifiSsid as string) || 'RTT / IEEE 802.11';
                 const wifiPassword = (effectiveConfig?.wifiPassword as string) || (steps.wifiPassword as string) || '1234qwer';
-                const postTorch = effectiveConfig?.postTorch !== false;
-                const postSound = Boolean(effectiveConfig?.postSound || effectiveConfig?.autoSoundOn || effectiveConfig?.autoTweetOn);
-                const torchMode = (effectiveConfig?.torchMode as string) || 'flash';
+                const postTorch = effectiveConfig?.postTorch !== undefined ? Boolean(effectiveConfig.postTorch) : globalAutomationSettings.postTorch;
+                const postSound = effectiveConfig?.postSound !== undefined ? Boolean(effectiveConfig.postSound) : (effectiveConfig?.autoSoundOn || effectiveConfig?.autoTweetOn !== undefined ? Boolean(effectiveConfig.autoSoundOn || effectiveConfig.autoTweetOn) : globalAutomationSettings.postSound);
+                const torchMode = (effectiveConfig?.torchMode as string) || globalTorchMode || 'flash';
 
                 const targetSerial = (matchedDev && matchedDev.serial) ? matchedDev.serial : devId;
 
