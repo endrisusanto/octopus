@@ -241,6 +241,7 @@ async fn run_bridge_worker(state: AppState) {
                 // 2. Spawn device & binary scanner loop
                 let (tx, mut rx) = tokio::sync::mpsc::channel::<OutgoingMessage>(32);
                 let active_verifications: Arc<Mutex<HashMap<String, (u64, tokio::task::JoinHandle<()>)>>> = Arc::new(Mutex::new(HashMap::new()));
+                let active_workflows: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(HashMap::new()));
                 let verif_counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
                 let scanner_state = state.clone();
                 let tx_scanner = tx.clone();
@@ -929,6 +930,34 @@ async fn run_bridge_worker(state: AppState) {
                                                         println!("[Verifier] Aborting MD5 verification for slot: {}", slot_key);
                                                         handle.abort();
                                                     }
+                                                } else if exec.action == "ABORT_TASK"
+                                                    || exec.action == "ABORT_WORKFLOW"
+                                                    || exec.action == "CANCEL_WORKFLOW"
+                                                    || exec.action == "STOP_WORKFLOW"
+                                                {
+                                                    let target_dev = exec.device_id.clone();
+                                                    let mut wfs = active_workflows.lock().unwrap();
+                                                    if target_dev == "all" || target_dev == "ALL" {
+                                                        for (dev_id, handle) in wfs.drain() {
+                                                            println!("[Workflow] Aborting workflow for device: {}", dev_id);
+                                                            handle.abort();
+                                                            let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                                                device_id: dev_id,
+                                                                progress: 0,
+                                                                status: "Ready".to_string(),
+                                                                current_task: Some("Workflow dibatalkan".to_string()),
+                                                            }).await;
+                                                        }
+                                                    } else if let Some(handle) = wfs.remove(&target_dev) {
+                                                        println!("[Workflow] Aborting workflow for device: {}", target_dev);
+                                                        handle.abort();
+                                                        let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                                            device_id: target_dev,
+                                                            progress: 0,
+                                                            status: "Ready".to_string(),
+                                                            current_task: Some("Workflow dibatalkan".to_string()),
+                                                        }).await;
+                                                    }
                                                 } else if exec.action == "WORKFLOW_PIPELINE"
                                                     || exec.action == "suw_bypass"
                                                     || exec.action == "setup_gba"
@@ -936,6 +965,15 @@ async fn run_bridge_worker(state: AppState) {
                                                     || exec.action == "flash"
                                                     || exec.action == "FLASH_ODIN"
                                                 {
+                                                    // Abort any active MD5 verification tasks to prevent I/O race & unwanted MD5 progress events during workflow
+                                                    {
+                                                        let mut verifs = active_verifications.lock().unwrap();
+                                                        for (k, (_, handle)) in verifs.drain() {
+                                                            println!("[Verifier] Aborting MD5 verification for slot '{}' due to workflow start", k);
+                                                            handle.abort();
+                                                        }
+                                                    }
+
                                                     let odin_flash = if exec.action == "flash" || exec.action == "FLASH_ODIN" {
                                                         true
                                                     } else {
@@ -1089,7 +1127,10 @@ async fn run_bridge_worker(state: AppState) {
 
                                                     let wf_hub_url = Some(current_hub_url.clone());
                                                     let tx_wf = tx.clone();
-                                                    tokio::spawn(async move {
+                                                    let dev_id_clone = device_id.clone();
+                                                    let active_wf_ref = active_workflows.clone();
+
+                                                    let wf_handle = tokio::spawn(async move {
                                                         workflow::execute_workflow_pipeline(
                                                             device_id,
                                                             serial_hint,
@@ -1117,7 +1158,16 @@ async fn run_bridge_worker(state: AppState) {
                                                             wf_hub_url,
                                                             tx_wf,
                                                         ).await;
+                                                        let mut wfs = active_wf_ref.lock().unwrap();
+                                                        wfs.remove(&dev_id_clone);
                                                     });
+
+                                                    {
+                                                        let mut wfs = active_workflows.lock().unwrap();
+                                                        if let Some(prev_h) = wfs.insert(dev_id_clone, wf_handle) {
+                                                            prev_h.abort();
+                                                        }
+                                                    }
                                                 }
                                             }
                                             IncomingMessage::DownloadBinary(dl_payload) => {

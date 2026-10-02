@@ -22,6 +22,8 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
   lastFlashedAp,
   deviceApMap,
   binaries,
+  onOpenLogs,
+  onAbort,
   isOpen: isOpenProp,
   onToggleOpen,
 }) => {
@@ -328,6 +330,45 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                         strokeWidth={2.5}
                         color="#60a5fa"
                       />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', width: '100%', marginTop: '0.15rem' }}>
+                      {onOpenLogs && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenLogs(device.pcId, device.id)}
+                          className="btn btn-sm btn-outline-secondary"
+                          style={{
+                            padding: '0.15rem 0.45rem',
+                            fontSize: '0.68rem',
+                            fontWeight: 600,
+                            height: '22px',
+                            flex: 1,
+                            borderRadius: 'var(--radius-sm)',
+                          }}
+                          title="Lihat live log proses perangkat ini"
+                        >
+                          Log
+                        </button>
+                      )}
+                      {onAbort && (
+                        <button
+                          type="button"
+                          onClick={() => onAbort(device.pcId, device.id)}
+                          className="btn btn-sm btn-outline-danger"
+                          style={{
+                            padding: '0.15rem 0.45rem',
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            height: '22px',
+                            flex: 1,
+                            borderRadius: 'var(--radius-sm)',
+                          }}
+                          title="Hentikan / batalkan proses workflow perangkat ini"
+                        >
+                          Abort
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

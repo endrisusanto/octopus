@@ -94,7 +94,21 @@ export const App: React.FC = () => {
   // Sync state from server when WebSocket session state updates
   useEffect(() => {
     if (serverSessionState?.modelProfiles && Object.keys(serverSessionState.modelProfiles).length > 0) {
-      setModelProfiles(serverSessionState.modelProfiles);
+      const sanitized: Record<string, ModelProfile> = {};
+      for (const [mKey, prof] of Object.entries(serverSessionState.modelProfiles)) {
+        const nextSlots = { ...prof.slots };
+        for (const [sKey, sData] of Object.entries(nextSlots)) {
+          if (sData && (sData as any).status === 'verifying') {
+            nextSlots[sKey as keyof FirmwareSlotsMap] = {
+              ...(sData as any),
+              status: 'verified',
+              progress: 100,
+            };
+          }
+        }
+        sanitized[mKey] = { ...prof, slots: nextSlots };
+      }
+      setModelProfiles(sanitized);
     }
   }, [serverSessionState?.modelProfiles]);
 
@@ -413,6 +427,38 @@ export const App: React.FC = () => {
     if (!confirmTarget || confirmTarget.targetIds.length === 0) return;
     const { targetIds, config, slots } = confirmTarget;
 
+    // Abort/Cancel any background MD5 verification tasks on all bridges
+    dispatchAction('all', 'system', 'CANCEL_VERIFY_MD5', { slotKey: 'all' });
+
+    // Clean up any remaining 'verifying' status in modelProfiles
+    setModelProfiles((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const [mKey, profile] of Object.entries(next)) {
+        let profileChanged = false;
+        const nextSlots = { ...profile.slots };
+        for (const [sKey, slotData] of Object.entries(profile.slots)) {
+          if (slotData.status === 'verifying') {
+            nextSlots[sKey as keyof FirmwareSlotsMap] = {
+              ...slotData,
+              status: 'verified',
+              progress: 100,
+            };
+            profileChanged = true;
+          }
+        }
+        if (profileChanged) {
+          changed = true;
+          next[mKey] = { ...profile, slots: nextSlots };
+        }
+      }
+      if (changed) {
+        syncModelProfiles(next);
+        return next;
+      }
+      return prev;
+    });
+
     const sourcePcId = slots.ap.pcId || bridges[0]?.pcId;
 
     // Save AP mapping (Unified State)
@@ -460,6 +506,17 @@ export const App: React.FC = () => {
 
     startWorkflow(targetIds, payload);
     setConfirmTarget(null);
+  };
+
+  const handleAbortWorkflow = (pcId: string, deviceId: string) => {
+    setDevices((prev) =>
+      prev.map((d) =>
+        d.id === deviceId && d.pcId === pcId
+          ? { ...d, status: 'Ready', progress: 0, currentTask: 'Dibatalkan' }
+          : d
+      )
+    );
+    dispatchAction(pcId, deviceId, 'ABORT_TASK', {});
   };
 
   const handleResetDeviceStatus = (pcId: string, deviceId: string) => {
@@ -684,7 +741,7 @@ export const App: React.FC = () => {
             deviceApMap={deviceApMap}
             binaries={binaries}
             onOpenLogs={handleOpenLogs}
-            onAbort={(pcId, deviceId) => dispatchAction(pcId, deviceId, 'ABORT_TASK', {})}
+            onAbort={handleAbortWorkflow}
             isOpen={accordionStates['running'] !== false}
             onToggleOpen={() => handleToggleAccordion('running')}
           />
