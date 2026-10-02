@@ -290,7 +290,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
       }}
     >
       {/* =========================================================================
-          PARENT ACCORDION HEADER
+          PARENT ACCORDION HEADER (Clean Fluid Responsive Layout)
           ========================================================================= */}
       <div
         className="accordion-header parent-model-header"
@@ -303,254 +303,148 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
           borderBottom: isParentOpen ? '1px solid var(--border-subtle)' : 'none',
         }}
       >
-        {/* Desktop Layout (>= 768px) */}
-        <div
-          className="desktop-header-row"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            gap: '1rem',
-          }}
-        >
-          {/* Left: Chevron + Model Title + Badge + Unit Count */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
-            <button
-              type="button"
-              className="btn btn-icon"
-              style={{ padding: 0, flexShrink: 0, width: '26px', height: '26px' }}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleParentOpen();
-              }}
-            >
-              {isParentOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0 }}>
-              <span
-                style={{
-                  fontWeight: 800,
-                  fontSize: '0.875rem',
-                  color: 'var(--accent-primary, #3b82f6)',
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                MODEL
-              </span>
-              <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                {displayModelName}
-              </span>
-              {renderBuildBadge()}
-              <span className="stat-pill active" style={{ fontSize: '0.75rem', padding: '0.2rem 0.55rem', whiteSpace: 'nowrap' }}>
-                {selectedModelIds.length}/{devices.length} Unit
-              </span>
-              {apFilename && (
-                <span
-                  style={{
-                    fontSize: '0.725rem',
-                    color: 'var(--text-muted)',
-                    fontFamily: 'var(--font-mono)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: '220px',
-                  }}
-                  title={apFilename}
-                >
-                  ({apFilename})
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Stepper Pills + Action Button + Reset */}
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexShrink: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <button
-                type="button"
-                onClick={() => handleStepToggle('odinFlash')}
-                className={`btn-step-pill ${safeWorkflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
-                title="Flash Firmware AP/BL/CP/CSC via Odin"
-              >
-                <CheckIcon size={12} /> <span>ODIN FLASH</span>
-              </button>
-              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
-              <button
-                type="button"
-                onClick={() => handleStepToggle('skipSuw')}
-                className={`btn-step-pill ${safeWorkflowConfig.skipSuw !== false ? 'active-blue' : ''}`}
-                title="Lewati Setup Wizard"
-              >
-                <CheckIcon size={12} /> <span>SKIP SUW</span>
-              </button>
-              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
-              <button
-                type="button"
-                onClick={() => handleStepToggle('setupGba')}
-                className={`btn-step-pill ${safeWorkflowConfig.setupGba !== false ? 'active-purple' : ''}`}
-                title="Setup Google Basic Authentication"
-              >
-                <CheckIcon size={12} /> <span>SETUP GBA</span>
-              </button>
-              <span style={{ color: 'var(--text-muted)' }}>&rsaquo;</span>
-              <button
-                type="button"
-                onTouchStart={handleWifiTouchStart}
-                onTouchEnd={handleWifiTouchEnd}
-                onTouchCancel={handleWifiTouchEnd}
-                onTouchMove={handleWifiTouchEnd}
-                onMouseDown={handleWifiTouchStart}
-                onMouseUp={handleWifiTouchEnd}
-                onMouseLeave={handleWifiTouchEnd}
-                onClick={handleWifiClick}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (onOpenWifiModal) onOpenWifiModal();
-                }}
-                className={`btn-step-pill ${safeWorkflowConfig.wifiEnabled !== false ? 'active-green' : ''}`}
-                title="Klik: Toggle Wi-Fi | Klik Kanan: Konfigurasi SSID/Password"
-              >
-                <CheckIcon size={12} /> <span>WIFI</span>
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleTriggerRun}
-              className="btn btn-primary"
-              style={{
-                position: 'relative',
-                overflow: 'hidden',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.35rem 0.85rem',
-                height: '32px',
-                whiteSpace: 'nowrap',
-                cursor: isAnyVerifying ? 'not-allowed' : devices.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: devices.length === 0 && !isAnyVerifying ? 0.6 : 1,
-              }}
-              disabled={devices.length === 0 || isAnyVerifying}
-              title={isAnyVerifying ? `Sedang memverifikasi MD5 checksum (${verifyingProgress}%)` : undefined}
-            >
-              {isAnyVerifying ? (
-                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <RefreshIcon size={14} className="spin" /> Verify MD5 {verifyingProgress}%
-                </span>
-              ) : (
-                <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <PlayIcon size={14} fill="currentColor" /> Jalankan Automasi
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={onResetModel}
-              className="btn btn-icon"
-              title="Hapus / Reset Model Ini"
-              style={{ width: '32px', height: '32px', color: 'var(--text-muted)' }}
-            >
-              <TrashIcon size={15} />
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Header Layout (< 768px) */}
-        <div
-          className="mobile-header-column"
-          style={{
-            display: 'none',
-            flexDirection: 'column',
-            gap: '0.5rem',
-            width: '100%',
-          }}
-        >
-          {/* Row 1: Model Title + Badge + Count */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+        <div className="model-header-container">
+          {/* Main Title & Action Row */}
+          <div className="model-header-top-row">
+            {/* Left: Chevron + Model Tag + Title + Build Badge + Filename */}
+            <div className="model-header-left">
               <button
                 type="button"
                 className="btn btn-icon"
-                style={{ padding: 0, flexShrink: 0, width: '22px', height: '22px' }}
+                style={{ padding: 0, flexShrink: 0, width: '26px', height: '26px' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleParentOpen();
                 }}
               >
-                {isParentOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
+                {isParentOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
               </button>
-              <span style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--accent-primary)', textTransform: 'uppercase' }}>
-                MODEL
-              </span>
-              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                {displayModelName}
-              </span>
+
+              <span className="model-header-tag">MODEL</span>
+              <span className="model-header-title">{displayModelName}</span>
               {renderBuildBadge()}
+              {apFilename && (
+                <span className="model-header-ap-filename" title={apFilename}>
+                  ({apFilename})
+                </span>
+              )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span className="stat-pill active" style={{ fontSize: '0.675rem', padding: '0.1rem 0.4rem' }}>
-                {selectedModelIds.length}/{devices.length} Unit
-              </span>
+
+            {/* Right: Stepper Pills (Desktop) + Action Button (Desktop) + Unit Count + Reset */}
+            <div className="model-header-right-actions" onClick={(e) => e.stopPropagation()}>
+              {/* Stepper Buttons (Desktop wide >= 1150px) */}
+              <div className="model-stepper-desktop">
+                <button
+                  type="button"
+                  onClick={() => handleStepToggle('odinFlash')}
+                  className={`btn-step-pill ${safeWorkflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
+                  title="Flash Firmware AP/BL/CP/CSC via Odin"
+                >
+                  <CheckIcon size={12} /> <span>ODIN FLASH</span>
+                </button>
+                <span className="stepper-arrow">&rsaquo;</span>
+                <button
+                  type="button"
+                  onClick={() => handleStepToggle('skipSuw')}
+                  className={`btn-step-pill ${safeWorkflowConfig.skipSuw !== false ? 'active-blue' : ''}`}
+                  title="Lewati Setup Wizard"
+                >
+                  <CheckIcon size={12} /> <span>SKIP SUW</span>
+                </button>
+                <span className="stepper-arrow">&rsaquo;</span>
+                <button
+                  type="button"
+                  onClick={() => handleStepToggle('setupGba')}
+                  className={`btn-step-pill ${safeWorkflowConfig.setupGba !== false ? 'active-purple' : ''}`}
+                  title="Setup Google Basic Authentication"
+                >
+                  <CheckIcon size={12} /> <span>SETUP GBA</span>
+                </button>
+                <span className="stepper-arrow">&rsaquo;</span>
+                <button
+                  type="button"
+                  onTouchStart={handleWifiTouchStart}
+                  onTouchEnd={handleWifiTouchEnd}
+                  onTouchCancel={handleWifiTouchEnd}
+                  onTouchMove={handleWifiTouchEnd}
+                  onMouseDown={handleWifiTouchStart}
+                  onMouseUp={handleWifiTouchEnd}
+                  onMouseLeave={handleWifiTouchEnd}
+                  onClick={handleWifiClick}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onOpenWifiModal) onOpenWifiModal();
+                  }}
+                  className={`btn-step-pill ${safeWorkflowConfig.wifiEnabled !== false ? 'active-green' : ''}`}
+                  title="Klik: Toggle Wi-Fi | Klik Kanan: Konfigurasi SSID/Password"
+                >
+                  <CheckIcon size={12} /> <span>WIFI</span>
+                </button>
+              </div>
+
+              {/* Automation Trigger Button (Desktop >= 1150px) */}
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onResetModel();
-                }}
-                className="btn btn-icon"
-                style={{ width: '24px', height: '24px', padding: 0 }}
-                title="Hapus Model"
+                onClick={handleTriggerRun}
+                className="btn btn-primary model-run-btn model-run-btn-desktop"
+                disabled={devices.length === 0 || isAnyVerifying}
+                title={isAnyVerifying ? `Sedang memverifikasi MD5 checksum (${verifyingProgress}%)` : undefined}
               >
-                <TrashIcon size={13} />
+                {isAnyVerifying ? (
+                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <RefreshIcon size={14} className="spin" /> Verify MD5 {verifyingProgress}%
+                  </span>
+                ) : (
+                  <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <PlayIcon size={14} fill="currentColor" /> Jalankan Automasi
+                  </span>
+                )}
+              </button>
+
+              <span className="stat-pill active model-header-count">
+                {selectedModelIds.length}/{devices.length} Unit
+              </span>
+
+              <button
+                type="button"
+                onClick={onResetModel}
+                className="btn btn-icon model-reset-btn"
+                title="Hapus / Reset Model Ini"
+              >
+                <TrashIcon size={15} />
               </button>
             </div>
           </div>
 
-          {/* Row 2: 4-Group Stepper Pills */}
+          {/* Stepper Grid (Responsive for Tablet/Fold/Mobile < 1150px) */}
           <div
-            className="mobile-stepper-grid"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '0.25rem',
-              width: '100%',
-            }}
+            className="model-stepper-mobile"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => handleStepToggle('odinFlash')}
               className={`btn-step-pill ${safeWorkflowConfig.odinFlash !== false && apFilename ? 'active-amber' : ''}`}
-              style={{ justifyContent: 'center', padding: '0.25rem 0.15rem', fontSize: '0.65rem' }}
+              title="Flash Firmware AP/BL/CP/CSC via Odin"
             >
-              <CheckIcon size={10} /> <span>ODIN</span>
+              <CheckIcon size={11} /> <span>ODIN</span>
             </button>
             <button
               type="button"
               onClick={() => handleStepToggle('skipSuw')}
               className={`btn-step-pill ${safeWorkflowConfig.skipSuw !== false ? 'active-blue' : ''}`}
-              style={{ justifyContent: 'center', padding: '0.25rem 0.15rem', fontSize: '0.65rem' }}
+              title="Lewati Setup Wizard"
             >
-              <CheckIcon size={10} /> <span>SUW</span>
+              <CheckIcon size={11} /> <span>SUW</span>
             </button>
             <button
               type="button"
               onClick={() => handleStepToggle('setupGba')}
               className={`btn-step-pill ${safeWorkflowConfig.setupGba !== false ? 'active-purple' : ''}`}
-              style={{ justifyContent: 'center', padding: '0.25rem 0.15rem', fontSize: '0.65rem' }}
+              title="Setup Google Basic Authentication"
             >
-              <CheckIcon size={10} /> <span>GBA</span>
+              <CheckIcon size={11} /> <span>GBA</span>
             </button>
             <button
               type="button"
@@ -568,34 +462,20 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
                 if (onOpenWifiModal) onOpenWifiModal();
               }}
               className={`btn-step-pill ${safeWorkflowConfig.wifiEnabled !== false ? 'active-green' : ''}`}
-              style={{ justifyContent: 'center', padding: '0.25rem 0.15rem', fontSize: '0.65rem' }}
+              title="Klik: Toggle Wi-Fi | Klik Kanan: Konfigurasi SSID/Password"
             >
-              <CheckIcon size={10} /> <span>WIFI</span>
+              <CheckIcon size={11} /> <span>WIFI</span>
             </button>
           </div>
 
-          {/* Row 3: 1 Full-Width Automation Button */}
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+          {/* Row 3: Full-Width Automation Button for Tablet / Fold / Mobile (< 1150px) */}
+          <div className="model-run-mobile-wrapper" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={handleTriggerRun}
-              className="btn btn-primary"
-              style={{
-                position: 'relative',
-                overflow: 'hidden',
-                width: '100%',
-                height: '34px',
-                fontWeight: 700,
-                fontSize: '0.775rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-                borderRadius: 'var(--radius-md)',
-                cursor: isAnyVerifying ? 'not-allowed' : devices.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: devices.length === 0 && !isAnyVerifying ? 0.6 : 1,
-              }}
+              className="btn btn-primary model-run-btn-mobile"
               disabled={devices.length === 0 || isAnyVerifying}
+              title={isAnyVerifying ? `Sedang memverifikasi MD5 checksum (${verifyingProgress}%)` : undefined}
             >
               {isAnyVerifying ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>

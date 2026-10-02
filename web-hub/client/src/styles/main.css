@@ -595,18 +595,21 @@ body {
 
   .ready-stepper-row {
     width: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 0.25rem !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.3rem !important;
+  }
+
+  .ready-stepper-row > span {
+    display: none !important;
   }
 
   .ready-stepper-row .btn-step-pill {
-    flex: 1 1 0% !important;
+    width: 100% !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    padding: 0.25rem 0.35rem !important;
+    padding: 0.25rem 0.2rem !important;
     font-size: 0.7rem !important;
     text-align: center !important;
     gap: 0.2rem !important;
@@ -617,10 +620,179 @@ body {
     width: 100% !important;
     display: flex !important;
     justify-content: center !important;
-    height: 36px !important;
+    height: 34px !important;
   }
 }
 
+/* Model Parent Accordion Responsive Header */
+.model-header-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.model-header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.model-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.model-header-tag {
+  font-weight: 800;
+  font-size: 0.825rem;
+  color: var(--accent-primary, #3b82f6);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.model-header-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.model-header-count {
+  font-size: 0.725rem;
+  padding: 0.15rem 0.45rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.model-header-ap-filename {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.model-header-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.model-stepper-desktop {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.stepper-arrow {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.model-run-btn {
+  position: relative;
+  overflow: hidden;
+  font-weight: 700;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  height: 32px;
+  white-space: nowrap;
+}
+
+.model-reset-btn {
+  width: 32px;
+  height: 32px;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.model-stepper-mobile {
+  display: none;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.model-stepper-mobile .btn-step-pill {
+  justify-content: center;
+  padding: 0.25rem 0.2rem;
+  font-size: 0.7rem;
+  min-width: 0;
+}
+
+.model-run-mobile-wrapper {
+  display: none;
+  width: 100%;
+}
+
+.model-run-btn-mobile {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 34px;
+  font-weight: 700;
+  font-size: 0.775rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: var(--radius-md);
+}
+
+/* Tablet / Fold / Multi-window Breakpoint (<= 1150px) */
+@media (max-width: 1150px) {
+  .model-stepper-desktop {
+    display: none !important;
+  }
+
+  .model-run-btn-desktop {
+    display: none !important;
+  }
+
+  .model-stepper-mobile {
+    display: grid !important;
+  }
+
+  .model-run-mobile-wrapper {
+    display: block !important;
+  }
+
+  /* Full-width Terminal Logs on Fold / Tablet / Split Screen */
+  .toolbar-row {
+    flex-wrap: wrap !important;
+  }
+
+  .btn-toolbar-terminal {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* Phone Breakpoint (< 580px) */
+@media (max-width: 580px) {
+  .model-header-ap-filename {
+    display: none !important;
+  }
+}
 
 /* Base Card & Accordion Card Styles */
 .card {
