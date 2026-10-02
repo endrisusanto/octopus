@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { PlayIcon, CloseIcon, FlashlightIcon, SunIcon, Volume2Icon, CheckIcon } from './Icons';
+import React, { useState, useEffect } from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
 
@@ -27,7 +26,7 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   const [postTorch, setPostTorch] = useState<boolean>(torchMode !== 'tweet');
   const [postSound, setPostSound] = useState<boolean>(torchMode === 'tweet');
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setPostTorch(torchMode !== 'tweet');
       setPostSound(torchMode === 'tweet');
@@ -45,59 +44,36 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose} style={{ zIndex: 100000 }}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: '520px',
-          width: '94%',
-          padding: '1.2rem 1.4rem',
-          borderRadius: 'var(--radius-lg, 14px)',
-          backgroundColor: 'var(--bg-surface, #1e293b)',
-          border: '1px solid var(--border-subtle, #334155)',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6), 0 0 32px rgba(59, 130, 246, 0.25)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          animation: 'slideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-      >
+    <div className="automation-confirm-backdrop" onClick={onClose}>
+      <div className="automation-confirm-card" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent-primary, #3b82f6)',
-                flexShrink: 0,
-              }}
-            >
-              <PlayIcon size={18} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary, #f8fafc)', margin: 0 }}>
-                Konfirmasi Jalankan Automasi
-              </h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px' }}>
-                Siap memproses <strong>{count} Perangkat</strong> secara terorkestrasikan
-              </p>
-            </div>
+          <div>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              Jalankan Automasi
+            </h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+              {count} perangkat siap diproses
+            </p>
           </div>
-
           <button
             type="button"
             onClick={onClose}
             className="btn btn-icon"
-            style={{ width: '28px', height: '28px', color: 'var(--text-muted, #64748b)' }}
+            style={{
+              width: '26px',
+              height: '26px',
+              color: 'var(--text-muted)',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+            }}
+            aria-label="Tutup"
           >
-            <CloseIcon size={16} />
+            ✕
           </button>
         </div>
 
@@ -105,31 +81,31 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
         <div
           style={{
             backgroundColor: 'var(--bg-subtle, #0f172a)',
-            borderRadius: '8px',
-            padding: '0.65rem 0.85rem',
+            borderRadius: '6px',
+            padding: '0.5rem 0.65rem',
             border: '1px solid var(--border-subtle, #334155)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.45rem',
-            maxHeight: '130px',
+            gap: '0.35rem',
+            maxHeight: '95px',
             overflowY: 'auto',
           }}
         >
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary, #94a3b8)' }}>
-            DAFTAR PERANGKAT TARGET ({count} UNIT):
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+            TARGET ({count}):
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
             {targetDevices.map((d) => (
               <span
                 key={d.id}
                 style={{
-                  fontSize: '0.7rem',
+                  fontSize: '0.68rem',
                   fontWeight: 600,
                   backgroundColor: 'rgba(59, 130, 246, 0.12)',
                   color: 'var(--accent-primary, #60a5fa)',
                   border: '1px solid rgba(59, 130, 246, 0.25)',
-                  padding: '0.15rem 0.45rem',
-                  borderRadius: '4px',
+                  padding: '0.1rem 0.35rem',
+                  borderRadius: '3px',
                   fontFamily: 'var(--font-mono)',
                 }}
               >
@@ -144,122 +120,116 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
           style={{
             display: 'flex',
             flexWrap: 'wrap',
-            gap: '0.4rem',
-            fontSize: '0.72rem',
+            gap: '0.3rem',
+            fontSize: '0.7rem',
           }}
         >
           {apFilename && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--accent-primary, #60a5fa)', fontWeight: 600 }}>
-              <CheckIcon size={12} /> Odin Flash
+            <span style={{ backgroundColor: 'rgba(59, 130, 246, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '3px', color: '#60a5fa', fontWeight: 600 }}>
+              Odin Flash
             </span>
           )}
           {workflowConfig.skipSuw && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#10b981', fontWeight: 600 }}>
-              <CheckIcon size={12} /> Skip SUW
+            <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '3px', color: '#10b981', fontWeight: 600 }}>
+              Skip SUW
             </span>
           )}
           {workflowConfig.setupGba && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(168, 85, 247, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#c084fc', fontWeight: 600 }}>
-              <CheckIcon size={12} /> Setup GBA
+            <span style={{ backgroundColor: 'rgba(168, 85, 247, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '3px', color: '#c084fc', fontWeight: 600 }}>
+              Setup GBA
             </span>
           )}
           {workflowConfig.wifiEnabled && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: '#f59e0b', fontWeight: 600 }}>
-              <CheckIcon size={12} /> Wi-Fi ({workflowConfig.wifiSsid})
+            <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.12)', padding: '0.15rem 0.45rem', borderRadius: '3px', color: '#f59e0b', fontWeight: 600 }}>
+              Wi-Fi: {workflowConfig.wifiSsid}
             </span>
           )}
         </div>
 
         {/* Post Completed Action Checkboxes */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
           {/* Torch Option */}
-          <div
+          <label
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.55rem',
+              cursor: 'pointer',
+              userSelect: 'none',
               backgroundColor: postTorch ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-subtle, #0f172a)',
-              border: postTorch ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-subtle, #334155)',
-              borderRadius: '10px',
-              padding: '0.65rem 0.85rem',
+              border: postTorch ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-subtle, #334155)',
+              borderRadius: '8px',
+              padding: '0.5rem 0.65rem',
               transition: 'all 0.15s ease',
             }}
           >
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={postTorch}
-                onChange={(e) => setPostTorch(e.target.checked)}
-                style={{
-                  width: '17px',
-                  height: '17px',
-                  marginTop: '2px',
-                  cursor: 'pointer',
-                  accentColor: '#f59e0b',
-                }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  {torchMode === 'screen' ? (
-                    <SunIcon size={14} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
-                  ) : (
-                    <FlashlightIcon size={14} fill={postTorch ? '#f59e0b' : 'none'} style={{ color: postTorch ? '#f59e0b' : 'var(--text-secondary)' }} />
-                  )}
-                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: postTorch ? '#f59e0b' : 'var(--text-primary, #f8fafc)' }}>
-                    Nyalakan Senter ({torchMode === 'screen' ? 'Screen Brightness 100%' : 'Flash Kamera Belakang'})
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px', lineHeight: 1.3 }}>
-                  {torchMode === 'screen'
-                    ? 'Layar perangkat otomatis menyala putih terang 100% di rak sampel sebagai penanda visual Pass.'
-                    : 'Flash HP otomatis menyala di rak sampel fisik sebagai penanda visual Pass.'}
-                </p>
+            <input
+              type="checkbox"
+              checked={postTorch}
+              onChange={(e) => setPostTorch(e.target.checked)}
+              style={{
+                width: '16px',
+                height: '16px',
+                cursor: 'pointer',
+                accentColor: '#f59e0b',
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: postTorch ? '#f59e0b' : 'var(--text-primary)' }}>
+                Senter ({torchMode === 'screen' ? 'Layar 100%' : 'Flash'})
               </div>
-            </label>
-          </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.2 }}>
+                Visual saat Pass
+              </div>
+            </div>
+          </label>
 
-          {/* Sound Tweet Option */}
-          <div
+          {/* Sound Option */}
+          <label
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.55rem',
+              cursor: 'pointer',
+              userSelect: 'none',
               backgroundColor: postSound ? 'rgba(59, 130, 246, 0.08)' : 'var(--bg-subtle, #0f172a)',
-              border: postSound ? '1.5px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border-subtle, #334155)',
-              borderRadius: '10px',
-              padding: '0.65rem 0.85rem',
+              border: postSound ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border-subtle, #334155)',
+              borderRadius: '8px',
+              padding: '0.5rem 0.65rem',
               transition: 'all 0.15s ease',
             }}
           >
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
-                checked={postSound}
-                onChange={(e) => setPostSound(e.target.checked)}
-                style={{
-                  width: '17px',
-                  height: '17px',
-                  marginTop: '2px',
-                  cursor: 'pointer',
-                  accentColor: '#3b82f6',
-                }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Volume2Icon size={14} style={{ color: postSound ? '#60a5fa' : 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: 800, color: postSound ? '#60a5fa' : 'var(--text-primary, #f8fafc)' }}>
-                    Putar Suara Notifikasi Tweet (Audio Pass)
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary, #94a3b8)', margin: 0, marginTop: '2px', lineHeight: 1.3 }}>
-                  Perangkat memutar suara notifikasi Tweet via SoundPool DEX runner sebagai penanda audio alur selesai.
-                </p>
+            <input
+              type="checkbox"
+              checked={postSound}
+              onChange={(e) => setPostSound(e.target.checked)}
+              style={{
+                width: '16px',
+                height: '16px',
+                cursor: 'pointer',
+                accentColor: '#3b82f6',
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: postSound ? '#60a5fa' : 'var(--text-primary)' }}>
+                Suara (Tweet)
               </div>
-            </label>
-          </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', lineHeight: 1.2 }}>
+                Audio saat selesai
+              </div>
+            </div>
+          </label>
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.2rem' }}>
           <button
             type="button"
             onClick={onClose}
             className="btn btn-outline"
-            style={{ fontSize: '0.82rem', padding: '0.45rem 1rem' }}
+            style={{ fontSize: '0.78rem', padding: '0.4rem 0.85rem' }}
           >
             Batal
           </button>
@@ -268,17 +238,13 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
             onClick={handleStart}
             className="btn btn-primary"
             style={{
-              fontSize: '0.82rem',
-              padding: '0.45rem 1.25rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
+              fontSize: '0.78rem',
+              padding: '0.4rem 1rem',
               fontWeight: 700,
-              boxShadow: '0 0 16px rgba(59, 130, 246, 0.4)',
+              boxShadow: '0 0 14px rgba(59, 130, 246, 0.35)',
             }}
           >
-            <PlayIcon size={14} />
-            <span>Mulai Automasi ({count} Unit)</span>
+            Jalankan ({count})
           </button>
         </div>
       </div>
