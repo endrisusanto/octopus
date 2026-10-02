@@ -22,6 +22,8 @@ interface ReadyDevicesAccordionProps {
   isFirmwareForModel: (apFilename: string | undefined, modelName: string | undefined) => boolean;
   isMd5Verifying?: boolean;
   md5VerifyProgress?: number;
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
 }
 
 export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
@@ -42,8 +44,12 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
   isFirmwareForModel,
   isMd5Verifying = false,
   md5VerifyProgress = 0,
+  isOpen: isOpenProp,
+  onToggleOpen,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [internalIsOpen, setInternalIsOpen] = useState(true);
+  const isOpen = isOpenProp !== undefined ? isOpenProp : internalIsOpen;
+  const toggleOpen = onToggleOpen || (() => setInternalIsOpen(!internalIsOpen));
   const [modelFilter, setModelFilter] = useState<string | null>(null);
   const wifiLongPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isWifiLongPressedRef = React.useRef(false);
@@ -126,7 +132,7 @@ export const ReadyDevicesAccordion: React.FC<ReadyDevicesAccordionProps> = ({
       {/* Header Accordion */}
       <div
         className="accordion-header ready-header-layout"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         style={{
           cursor: 'pointer',
           userSelect: 'none',

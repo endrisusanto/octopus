@@ -28,9 +28,6 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleReset = () => {
-    try {
-      localStorage.removeItem('octopus_device_ap_map');
-    } catch (_) {}
     this.setState({ hasError: false, error: null });
   };
 

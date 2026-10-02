@@ -40,6 +40,12 @@ interface ModelParentAccordionProps {
   onRefreshBinaries?: () => void;
   onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
   isFirmwareForModel: (ap?: string, model?: string) => boolean;
+  isParentOpen?: boolean;
+  onToggleParentOpen?: () => void;
+  isFirmwareOpen?: boolean;
+  onToggleFirmwareOpen?: () => void;
+  isDevicesOpen?: boolean;
+  onToggleDevicesOpen?: () => void;
 }
 
 const SLOT_CONFIGS: { key: keyof FirmwareSlotsMap; label: string; name: string; color: string; bg: string }[] = [
@@ -71,11 +77,26 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
   onRefreshBinaries,
   onCopyBinary,
   isFirmwareForModel,
+  isParentOpen: isParentOpenProp,
+  onToggleParentOpen,
+  isFirmwareOpen: isFirmwareOpenProp,
+  onToggleFirmwareOpen,
+  isDevicesOpen: isDevicesOpenProp,
+  onToggleDevicesOpen,
 }) => {
   // Accordion open/collapse states
-  const [isParentOpen, setIsParentOpen] = useState(true);
-  const [isFirmwareOpen, setIsFirmwareOpen] = useState(true);
-  const [isDevicesOpen, setIsDevicesOpen] = useState(true);
+  const [internalParentOpen, setInternalParentOpen] = useState(true);
+  const [internalFirmwareOpen, setInternalFirmwareOpen] = useState(true);
+  const [internalDevicesOpen, setInternalDevicesOpen] = useState(true);
+
+  const isParentOpen = isParentOpenProp !== undefined ? isParentOpenProp : internalParentOpen;
+  const isFirmwareOpen = isFirmwareOpenProp !== undefined ? isFirmwareOpenProp : internalFirmwareOpen;
+  const isDevicesOpen = isDevicesOpenProp !== undefined ? isDevicesOpenProp : internalDevicesOpen;
+
+  const toggleParentOpen = onToggleParentOpen || (() => setInternalParentOpen(!internalParentOpen));
+  const toggleFirmwareOpen = onToggleFirmwareOpen || (() => setInternalFirmwareOpen(!internalFirmwareOpen));
+  const toggleDevicesOpen = onToggleDevicesOpen || (() => setInternalDevicesOpen(!internalDevicesOpen));
+
   const [activeSlotModal, setActiveSlotModal] = useState<keyof FirmwareSlotsMap | null>(null);
 
   const wifiLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -273,7 +294,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
           ========================================================================= */}
       <div
         className="accordion-header parent-model-header"
-        onClick={() => setIsParentOpen(!isParentOpen)}
+        onClick={toggleParentOpen}
         style={{
           cursor: 'pointer',
           userSelect: 'none',
@@ -301,7 +322,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
               style={{ padding: 0, flexShrink: 0, width: '26px', height: '26px' }}
               onClick={(e) => {
                 e.stopPropagation();
-                setIsParentOpen(!isParentOpen);
+                toggleParentOpen();
               }}
             >
               {isParentOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
@@ -464,7 +485,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
                 style={{ padding: 0, flexShrink: 0, width: '22px', height: '22px' }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsParentOpen(!isParentOpen);
+                  toggleParentOpen();
                 }}
               >
                 {isParentOpen ? <ChevronUpIcon size={14} /> : <ChevronDownIcon size={14} />}
@@ -608,7 +629,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
             {/* Header Child 1 */}
             <div
               className="child-accordion-header"
-              onClick={() => setIsFirmwareOpen(!isFirmwareOpen)}
+              onClick={toggleFirmwareOpen}
               style={{
                 padding: '0.55rem 0.85rem',
                 display: 'flex',
@@ -871,7 +892,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
               {/* Header Child 2 */}
               <div
                 className="child-accordion-header"
-                onClick={() => setIsDevicesOpen(!isDevicesOpen)}
+                onClick={toggleDevicesOpen}
                 style={{
                   padding: '0.55rem 0.85rem',
                   display: 'flex',

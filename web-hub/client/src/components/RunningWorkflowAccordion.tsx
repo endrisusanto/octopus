@@ -12,6 +12,8 @@ interface RunningWorkflowAccordionProps {
   binaries?: BinaryItem[];
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
 }
 
 export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> = ({
@@ -20,8 +22,12 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
   lastFlashedAp,
   deviceApMap,
   binaries,
+  isOpen: isOpenProp,
+  onToggleOpen,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [internalIsOpen, setInternalIsOpen] = useState(true);
+  const isOpen = isOpenProp !== undefined ? isOpenProp : internalIsOpen;
+  const toggleOpen = onToggleOpen || (() => setInternalIsOpen(!internalIsOpen));
 
   if (devices.length === 0) return null;
 
@@ -37,7 +43,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
       {/* Header Accordion without Bolt Icon */}
       <div
         className="accordion-header"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         style={{
           display: 'flex',
           alignItems: 'center',

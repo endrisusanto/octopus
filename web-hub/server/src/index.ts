@@ -110,6 +110,23 @@ let globalModelProfiles: Record<string, ModelProfile> = {
 };
 
 let globalSelectedDeviceIds: string[] = [];
+let globalDeviceApMap: Record<string, string> = {};
+let globalAccordionStates: Record<string, boolean> = {
+  'running': true,
+  'completed': true,
+  'ready': true,
+};
+let globalTorchMode: 'flash' | 'screen' | 'tweet' = 'flash';
+let globalStandbyWorkflowConfig: WorkflowConfig = {
+  binaryFile: '',
+  odinFlash: false,
+  skipSuw: true,
+  setupGba: true,
+  wifiEnabled: true,
+  wifiSsid: 'RTT / IEEE 802.11',
+  wifiPassword: '1234qwer',
+};
+
 let globalRackCalibration: any = {
   layout: [
     [1, 1, 0, 1, 1, 0, 1, 1],
@@ -122,6 +139,21 @@ let globalRackCalibration: any = {
 };
 
 let globalCustomSound: { filename: string; dataBase64: string } | null = null;
+
+// ponytail: Helper to broadcast single unified session state snapshot
+function broadcastSessionState() {
+  broadcastToUI('SESSION_STATE_SYNC', {
+    modelProfiles: globalModelProfiles,
+    firmwareSlots: globalFirmwareSlots,
+    workflowConfig: globalWorkflowConfig,
+    selectedDeviceIds: globalSelectedDeviceIds,
+    customSoundName: globalCustomSound?.filename || null,
+    deviceApMap: globalDeviceApMap,
+    accordionStates: globalAccordionStates,
+    torchMode: globalTorchMode,
+    standbyWorkflowConfig: globalStandbyWorkflowConfig,
+  });
+}
 
 // ponytail: Memory-efficient fleet & binary registry
 const connectedBridges = new Map<string, BridgeNode>();
@@ -593,6 +625,10 @@ wss.on('connection', (ws, req) => {
         workflowConfig: globalWorkflowConfig,
         selectedDeviceIds: globalSelectedDeviceIds,
         customSoundName: globalCustomSound?.filename || null,
+        deviceApMap: globalDeviceApMap,
+        accordionStates: globalAccordionStates,
+        torchMode: globalTorchMode,
+        standbyWorkflowConfig: globalStandbyWorkflowConfig,
       },
       timestamp: Date.now(),
     }));
@@ -617,24 +653,42 @@ wss.on('connection', (ws, req) => {
           if (msg.payload?.modelProfiles) {
             globalModelProfiles = msg.payload.modelProfiles;
             console.log(`[Model Profiles Sync] Synced ${Object.keys(globalModelProfiles).length} model profiles`);
-            broadcastToUI('SESSION_STATE_SYNC', {
-              modelProfiles: globalModelProfiles,
-              firmwareSlots: globalFirmwareSlots,
-              workflowConfig: globalWorkflowConfig,
-              selectedDeviceIds: globalSelectedDeviceIds,
-              customSoundName: globalCustomSound?.filename || null,
-            });
+            broadcastSessionState();
           }
         } else if (msg.type === 'SYNC_FIRMWARE_SLOTS') {
           if (msg.payload?.firmwareSlots) {
             globalFirmwareSlots = msg.payload.firmwareSlots;
-            broadcastToUI('SESSION_STATE_SYNC', {
-              modelProfiles: globalModelProfiles,
-              firmwareSlots: globalFirmwareSlots,
-              workflowConfig: globalWorkflowConfig,
-              selectedDeviceIds: globalSelectedDeviceIds,
-              customSoundName: globalCustomSound?.filename || null,
-            });
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_WORKFLOW_CONFIG') {
+          if (msg.payload?.workflowConfig) {
+            globalWorkflowConfig = msg.payload.workflowConfig;
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_SELECTED_DEVICES') {
+          if (msg.payload?.selectedDeviceIds) {
+            globalSelectedDeviceIds = msg.payload.selectedDeviceIds;
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_DEVICE_AP_MAP') {
+          if (msg.payload?.deviceApMap) {
+            globalDeviceApMap = { ...globalDeviceApMap, ...msg.payload.deviceApMap };
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_ACCORDION_STATES') {
+          if (msg.payload?.accordionStates) {
+            globalAccordionStates = { ...globalAccordionStates, ...msg.payload.accordionStates };
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_TORCH_MODE') {
+          if (msg.payload?.torchMode) {
+            globalTorchMode = msg.payload.torchMode;
+            broadcastSessionState();
+          }
+        } else if (msg.type === 'SYNC_STANDBY_WORKFLOW_CONFIG') {
+          if (msg.payload?.standbyWorkflowConfig) {
+            globalStandbyWorkflowConfig = msg.payload.standbyWorkflowConfig;
+            broadcastSessionState();
           }
         } else if (msg.type === 'SAVE_RACK_CALIBRATION') {
           const calibData = msg.payload?.calibration || msg.payload;
@@ -669,24 +723,6 @@ wss.on('connection', (ws, req) => {
                 },
               }));
             }
-          }
-        } else if (msg.type === 'SYNC_WORKFLOW_CONFIG') {
-          if (msg.payload?.workflowConfig) {
-            globalWorkflowConfig = msg.payload.workflowConfig;
-            broadcastToUI('SESSION_STATE_SYNC', {
-              firmwareSlots: globalFirmwareSlots,
-              workflowConfig: globalWorkflowConfig,
-              selectedDeviceIds: globalSelectedDeviceIds,
-            });
-          }
-        } else if (msg.type === 'SYNC_SELECTED_DEVICES') {
-          if (msg.payload?.selectedDeviceIds) {
-            globalSelectedDeviceIds = msg.payload.selectedDeviceIds;
-            broadcastToUI('SESSION_STATE_SYNC', {
-              firmwareSlots: globalFirmwareSlots,
-              workflowConfig: globalWorkflowConfig,
-              selectedDeviceIds: globalSelectedDeviceIds,
-            });
           }
         } else if (msg.type === 'START_WORKFLOW' || msg.type === 'START_TASK') {
           const { deviceIds, targetIds, config: wfConfig, ...directParams } = msg.payload || {};
@@ -771,8 +807,12 @@ wss.on('connection', (ws, req) => {
                     },
                   },
                 }));
+                if (apFile) {
+                  globalDeviceApMap[devId] = apFile;
+                }
               }
             }
+            broadcastSessionState();
           }
         } else if (msg.type === 'TOGGLE_TORCH' || msg.type === 'SET_TORCH') {
           const { deviceId, targetPcId, serial, deviceIds, state, mode } = msg.payload || {};

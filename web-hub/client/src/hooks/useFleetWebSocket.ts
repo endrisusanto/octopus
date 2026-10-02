@@ -39,6 +39,10 @@ export interface SessionStatePayload {
   workflowConfig?: any;
   selectedDeviceIds?: string[];
   customSoundName?: string | null;
+  deviceApMap?: Record<string, string>;
+  accordionStates?: Record<string, boolean>;
+  torchMode?: 'flash' | 'screen' | 'tweet';
+  standbyWorkflowConfig?: any;
 }
 
 export interface RackSlotMapping {
@@ -77,9 +81,7 @@ export function useFleetWebSocket() {
   const [serverSessionState, setServerSessionState] = useState<SessionStatePayload | null>(null);
   const [rackCalibration, setRackCalibration] = useState<RackCalibrationData | null>(null);
   const [pendingTorchIds, setPendingTorchIds] = useState<string[]>([]);
-  const [customSoundName, setCustomSoundName] = useState<string | null>(() => {
-    return localStorage.getItem('octopus_custom_sound_name') || null;
-  });
+  const [customSoundName, setCustomSoundName] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -224,11 +226,6 @@ export function useFleetWebSocket() {
                 setServerSessionState(msg.payload);
                 if (msg.payload.customSoundName !== undefined) {
                   setCustomSoundName(msg.payload.customSoundName || null);
-                  if (msg.payload.customSoundName) {
-                    localStorage.setItem('octopus_custom_sound_name', msg.payload.customSoundName);
-                  } else {
-                    localStorage.removeItem('octopus_custom_sound_name');
-                  }
                 }
               }
               break;
@@ -237,11 +234,6 @@ export function useFleetWebSocket() {
             case 'CUSTOM_SOUND_SYNC': {
               const name = msg.payload?.customSoundName || null;
               setCustomSoundName(name);
-              if (name) {
-                localStorage.setItem('octopus_custom_sound_name', name);
-              } else {
-                localStorage.removeItem('octopus_custom_sound_name');
-              }
               break;
             }
 
@@ -460,7 +452,6 @@ export function useFleetWebSocket() {
             );
           }
           setCustomSoundName(file.name);
-          localStorage.setItem('octopus_custom_sound_name', file.name);
           resolve();
         } catch (err) {
           reject(err);
@@ -480,7 +471,6 @@ export function useFleetWebSocket() {
       );
     }
     setCustomSoundName(null);
-    localStorage.removeItem('octopus_custom_sound_name');
   }, []);
 
   const requestCopyBinary = useCallback((sourcePcId: string, targetPcId: string, filename: string, path?: string) => {
@@ -554,6 +544,50 @@ export function useFleetWebSocket() {
     }
   }, []);
 
+  const syncDeviceApMap = useCallback((deviceApMap: Record<string, string>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_DEVICE_AP_MAP',
+          payload: { deviceApMap },
+        })
+      );
+    }
+  }, []);
+
+  const syncAccordionStates = useCallback((accordionStates: Record<string, boolean>) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_ACCORDION_STATES',
+          payload: { accordionStates },
+        })
+      );
+    }
+  }, []);
+
+  const syncTorchMode = useCallback((torchMode: 'flash' | 'screen' | 'tweet') => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_TORCH_MODE',
+          payload: { torchMode },
+        })
+      );
+    }
+  }, []);
+
+  const syncStandbyWorkflowConfig = useCallback((standbyWorkflowConfig: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'SYNC_STANDBY_WORKFLOW_CONFIG',
+          payload: { standbyWorkflowConfig },
+        })
+      );
+    }
+  }, []);
+
   const startWorkflow = useCallback((deviceIds: string[], config: any) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(
@@ -585,6 +619,10 @@ export function useFleetWebSocket() {
     syncWorkflowConfig,
     syncSelectedDevices,
     syncModelProfiles,
+    syncDeviceApMap,
+    syncAccordionStates,
+    syncTorchMode,
+    syncStandbyWorkflowConfig,
     startWorkflow,
     dispatchAction,
     toggleTorch,

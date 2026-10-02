@@ -10,6 +10,8 @@ interface CompletedWorkflowAccordionProps {
   onRerunAutomation?: (deviceIds: string[]) => void;
   onToggleTorch?: (deviceId: string, pcId: string, serial?: string) => void;
   pendingTorchIds?: string[];
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
 }
 
 export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProps> = ({
@@ -20,8 +22,12 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
   onRerunAutomation,
   onToggleTorch,
   pendingTorchIds,
+  isOpen: isOpenProp,
+  onToggleOpen,
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [internalIsOpen, setInternalIsOpen] = useState(true);
+  const isOpen = isOpenProp !== undefined ? isOpenProp : internalIsOpen;
+  const toggleOpen = onToggleOpen || (() => setInternalIsOpen(!internalIsOpen));
 
   if (devices.length === 0) return null;
 
@@ -40,7 +46,7 @@ export const CompletedWorkflowAccordion: React.FC<CompletedWorkflowAccordionProp
       {/* Header Accordion */}
       <div
         className="accordion-header"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         style={{
           display: 'flex',
           alignItems: 'center',
