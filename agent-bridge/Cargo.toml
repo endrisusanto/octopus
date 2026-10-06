@@ -1,6 +1,6 @@
 [package]
 name = "octopus-agent-bridge"
-version = "1.0.34"
+version = "1.0.35"
 edition = "2021"
 description = "Lightweight Rust Agent Bridge for Octopus Distributed Web Hub"
 

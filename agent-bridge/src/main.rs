@@ -1448,7 +1448,7 @@ fn main() {
 
             let tray_menu = Menu::with_items(app, &[&status_item, &show_item, &web_item, &quit_item])?;
 
-            let mut tray_builder = TrayIconBuilder::with_id("main_tray")
+            let mut tray_builder = TrayIconBuilder::with_id("octopus_agent_bridge_tray")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
