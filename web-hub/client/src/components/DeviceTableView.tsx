@@ -170,6 +170,7 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                       )}
                       {device.buildType && (
                         <span
+                          className={`badge ${device.buildType.toLowerCase().includes('userdebug') ? 'badge-userdebug' : ''}`}
                           style={{
                             fontSize: '0.65rem',
                             padding: '0.05rem 0.35rem',
@@ -182,7 +183,14 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                           }}
                           title={`Build Type: ${device.buildType}`}
                         >
-                          {device.buildType.toUpperCase()}
+                          {device.buildType.toLowerCase().includes('userdebug') ? (
+                            <>
+                              <span className="badge-text-full">USERDEBUG</span>
+                              <span className="badge-text-short">DEBUG</span>
+                            </>
+                          ) : (
+                            device.buildType.toUpperCase()
+                          )}
                         </span>
                       )}
                     </div>

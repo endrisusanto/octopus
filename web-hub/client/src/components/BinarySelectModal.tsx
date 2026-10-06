@@ -11,6 +11,7 @@ interface BinarySelectModalProps {
   bridges?: BridgeInfo[];
   devices?: DeviceItem[];
   preferredPcId?: string;
+  preferredModel?: string | null;
   onSave: (binaryFile: string) => void;
   onRefreshBinaries?: () => void;
   onCopyBinary?: (sourcePcId: string, targetPcId: string, filename: string, path?: string) => void;
@@ -32,6 +33,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
   bridges,
   devices,
   preferredPcId,
+  preferredModel,
   onSave,
   onRefreshBinaries,
   onCopyBinary,
@@ -41,9 +43,12 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
     if (preferredPcId && preferredPcId.trim()) return preferredPcId;
     return localStorage.getItem('octopus_binary_select_pc') || 'all';
   });
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(() => {
+    const raw = preferredModel || (currentBinary ? extractModelFromFirmware(currentBinary) : null);
+    return raw ? (extractCoreModel(raw) || raw) : null;
+  });
 
-  // Auto-align selected PC node to the first loaded file source node whenever modal is opened
+  // Auto-align selected PC node and model filter whenever modal is opened
   React.useEffect(() => {
     if (isOpen) {
       if (preferredPcId && preferredPcId.trim()) {
@@ -54,8 +59,17 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
           setSelectedPc(saved);
         }
       }
+
+      /* ponytail: auto-filter to related model from previously picked slot or current binary */
+      const rawTarget = preferredModel || (currentBinary ? extractModelFromFirmware(currentBinary) : null);
+      if (rawTarget) {
+        const core = extractModelFromFirmware(rawTarget) || extractCoreModel(rawTarget) || rawTarget;
+        setSelectedModel(core);
+      } else {
+        setSelectedModel(null);
+      }
     }
-  }, [isOpen, preferredPcId]);
+  }, [isOpen, preferredPcId, preferredModel, currentBinary]);
 
   const handleSelectPc = (pc: string) => {
     setSelectedPc(pc);
@@ -127,7 +141,10 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
     let matchModel = true;
     if (selectedModel) {
       const detected = extractModelFromFirmware(b.filename);
-      matchModel = detected === selectedModel || b.filename.toUpperCase().includes(selectedModel.toUpperCase());
+      const cleanSelected = extractCoreModel(selectedModel).toUpperCase();
+      matchModel =
+        detected.toUpperCase() === cleanSelected ||
+        b.filename.toUpperCase().includes(cleanSelected);
     }
 
     return matchSearch && matchPc && matchModel;
@@ -212,13 +229,13 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
               </button>
               {availableModels.map((model) => {
                 const count = modelCounts[model];
-                const isActive = selectedModel === model;
+                const isActive = Boolean(selectedModel && (selectedModel.toUpperCase() === model.toUpperCase() || extractCoreModel(selectedModel).toUpperCase() === model.toUpperCase()));
                 const isConnected = isModelConnected(model);
                 return (
                   <button
                     key={model}
                     type="button"
-                    onClick={() => setSelectedModel((prev) => (prev === model ? null : model))}
+                    onClick={() => setSelectedModel((prev) => (prev && (prev.toUpperCase() === model.toUpperCase() || extractCoreModel(prev).toUpperCase() === model.toUpperCase()) ? null : model))}
                     className={`binary-chip-btn ${isActive ? 'active' : ''} ${isConnected ? 'is-connected' : ''}`}
                     title={isConnected ? `Model ${model} terhubung dan aktif di Workstation PC` : undefined}
                   >

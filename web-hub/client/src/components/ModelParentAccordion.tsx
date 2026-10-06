@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { DeviceItem, extractModelFromFirmware } from '../hooks/useFlashKitSort';
+import { DeviceItem, extractModelFromFirmware, extractCoreModel } from '../hooks/useFlashKitSort';
 import { WorkflowConfig } from './WorkflowStepper';
 import { FirmwareSlotsMap } from './FirmwareAccordion';
 import { DeviceTableView } from './DeviceTableView';
@@ -125,7 +125,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
   const detectedModel = apFilename ? extractModelFromFirmware(apFilename) : null;
   const displayModelName = detectedModel
     ? (detectedModel.toUpperCase().startsWith('SM-') ? detectedModel.toUpperCase() : `SM-${detectedModel.toUpperCase()}`)
-    : (modelKey.toUpperCase().includes('MODEL') ? 'FIRMWARE & MODEL' : modelKey.toUpperCase());
+    : (modelKey.toUpperCase().includes('MODEL') ? 'FIRMWARE & DEVICES' : modelKey.toUpperCase());
   const validDeviceIds = devices.map((d) => d.id);
   const selectedModelIds = validDeviceIds.filter((id) => selectedIds.includes(id));
   const isAllSelected = selectedModelIds.length === validDeviceIds.length && validDeviceIds.length > 0;
@@ -136,6 +136,23 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
     }
     return undefined;
   }, [safeSlots]);
+
+  // Auto-detect the active model from any previously picked slot or modelKey
+  const activeModel = useMemo(() => {
+    const slotsOrder: (keyof FirmwareSlotsMap)[] = ['ap', 'bl', 'cp', 'csc', 'userdata'];
+    for (const k of slotsOrder) {
+      if (safeSlots[k]?.filename) {
+        const m = extractModelFromFirmware(safeSlots[k].filename);
+        if (m) return m;
+      }
+    }
+    if (detectedModel) return detectedModel;
+    const core = extractCoreModel(modelKey);
+    if (core && core.length >= 3 && core !== 'UNKNOWN' && !core.includes('ALL') && !core.includes('MODEL')) {
+      return core;
+    }
+    return undefined;
+  }, [safeSlots, detectedModel, modelKey]);
 
   const hasAnyFile = Object.values(safeSlots).some((s) => s.filename.length > 0);
   const isAnyVerifying = Object.values(safeSlots).some((s) => s.status === 'verifying');
@@ -323,7 +340,6 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
                 {isParentOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
               </button>
 
-              <span className="model-header-tag">MODEL</span>
               <span className="model-header-title">{displayModelName}</span>
               {renderBuildBadge()}
               {apFilename && (
@@ -838,6 +854,7 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
           bridges={bridges}
           devices={allDevices || devices}
           preferredPcId={firstLoadedPcId}
+          preferredModel={activeModel}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);
             setActiveSlotModal(null);

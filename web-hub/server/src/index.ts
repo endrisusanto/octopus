@@ -978,44 +978,84 @@ wss.on('connection', (ws, req) => {
         } else if (msg.type === 'DISPATCH_ACTION') {
           const { targetPcId, deviceId, action, params } = msg.payload;
 
-          if (action === 'RESET_STATUS') {
+          const isAbortOrReset =
+            action === 'RESET_STATUS' ||
+            action === 'ABORT_TASK' ||
+            action === 'ABORT_WORKFLOW' ||
+            action === 'CANCEL_WORKFLOW' ||
+            action === 'STOP_WORKFLOW';
+
+          if (isAbortOrReset) {
+            const isAbort = action !== 'RESET_STATUS';
             if (deviceId === 'all') {
               for (const [_, d] of fleetDevices) {
-                if (d.status === 'Pass' || d.status === 'Fail' || d.status === 'Flashing...') {
-                  d.status = 'Ready';
-                  d.progress = 0;
-                  d.currentTask = undefined;
-                  broadcastToUI('DEVICE_PROGRESS_UPDATE', d);
-                }
+                d.status = 'Ready';
+                d.progress = 0;
+                d.currentTask = isAbort ? 'Workflow Dibatalkan' : undefined;
+                broadcastToUI('DEVICE_PROGRESS_UPDATE', d);
               }
             } else {
               for (const [_, d] of fleetDevices) {
-                if (d.id === deviceId || d.serial === deviceId || d.port === deviceId) {
+                const isMatch =
+                  d.id === deviceId ||
+                  d.serial === deviceId ||
+                  d.port === deviceId ||
+                  (params?.serial && d.serial === params.serial) ||
+                  (params?.id && d.id === params.id) ||
+                  (params?.port && d.port === params.port);
+
+                if (isMatch) {
                   d.status = 'Ready';
                   d.progress = 0;
-                  d.currentTask = undefined;
+                  d.currentTask = isAbort ? 'Workflow Dibatalkan' : undefined;
                   broadcastToUI('DEVICE_PROGRESS_UPDATE', d);
                 }
               }
             }
           }
 
-          if (targetPcId === 'all' || !connectedBridges.has(targetPcId)) {
+          // Find device info to enrich parameters for bridge
+          let matchedDev: DeviceInfo | undefined;
+          if (deviceId !== 'all') {
+            for (const [_, d] of fleetDevices) {
+              if (
+                d.id === deviceId ||
+                d.serial === deviceId ||
+                d.port === deviceId ||
+                (params?.serial && d.serial === params.serial) ||
+                (params?.id && d.id === params.id)
+              ) {
+                matchedDev = d;
+                break;
+              }
+            }
+          }
+
+          const enrichedParams = {
+            ...params,
+            serial: matchedDev?.serial || params?.serial,
+            port: matchedDev?.port || params?.port,
+            id: matchedDev?.id || params?.id,
+          };
+
+          const effectivePcId = targetPcId && targetPcId !== 'all' ? targetPcId : matchedDev?.pcId;
+
+          if (!effectivePcId || effectivePcId === 'all' || !connectedBridges.has(effectivePcId)) {
             // Broadcast command to all connected bridges
             for (const b of connectedBridges.values()) {
               if (b.ws && b.ws.readyState === WebSocket.OPEN) {
                 b.ws.send(JSON.stringify({
                   type: 'EXECUTE_COMMAND',
-                  payload: { deviceId, action, params },
+                  payload: { deviceId, action, params: enrichedParams },
                 }));
               }
             }
           } else {
-            const bridge = connectedBridges.get(targetPcId);
+            const bridge = connectedBridges.get(effectivePcId);
             if (bridge && bridge.ws && bridge.ws.readyState === WebSocket.OPEN) {
               // Optimistic update state on server
-              const fullKey = `${targetPcId}:${deviceId}`;
-              const dev = fleetDevices.get(fullKey);
+              const fullKey = `${effectivePcId}:${deviceId}`;
+              const dev = fleetDevices.get(fullKey) || matchedDev;
               if (dev) {
                 if (action === 'WORKFLOW_PIPELINE' || action === 'flash' || action === 'FLASH_ODIN') {
                   dev.status = 'Flashing...';
@@ -1031,12 +1071,12 @@ wss.on('connection', (ws, req) => {
 
               bridge.ws.send(JSON.stringify({
                 type: 'EXECUTE_COMMAND',
-                payload: { deviceId, action, params },
+                payload: { deviceId, action, params: enrichedParams },
               }));
             } else {
               ws.send(JSON.stringify({
                 type: 'DISPATCH_ERROR',
-                payload: { message: `Bridge PC ${targetPcId} is not connected` },
+                payload: { message: `Bridge PC ${effectivePcId} is not connected` },
               }));
             }
           }

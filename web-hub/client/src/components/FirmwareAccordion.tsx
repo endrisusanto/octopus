@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, RotateCcwIcon, CheckIcon, CloseIcon, FileCodeIcon } from './Icons';
 import { BinaryItem, BridgeInfo } from '../hooks/useFleetWebSocket';
-import { DeviceItem } from '../hooks/useFlashKitSort';
+import { DeviceItem, extractModelFromFirmware } from '../hooks/useFlashKitSort';
 import { BinarySelectModal } from './BinarySelectModal';
 import { ProgressRing } from './ProgressRing';
 
@@ -64,6 +64,18 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
     if (slots.userdata.filename && slots.userdata.pcId) return slots.userdata.pcId;
     for (const slot of Object.values(slots)) {
       if (slot.filename && slot.pcId) return slot.pcId;
+    }
+    return undefined;
+  }, [slots]);
+
+  // Auto-detect the active model from any previously picked slot
+  const firstLoadedModel = React.useMemo(() => {
+    const slotsOrder: (keyof FirmwareSlotsMap)[] = ['ap', 'bl', 'cp', 'csc', 'userdata'];
+    for (const k of slotsOrder) {
+      if (slots[k]?.filename) {
+        const m = extractModelFromFirmware(slots[k].filename);
+        if (m) return m;
+      }
     }
     return undefined;
   }, [slots]);
@@ -377,6 +389,7 @@ export const FirmwareAccordion: React.FC<FirmwareAccordionProps> = ({
           bridges={bridges}
           devices={devices}
           preferredPcId={firstLoadedPcId}
+          preferredModel={firstLoadedModel}
           onSave={(filename) => {
             handlePickBinary(activeSlotModal, filename);
             setActiveSlotModal(null);

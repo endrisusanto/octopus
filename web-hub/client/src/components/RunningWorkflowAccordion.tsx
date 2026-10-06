@@ -12,6 +12,7 @@ interface RunningWorkflowAccordionProps {
   binaries?: BinaryItem[];
   onOpenLogs?: (pcId: string, deviceId: string) => void;
   onAbort?: (pcId: string, deviceId: string) => void;
+  onAbortAll?: () => void;
   isOpen?: boolean;
   onToggleOpen?: () => void;
 }
@@ -24,6 +25,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
   binaries,
   onOpenLogs,
   onAbort,
+  onAbortAll,
   isOpen: isOpenProp,
   onToggleOpen,
 }) => {
@@ -54,6 +56,8 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
           cursor: 'pointer',
           userSelect: 'none',
           backgroundColor: 'rgba(16, 185, 129, 0.05)',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -68,8 +72,26 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
           </div>
         </div>
 
-        <div style={{ fontSize: '0.75rem', color: 'var(--accent-green, #10b981)', fontWeight: 600 }}>
-          Proses Odin Flashing Aktif
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-green, #10b981)', fontWeight: 600 }}>
+            Proses Odin Flashing Aktif
+          </div>
+          {onAbortAll && (
+            <button
+              type="button"
+              onClick={onAbortAll}
+              className="btn btn-sm btn-outline-danger"
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.25rem 0.65rem',
+                fontWeight: 700,
+                borderRadius: 'var(--radius-sm)',
+              }}
+              title="Batalkan semua workflow yang sedang berjalan"
+            >
+              Batal Semua
+            </button>
+          )}
         </div>
       </div>
 

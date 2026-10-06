@@ -102,7 +102,7 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
     if (lower.includes('userdebug')) {
       return (
         <span
-          className="badge"
+          className="badge badge-userdebug"
           style={{
             backgroundColor: 'rgba(245, 158, 11, 0.12)',
             color: 'var(--accent-amber, #f59e0b)',
@@ -116,7 +116,8 @@ export const SuggestionMatchAccordion: React.FC<SuggestionMatchAccordionProps> =
             borderRadius: '4px',
           }}
         >
-          USERDEBUG
+          <span className="badge-text-full">USERDEBUG</span>
+          <span className="badge-text-short">DEBUG</span>
         </span>
       );
     }

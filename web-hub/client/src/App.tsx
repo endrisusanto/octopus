@@ -530,21 +530,52 @@ export const App: React.FC = () => {
   };
 
   const handleAbortWorkflow = (pcId: string, deviceId: string) => {
+    const dev = devices.find(
+      (d) => (d.id === deviceId || d.serial === deviceId || d.port === deviceId) && (pcId === 'all' || d.pcId === pcId)
+    );
+    setDevices((prev) =>
+      prev.map((d) => {
+        const isMatch =
+          (d.id === deviceId || d.serial === deviceId || d.port === deviceId || (dev && (d.id === dev.id || (dev.serial && d.serial === dev.serial)))) &&
+          (pcId === 'all' || d.pcId === pcId);
+        return isMatch ? { ...d, status: 'Ready', progress: 0, currentTask: 'Dibatalkan' } : d;
+      })
+    );
+    dispatchAction(pcId, deviceId, 'ABORT_TASK', {
+      serial: dev?.serial,
+      port: dev?.port,
+      id: dev?.id || deviceId,
+    });
+  };
+
+  const handleAbortAllWorkflows = () => {
     setDevices((prev) =>
       prev.map((d) =>
-        d.id === deviceId && d.pcId === pcId
+        d.status === 'Flashing...' || (typeof d.progress === 'number' && d.progress > 0 && d.progress < 100)
           ? { ...d, status: 'Ready', progress: 0, currentTask: 'Dibatalkan' }
           : d
       )
     );
-    dispatchAction(pcId, deviceId, 'ABORT_TASK', {});
+    dispatchAction('all', 'all', 'ABORT_TASK', {});
   };
 
   const handleResetDeviceStatus = (pcId: string, deviceId: string) => {
-    setDevices((prev) =>
-      prev.map((d) => (d.id === deviceId && d.pcId === pcId ? { ...d, status: 'Ready', progress: 0, currentTask: undefined } : d))
+    const dev = devices.find(
+      (d) => (d.id === deviceId || d.serial === deviceId || d.port === deviceId) && (pcId === 'all' || d.pcId === pcId)
     );
-    dispatchAction(pcId, deviceId, 'RESET_STATUS', {});
+    setDevices((prev) =>
+      prev.map((d) => {
+        const isMatch =
+          (d.id === deviceId || d.serial === deviceId || d.port === deviceId || (dev && (d.id === dev.id || (dev.serial && d.serial === dev.serial)))) &&
+          (pcId === 'all' || d.pcId === pcId);
+        return isMatch ? { ...d, status: 'Ready', progress: 0, currentTask: undefined } : d;
+      })
+    );
+    dispatchAction(pcId, deviceId, 'RESET_STATUS', {
+      serial: dev?.serial,
+      port: dev?.port,
+      id: dev?.id || deviceId,
+    });
   };
 
   const handleResetAllCompleted = () => {
@@ -763,6 +794,7 @@ export const App: React.FC = () => {
             binaries={binaries}
             onOpenLogs={handleOpenLogs}
             onAbort={handleAbortWorkflow}
+            onAbortAll={handleAbortAllWorkflows}
             isOpen={accordionStates['running'] !== false}
             onToggleOpen={() => handleToggleAccordion('running')}
           />

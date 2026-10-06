@@ -936,27 +936,106 @@ async fn run_bridge_worker(state: AppState) {
                                                     || exec.action == "STOP_WORKFLOW"
                                                 {
                                                     let target_dev = exec.device_id.clone();
+                                                    let p_serial = exec.params.as_ref().and_then(|p| p.get("serial")).and_then(|v| v.as_str());
+                                                    let p_port = exec.params.as_ref().and_then(|p| p.get("port")).and_then(|v| v.as_str());
+                                                    let p_id = exec.params.as_ref().and_then(|p| p.get("id")).and_then(|v| v.as_str());
+
                                                     let mut wfs = active_workflows.lock().unwrap();
                                                     if target_dev == "all" || target_dev == "ALL" {
+                                                        #[cfg(target_os = "windows")]
+                                                        {
+                                                            let _ = silent_command("taskkill").args(["/F", "/IM", "odin4.exe"]).output();
+                                                        }
+                                                        #[cfg(not(target_os = "windows"))]
+                                                        {
+                                                            let _ = silent_command("pkill").args(["-9", "-f", "odin4"]).output();
+                                                        }
+
                                                         for (dev_id, handle) in wfs.drain() {
                                                             println!("[Workflow] Aborting workflow for device: {}", dev_id);
                                                             handle.abort();
                                                             let _ = tx.send(OutgoingMessage::DeviceProgress {
                                                                 device_id: dev_id,
                                                                 progress: 0,
-                                                                status: "Ready".to_string(),
+                                                                status: Some("Ready".to_string()),
                                                                 current_task: Some("Workflow dibatalkan".to_string()),
                                                             }).await;
                                                         }
-                                                    } else if let Some(handle) = wfs.remove(&target_dev) {
-                                                        println!("[Workflow] Aborting workflow for device: {}", target_dev);
-                                                        handle.abort();
-                                                        let _ = tx.send(OutgoingMessage::DeviceProgress {
-                                                            device_id: target_dev,
-                                                            progress: 0,
-                                                            status: "Ready".to_string(),
-                                                            current_task: Some("Workflow dibatalkan".to_string()),
-                                                        }).await;
+                                                    } else {
+                                                        // Collect all matching keys in wfs
+                                                        let mut candidate_keys: Vec<String> = Vec::new();
+                                                        if wfs.contains_key(&target_dev) {
+                                                            candidate_keys.push(target_dev.clone());
+                                                        }
+                                                        if let Some(s) = p_serial {
+                                                            if wfs.contains_key(s) { candidate_keys.push(s.to_string()); }
+                                                        }
+                                                        if let Some(p) = p_port {
+                                                            if wfs.contains_key(p) { candidate_keys.push(p.to_string()); }
+                                                        }
+                                                        if let Some(i) = p_id {
+                                                            if wfs.contains_key(i) { candidate_keys.push(i.to_string()); }
+                                                        }
+
+                                                        {
+                                                            let st = state.status.lock().unwrap();
+                                                            for dev in &st.devices {
+                                                                let dev_serial_ref = dev.serial.as_deref();
+                                                                let matched = dev.id == target_dev
+                                                                    || dev_serial_ref == Some(&target_dev)
+                                                                    || dev.port == target_dev
+                                                                    || (p_serial.is_some() && dev_serial_ref == p_serial)
+                                                                    || (p_id.is_some() && Some(dev.id.as_str()) == p_id)
+                                                                    || (p_port.is_some() && Some(dev.port.as_str()) == p_port);
+                                                                if matched {
+                                                                    if wfs.contains_key(&dev.id) { candidate_keys.push(dev.id.clone()); }
+                                                                    if let Some(s) = &dev.serial {
+                                                                        if wfs.contains_key(s) { candidate_keys.push(s.clone()); }
+                                                                    }
+                                                                    if wfs.contains_key(&dev.port) { candidate_keys.push(dev.port.clone()); }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        // If no key matched and only 1 workflow is running, abort that single workflow
+                                                        if candidate_keys.is_empty() && wfs.len() == 1 {
+                                                            if let Some(k) = wfs.keys().next() {
+                                                                candidate_keys.push(k.clone());
+                                                            }
+                                                        }
+
+                                                        candidate_keys.sort();
+                                                        candidate_keys.dedup();
+
+                                                        #[cfg(target_os = "windows")]
+                                                        {
+                                                            let _ = silent_command("taskkill").args(["/F", "/IM", "odin4.exe"]).output();
+                                                        }
+                                                        #[cfg(not(target_os = "windows"))]
+                                                        {
+                                                            let _ = silent_command("pkill").args(["-9", "-f", "odin4"]).output();
+                                                        }
+
+                                                        for k in candidate_keys {
+                                                            if let Some(handle) = wfs.remove(&k) {
+                                                                println!("[Workflow] Aborting workflow for device key: {}", k);
+                                                                handle.abort();
+                                                                let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                                                    device_id: k.clone(),
+                                                                    progress: 0,
+                                                                    status: Some("Ready".to_string()),
+                                                                    current_task: Some("Workflow dibatalkan".to_string()),
+                                                                }).await;
+                                                                if k != target_dev {
+                                                                    let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                                                        device_id: target_dev.clone(),
+                                                                        progress: 0,
+                                                                        status: Some("Ready".to_string()),
+                                                                        current_task: Some("Workflow dibatalkan".to_string()),
+                                                                    }).await;
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 } else if exec.action == "WORKFLOW_PIPELINE"
                                                     || exec.action == "suw_bypass"
@@ -1128,6 +1207,7 @@ async fn run_bridge_worker(state: AppState) {
                                                     let wf_hub_url = Some(current_hub_url.clone());
                                                     let tx_wf = tx.clone();
                                                     let dev_id_clone = device_id.clone();
+                                                    let dev_id_for_cleanup = device_id.clone();
                                                     let active_wf_ref = active_workflows.clone();
 
                                                     let wf_handle = tokio::spawn(async move {
@@ -1159,7 +1239,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             tx_wf,
                                                         ).await;
                                                         let mut wfs = active_wf_ref.lock().unwrap();
-                                                        wfs.remove(&dev_id_clone);
+                                                        wfs.remove(&dev_id_for_cleanup);
                                                     });
 
                                                     {
