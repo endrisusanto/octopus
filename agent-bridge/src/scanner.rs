@@ -53,7 +53,7 @@ pub fn get_port_history(port: &str) -> Option<(String, String, Option<String>, O
     None
 }
 
-// ponytail: Reload system udev rules and safe refresh ADB devices (matching FlashKit)
+// ponytail: Reload system udev rules and restart ADB server to refresh USB devices
 pub fn reload_udev_and_adb() -> String {
     #[cfg(target_os = "linux")]
     {
@@ -63,6 +63,8 @@ pub fn reload_udev_and_adb() -> String {
         let _ = silent_command("udevadm").args(["trigger"]).output();
     }
 
+    let _ = silent_command("adb").arg("kill-server").output();
+    let _ = silent_command("adb").arg("start-server").output();
     let output = silent_command("adb").arg("devices").output();
     match output {
         Ok(out) => String::from_utf8_lossy(&out.stdout).to_string(),

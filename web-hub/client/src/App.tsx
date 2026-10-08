@@ -605,6 +605,12 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleReloadDevices = () => {
+    for (const bridge of bridges) {
+      dispatchAction(bridge.pcId, 'system', 'RELOAD_DEVICES', {});
+    }
+  };
+
   const profileEntries = Object.entries(modelProfiles);
 
   return (
@@ -617,6 +623,7 @@ export const App: React.FC = () => {
         torchMode={torchMode}
         onTorchModeChange={handleTorchModeChange}
         onRefresh={handleRefreshBinaries}
+        onReloadDevices={handleReloadDevices}
         onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
       />
 
