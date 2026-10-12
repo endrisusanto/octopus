@@ -114,7 +114,7 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
     return false;
   };
 
-  // Extract model frequency counts from all available binaries
+  // ponytail: Group active/connected models to the left for instant visibility, then continue with inactive models
   const { modelCounts, availableModels } = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const b of binaries) {
@@ -123,12 +123,17 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
         counts[model] = (counts[model] || 0) + 1;
       }
     }
-    // Sort models ASC (e.g. A065F, A266B, F741B, S926B...)
-    const models = Object.keys(counts).sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    // Group active/connected models first (left), then inactive models, sorted ASC within each group
+    const models = Object.keys(counts).sort((a, b) => {
+      const aConnected = isModelConnected(a);
+      const bConnected = isModelConnected(b);
+      if (aConnected !== bConnected) {
+        return aConnected ? -1 : 1;
+      }
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
     return { modelCounts: counts, availableModels: models };
-  }, [binaries]);
+  }, [binaries, connectedModelSet]);
 
   if (!isOpen) return null;
 
@@ -227,21 +232,38 @@ export const BinarySelectModal: React.FC<BinarySelectModalProps> = ({
                 <span>Semua Model</span>
                 <span className="binary-chip-count">{binaries.length}</span>
               </button>
-              {availableModels.map((model) => {
+              {availableModels.map((model, idx) => {
                 const count = modelCounts[model];
                 const isActive = Boolean(selectedModel && (selectedModel.toUpperCase() === model.toUpperCase() || extractCoreModel(selectedModel).toUpperCase() === model.toUpperCase()));
                 const isConnected = isModelConnected(model);
+                const prevConnected = idx > 0 ? isModelConnected(availableModels[idx - 1]) : false;
+                const showDivider = !isConnected && prevConnected;
+
                 return (
-                  <button
-                    key={model}
-                    type="button"
-                    onClick={() => setSelectedModel((prev) => (prev && (prev.toUpperCase() === model.toUpperCase() || extractCoreModel(prev).toUpperCase() === model.toUpperCase()) ? null : model))}
-                    className={`binary-chip-btn ${isActive ? 'active' : ''} ${isConnected ? 'is-connected' : ''}`}
-                    title={isConnected ? `Model ${model} terhubung dan aktif di Workstation PC` : undefined}
-                  >
-                    <span>{model}</span>
-                    <span className="binary-chip-count">{count}</span>
-                  </button>
+                  <React.Fragment key={model}>
+                    {showDivider && (
+                      <div
+                        style={{
+                          width: '1px',
+                          height: '20px',
+                          backgroundColor: 'var(--border-subtle, rgba(255, 255, 255, 0.15))',
+                          margin: '0 0.35rem',
+                          alignSelf: 'center',
+                          flexShrink: 0,
+                        }}
+                        title="Model lainnya (belum terhubung)"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModel((prev) => (prev && (prev.toUpperCase() === model.toUpperCase() || extractCoreModel(prev).toUpperCase() === model.toUpperCase()) ? null : model))}
+                      className={`binary-chip-btn ${isActive ? 'active' : ''} ${isConnected ? 'is-connected' : ''}`}
+                      title={isConnected ? `Model ${model} terhubung dan aktif di Workstation PC` : `Model ${model}`}
+                    >
+                      <span>{model}</span>
+                      <span className="binary-chip-count">{count}</span>
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </div>
