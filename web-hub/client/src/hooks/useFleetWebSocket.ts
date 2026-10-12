@@ -139,8 +139,12 @@ export function useFleetWebSocket() {
                   return inc;
                 });
 
-                // Preserve running devices during mode switch rebooting
+                // Preserve running devices during mode switch rebooting (drop if stale > 15 minutes)
+                const now = Date.now();
                 for (const runDev of activeRunning) {
+                  if (runDev.lastSeen && now - runDev.lastSeen > 900000) {
+                    continue; // do not keep zombie device permanently stuck
+                  }
                   const exists = mapped.some(
                     (m) =>
                       m.pcId === runDev.pcId &&
@@ -185,12 +189,15 @@ export function useFleetWebSocket() {
               const updatedDev: DeviceItem = msg.payload;
               setDevices((prev) =>
                 prev.map((d) => {
-                  if (
+                  const isMatch =
                     d.pcId === updatedDev.pcId &&
                     (d.id === updatedDev.id ||
                       (d.port && updatedDev.port && d.port === updatedDev.port) ||
-                      (d.serial && updatedDev.serial && d.serial === updatedDev.serial))
-                  ) {
+                      (d.serial && updatedDev.serial && d.serial === updatedDev.serial) ||
+                      (updatedDev.serial && d.id === updatedDev.serial) ||
+                      (d.serial && updatedDev.id === d.serial));
+
+                  if (isMatch) {
                     return {
                       ...d,
                       ...updatedDev,
@@ -202,6 +209,10 @@ export function useFleetWebSocket() {
                         d.model !== 'SAMSUNG (Download Mode)'
                           ? d.model
                           : updatedDev.model,
+                      status: updatedDev.status || d.status,
+                      progress: updatedDev.progress !== undefined ? updatedDev.progress : d.progress,
+                      currentTask: updatedDev.currentTask !== undefined ? updatedDev.currentTask : d.currentTask,
+                      lastSeen: Date.now(),
                     };
                   }
                   return d;

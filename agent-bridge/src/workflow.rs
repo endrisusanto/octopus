@@ -851,15 +851,15 @@ pub async fn execute_workflow_pipeline(
             Ok(Ok(())) => {
                 send_log("info", format!("[Odin Engine] ✅ Odin Flashing SUKSES untuk {}!", target_serial));
                 send_progress(50, Some("Flashing..."), Some("Menunggu Device Booting..."));
-                send_log("info", "[Workflow] ⏳ Menunggu perangkat selesai boot up ke sistem Android OS (timeout 5 menit)...".to_string());
+                send_log("info", "[Workflow] ⏳ Menunggu perangkat selesai boot up ke sistem Android OS (timeout 10 menit)...".to_string());
 
-                // Tunggu perangkat terdeteksi kembali di ADB dengan timeout 5 menit & reload udev berkala (matching FlashKit)
+                // Tunggu perangkat terdeteksi kembali di ADB dengan timeout 10 menit & reload udev berkala (matching FlashKit)
                 let serial_boot = target_serial.clone();
                 let tx_poll = tx.clone();
                 let dev_id_poll = device_id.clone();
 
                 let adb_boot_res = tokio::task::spawn_blocking(move || {
-                    const MAX_ATTEMPTS: usize = 120; // 120 x 2.5s = 300s (5 menit total window)
+                    const MAX_ATTEMPTS: usize = 240; // 240 x 2.5s = 600s (10 menit total window)
                     let mut found = false;
 
                     for attempt in 1..=MAX_ATTEMPTS {
@@ -871,12 +871,19 @@ pub async fn execute_workflow_pipeline(
 
                             let tx = tx_poll.clone();
                             let dev_id = dev_id_poll.clone();
-                            let msg = format!("[Workflow] ⏳ Menunggu boot up & refresh USB bus ({}s / 300s)...", elapsed_sec);
+                            let msg = format!("[Workflow] ⏳ Menunggu boot up & refresh USB bus ({}s / 600s)...", elapsed_sec);
+                            let task_desc = format!("Menunggu Boot Up ({}s/600s)...", elapsed_sec);
                             tokio::spawn(async move {
                                 let _ = tx.send(OutgoingMessage::LogStream {
-                                    device_id: Some(dev_id),
+                                    device_id: Some(dev_id.clone()),
                                     level: "info".to_string(),
                                     message: msg,
+                                }).await;
+                                let _ = tx.send(OutgoingMessage::DeviceProgress {
+                                    device_id: dev_id,
+                                    progress: 50,
+                                    status: Some("Flashing...".to_string()),
+                                    current_task: Some(task_desc),
                                 }).await;
                             });
                         }
@@ -913,8 +920,8 @@ pub async fn execute_workflow_pipeline(
                 if adb_boot_res {
                     send_log("info", format!("[Workflow] ✅ Perangkat {} telah menyala penuh dan siap di-provision!", target_serial));
                 } else {
-                    send_log("error", format!("[Workflow Error] ❌ Device {} tidak terdeteksi setelah batas waktu 5 menit. Membatalkan workflow.", target_serial));
-                    send_progress(100, Some("Fail"), Some("Error: Device Timeout (5 Menit)"));
+                    send_log("error", format!("[Workflow Error] ❌ Device {} tidak terdeteksi setelah batas waktu 10 menit. Membatalkan workflow.", target_serial));
+                    send_progress(100, Some("Fail"), Some("Error: Device Timeout (10 Menit)"));
                     return;
                 }
             }

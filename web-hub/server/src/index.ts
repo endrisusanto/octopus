@@ -475,11 +475,16 @@ wss.on('connection', (ws, req) => {
               }
             }
 
-            // Remove devices physically disconnected, EXCEPT those actively running a workflow!
+            // Remove devices physically disconnected, EXCEPT those actively running a workflow or recently finished!
             for (const [key, dev] of fleetDevices.entries()) {
               if (dev.pcId === bridgePcId && !newKeys.has(key)) {
                 // If it's running automation, keep it (it might be rebooting / switching USB mode)
                 if (dev.status === 'Flashing...' || dev.status === 'Busy') {
+                  if (Date.now() - dev.lastSeen > 900000) { // 15 min window (supports 10 min boot timeout)
+                    fleetDevices.delete(key);
+                  }
+                } else if (dev.status === 'Fail' || dev.status === 'Pass') {
+                  // Retain finished devices for 5 minutes so user can see outcome in UI
                   if (Date.now() - dev.lastSeen > 300000) {
                     fleetDevices.delete(key);
                   }
@@ -510,6 +515,20 @@ wss.on('connection', (ws, req) => {
               if (currentTask) dev.currentTask = currentTask;
               dev.lastSeen = Date.now();
               broadcastToUI('DEVICE_PROGRESS_UPDATE', dev);
+            } else {
+              // ponytail: Always broadcast progress update to UI client even if device is temporarily unlisted
+              broadcastToUI('DEVICE_PROGRESS_UPDATE', {
+                id: deviceId,
+                pcId: bridgePcId,
+                serial: deviceId,
+                port: '',
+                model: 'UNKNOWN',
+                mode: 'offline',
+                status: status || 'Fail',
+                progress: progress,
+                currentTask: currentTask,
+                lastSeen: Date.now(),
+              });
             }
             break;
           }
