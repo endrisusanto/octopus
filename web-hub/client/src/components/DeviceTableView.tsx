@@ -59,7 +59,15 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
         return (
           <span
             className="status-badge flashing"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.45rem',
+              whiteSpace: 'nowrap',
+              minWidth: '104px',
+              boxSizing: 'border-box',
+            }}
             title={currentTask ? `${stepLabel}: ${currentTask}` : stepLabel}
           >
             <span>{stepLabel}</span>

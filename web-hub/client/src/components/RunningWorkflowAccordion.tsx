@@ -284,13 +284,14 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                     )}
                   </div>
 
-                  {/* Right Column: Vertically Stacked Progress Rings */}
+                  {/* Right Column: Vertically Stacked Progress Rings with matching width */}
                   <div
                     className="workflow-device-rings-col"
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      alignItems: 'flex-end',
+                      alignItems: 'stretch',
+                      width: '102px',
                       gap: '0.35rem',
                       flexShrink: 0,
                       alignSelf: 'center',
@@ -305,10 +306,11 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                           justifyContent: 'space-between',
                           gap: '0.4rem',
                           backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                          padding: '0.15rem 0.45rem',
+                          padding: '0.15rem 0.5rem',
                           borderRadius: 'var(--radius-sm)',
                           border: '1px solid rgba(16, 185, 129, 0.25)',
-                          minWidth: '85px',
+                          width: '100%',
+                          boxSizing: 'border-box',
                         }}
                       >
                         <span
@@ -337,10 +339,11 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                         justifyContent: 'space-between',
                         gap: '0.4rem',
                         backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                        padding: '0.15rem 0.45rem',
+                        padding: '0.15rem 0.5rem',
                         borderRadius: 'var(--radius-sm)',
                         border: '1px solid rgba(59, 130, 246, 0.25)',
-                        minWidth: '85px',
+                        width: '100%',
+                        boxSizing: 'border-box',
                       }}
                     >
                       <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#60a5fa' }}>
@@ -361,12 +364,20 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                           onClick={() => onOpenLogs(device.pcId, device.id)}
                           className="btn btn-sm btn-outline-secondary"
                           style={{
-                            padding: '0.15rem 0.45rem',
+                            padding: '0.15rem 0',
                             fontSize: '0.68rem',
                             fontWeight: 600,
                             height: '22px',
                             flex: 1,
                             borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-medium, rgba(255, 255, 255, 0.25))',
+                            backgroundColor: 'transparent',
+                            color: 'var(--text-secondary, #cbd5e1)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease',
                           }}
                           title="Lihat live log proses perangkat ini"
                         >
@@ -379,12 +390,20 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                           onClick={() => onAbort(device.pcId, device.id)}
                           className="btn btn-sm btn-outline-danger"
                           style={{
-                            padding: '0.15rem 0.45rem',
+                            padding: '0.15rem 0',
                             fontSize: '0.68rem',
                             fontWeight: 700,
                             height: '22px',
                             flex: 1,
                             borderRadius: 'var(--radius-sm)',
+                            border: '1px solid rgba(239, 68, 68, 0.45)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            color: 'var(--accent-red, #ef4444)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease',
                           }}
                           title="Hentikan / batalkan proses workflow perangkat ini"
                         >

@@ -866,13 +866,11 @@ pub async fn execute_workflow_pipeline(
                     for attempt in 1..=MAX_ATTEMPTS {
                         let elapsed_sec = (attempt * 5) / 2;
 
-                        // Periodic udev and adb reload (setiap 5 iterasi / ~12.5 detik, matching FlashKit)
+                        // Kirim notifikasi progres heartbeat (tanpa mematikan/reload udev/adb secara global agar device lain tidak terputus)
                         if attempt % 5 == 1 {
-                            crate::scanner::reload_udev_and_adb();
-
                             let tx = tx_poll.clone();
                             let dev_id = dev_id_poll.clone();
-                            let msg = format!("[Workflow] ⏳ Menunggu boot up & refresh USB bus ({}s / 600s)...", elapsed_sec);
+                            let msg = format!("[Workflow] ⏳ Menunggu boot up & koneksi ADB ({}s / 600s)...", elapsed_sec);
                             let task_desc = format!("Menunggu Boot Up ({}s/600s)...", elapsed_sec);
                             tokio::spawn(async move {
                                 let _ = tx.send(OutgoingMessage::LogStream {
@@ -889,18 +887,23 @@ pub async fn execute_workflow_pipeline(
                             });
                         }
 
-                        // 1. Cek langsung dengan serial_boot
                         let mut active_candidate: Option<String> = None;
-                        let mut check_state = silent_command("adb");
-                        check_state.arg("-s").arg(&serial_boot).arg("get-state");
-                        if let Ok(out) = check_state.output() {
-                            let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                            if state == "device" {
-                                active_candidate = Some(serial_boot.clone());
+
+                        // 1. Cek langsung dengan serial_boot jika valid
+                        if !serial_boot.is_empty() && serial_boot != "UNKNOWN" {
+                            let mut check_state = silent_command("adb");
+                            check_state.arg("-s").arg(&serial_boot).arg("get-state");
+                            if let Ok(out) = check_state.output() {
+                                let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                                if state == "device" {
+                                    active_candidate = Some(serial_boot.clone());
+                                }
                             }
                         }
 
-                        // 2. Jika tidak terdeteksi via serial_boot (umum pada model seperti SM-A055F di mana serial Odin R9NW... berbeda dengan ADB R9WW...), cocokkan via USB port topology atau kemiripan serial
+                        // 2. Jika belum terdeteksi via serial_boot:
+                        // Prioritaskan EXACT USB port matching (misal port 1-2.1.2 vs 1-5).
+                        // JANGAN PERNAH mencocokkan loose serial antar device berbeda!
                         if active_candidate.is_none() {
                             if let Ok(out) = silent_command("adb").args(["devices", "-l"]).output() {
                                 let text = String::from_utf8_lossy(&out.stdout);
@@ -913,21 +916,27 @@ pub async fn execute_workflow_pipeline(
                                             .map(|p| p.replace("usb:", ""))
                                             .unwrap_or_default();
 
-                                        let port_matched = if let Some(ref ph) = port_hint_boot {
-                                            let clean_ph = ph.trim().trim_start_matches("USB:").trim_start_matches("usb:");
-                                            !clean_ph.is_empty() && (dev_port == clean_ph || dev_port.starts_with(clean_ph) || clean_ph.starts_with(&dev_port))
+                                        let clean_ph = port_hint_boot.as_deref()
+                                            .map(|ph| ph.trim().trim_start_matches("USB:").trim_start_matches("usb:"))
+                                            .unwrap_or("");
+
+                                        // Port match mutlak (harus exact port match, misal "1-5" == "1-5")
+                                        let port_matched = !clean_ph.is_empty() && dev_port == clean_ph;
+
+                                        // Samsung Odin serial variant: index 5 'B' di Odin vs '0' di ADB (misal R3CTAB... vs R3CTA0...)
+                                        // Hanya berlaku jika 10 karakter lainnya sama persis!
+                                        let odin_variant_matched = if dev_s.len() == serial_boot.len() && dev_s.len() > 6 {
+                                            let diff_indices: Vec<usize> = dev_s.char_indices()
+                                                .zip(serial_boot.char_indices())
+                                                .filter(|((_, a), (_, b))| a != b)
+                                                .map(|((idx, _), _)| idx)
+                                                .collect();
+                                            diff_indices.len() == 1 && diff_indices[0] == 5
                                         } else {
                                             false
                                         };
 
-                                        let serial_similar = if dev_s.len() == serial_boot.len() && dev_s.len() > 6 {
-                                            let diffs = dev_s.chars().zip(serial_boot.chars()).filter(|(a, b)| a != b).count();
-                                            diffs <= 2
-                                        } else {
-                                            false
-                                        };
-
-                                        if port_matched || serial_similar {
+                                        if port_matched || (odin_variant_matched && (clean_ph.is_empty() || dev_port == clean_ph)) {
                                             active_candidate = Some(dev_s);
                                             break;
                                         }
@@ -936,21 +945,18 @@ pub async fn execute_workflow_pipeline(
                             }
                         }
 
-                        // 3. Verifikasi sys.boot_completed pada candidate
+                        // 3. Verifikasi sys.boot_completed pada candidate (pastikan benar-benar telah selesai boot)
                         if let Some(cand) = active_candidate {
                             let mut cmd = silent_command("adb");
                             cmd.arg("-s").arg(&cand).arg("shell").arg("getprop sys.boot_completed");
                             if let Ok(prop_out) = cmd.output() {
                                 let prop = String::from_utf8_lossy(&prop_out.stdout).trim().to_string();
-                                if prop == "1" || !prop.is_empty() {
-                                    std::thread::sleep(Duration::from_secs(2));
+                                if prop == "1" {
+                                    std::thread::sleep(Duration::from_millis(1500));
                                     found_serial = Some(cand);
                                     break;
                                 }
                             }
-                            std::thread::sleep(Duration::from_millis(1500));
-                            found_serial = Some(cand);
-                            break;
                         }
 
                         // Jeda polling
@@ -999,7 +1005,7 @@ pub async fn execute_workflow_pipeline(
                 if state == "device" {
                     Ok(())
                 } else {
-                    crate::scanner::reload_udev_and_adb();
+                    let _ = silent_command("adb").args(["reconnect", "device", &serial_check]).output();
                     Err(format!("Device state: '{}'", state))
                 }
             }
@@ -1055,8 +1061,24 @@ pub async fn execute_workflow_pipeline(
         let suw_res = tokio::task::spawn_blocking(move || -> Vec<String> {
             let mut logs = Vec::new();
 
-            // 1. Pastikan ADB daemon ready
-            let _ = silent_command("adb").args(["-s", &serial_suw, "wait-for-device"]).output();
+            // 1. Pastikan ADB daemon ready dengan bounded polling (hindari wait-for-device tanpa batas)
+            let mut is_ready = false;
+            for _ in 1..=20 {
+                let mut check = silent_command("adb");
+                check.arg("-s").arg(&serial_suw).arg("get-state");
+                if let Ok(out) = check.output() {
+                    let st = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    if st == "device" {
+                        is_ready = true;
+                        break;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            if !is_ready {
+                let _ = silent_command("adb").args(["reconnect", "device", &serial_suw]).output();
+                std::thread::sleep(Duration::from_millis(500));
+            }
 
             // 3. Install Language Helper APK jika ada (matching FlashKit)
             if let Some(lang_apk) = find_asset("language.apk") {
