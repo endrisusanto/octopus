@@ -136,11 +136,13 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
               ? Math.min(Math.round(odinProgress * 0.5), 50)
               : rawProgress;
 
-            // Sleek bottom underline progress line
+            const activeColor = isOdinStage ? 'var(--accent-green, #10b981)' : 'var(--accent-primary, #3b82f6)';
+            const activeBg = isOdinStage ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)';
+            const currentPct = isOdinStage ? odinProgress : overallProgress;
+
+            // Firmware verify style: full-height background fill + 3px bottom accent line
             const rowBackground = isFlashing && !isWaitingBoot
-              ? isOdinStage
-                ? `linear-gradient(to right, var(--accent-green, #10b981) ${odinProgress}%, rgba(255, 255, 255, 0.08) ${odinProgress}%) bottom / 100% 2.5px no-repeat`
-                : `linear-gradient(to right, var(--accent-primary, #3b82f6) ${overallProgress}%, rgba(255, 255, 255, 0.08) ${overallProgress}%) bottom / 100% 2.5px no-repeat`
+              ? `linear-gradient(to right, ${activeColor} ${currentPct}%, rgba(255, 255, 255, 0.06) ${currentPct}%) bottom / 100% 3px no-repeat, linear-gradient(to right, ${activeBg} ${currentPct}%, transparent ${currentPct}%)`
               : undefined;
 
             return (

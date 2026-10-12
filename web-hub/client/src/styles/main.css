@@ -2844,17 +2844,32 @@ body {
   }
 }
 
+.workflow-fill-indeterminate {
+  width: 40% !important;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.22), transparent) !important;
+  animation: indeterminate-progress 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+}
+
+.workflow-line-indeterminate {
+  width: 40% !important;
+  background: linear-gradient(90deg, transparent, #3b82f6, #60a5fa, transparent) !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.8) !important;
+  animation: indeterminate-progress 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+}
+
 .flashing-row.waiting-boot {
-  background: linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.8) 50%, transparent 100%) bottom / 50% 3px no-repeat !important;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.8) 50%, transparent 100%) bottom / 50% 3px no-repeat,
+    linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.12) 50%, transparent 100%) center / 50% 100% no-repeat !important;
   animation: table-row-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes table-row-indeterminate {
   0% {
-    background-position: -50% bottom;
+    background-position: -50% bottom, -50% center;
   }
   100% {
-    background-position: 150% bottom;
+    background-position: 150% bottom, 150% center;
   }
 }
 

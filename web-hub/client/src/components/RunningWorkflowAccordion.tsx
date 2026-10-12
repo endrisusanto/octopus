@@ -153,22 +153,47 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                   overflow: 'hidden',
                   padding: '0.65rem 0.95rem',
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)',
+                  border: isWaitingBoot
+                    ? '1px solid rgba(59, 130, 246, 0.45)'
+                    : isOdinStage
+                    ? '1px solid rgba(16, 185, 129, 0.35)'
+                    : '1px solid rgba(59, 130, 246, 0.35)',
                   backgroundColor: 'var(--bg-subtle)',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.45rem',
+                  transition: 'border-color 0.2s',
                 }}
               >
-                {/* Sleek Underline Progress Bar */}
-                <div className="underline-progress-track">
-                  <div
-                    className={`underline-progress-fill ${isWaitingBoot ? 'infinite' : isOdinStage ? 'odin' : 'workflow'}`}
-                    style={{
-                      width: isWaitingBoot ? undefined : `${isOdinStage ? odinProgress : overallProgress}%`,
-                    }}
-                  />
-                </div>
+                {/* Firmware Verify style Background Fill Loading Bar */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    bottom: 0,
+                    width: isWaitingBoot ? undefined : `${isOdinStage ? odinProgress : overallProgress}%`,
+                    backgroundColor: isOdinStage ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                    transition: 'width 0.2s ease-out',
+                    zIndex: 0,
+                    pointerEvents: 'none',
+                  }}
+                  className={isWaitingBoot ? 'workflow-fill-indeterminate' : undefined}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    height: '3px',
+                    width: isWaitingBoot ? undefined : `${isOdinStage ? odinProgress : overallProgress}%`,
+                    backgroundColor: isOdinStage ? 'var(--accent-green, #10b981)' : 'var(--accent-primary, #3b82f6)',
+                    transition: 'width 0.2s ease-out',
+                    zIndex: 2,
+                    pointerEvents: 'none',
+                  }}
+                  className={isWaitingBoot ? 'workflow-line-indeterminate' : undefined}
+                />
 
                 {/* Main Content Row */}
                 <div
