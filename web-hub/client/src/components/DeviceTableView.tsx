@@ -31,25 +31,48 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
   const selectableDevices = devices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
   const allSelected = selectableDevices.length > 0 && selectableDevices.every((d) => selectedIds.includes(d.id));
 
-  // ponytail: render workflow progress ring inside flashing badge
-  const getStatusBadge = (status: string, workflowProgress?: number) => {
+  // ponytail: render actual workflow step label and progress ring inside status badge
+  const getWorkflowStepLabel = (currentTask?: string, progress?: number): string => {
+    if (!currentTask) {
+      if (typeof progress === 'number' && progress > 50) return 'Provisioning';
+      return 'Flashing';
+    }
+    const task = currentTask.toLowerCase();
+    if (task.includes('suw') || task.includes('wizard')) return 'Skip SUW';
+    if (task.includes('gba') || task.includes('developer')) return 'Setup GBA';
+    if (task.includes('wi-fi') || task.includes('wifi')) return 'WIFI';
+    if (task.includes('boot') || task.includes('reboot') || task.includes('menunggu')) return 'Booting';
+    if (task.includes('adb') || task.includes('koneksi')) return 'Cek ADB';
+    if (task.includes('download') || task.includes('stream')) return 'Download FW';
+    if (task.includes('selesai') || task.includes('automasi')) return 'Selesai';
+    if (task.includes('odin') || task.includes('flash')) return 'Flashing';
+    return 'Flashing';
+  };
+
+  const getStatusBadge = (status: string, workflowProgress?: number, currentTask?: string) => {
     switch (status) {
       case 'Ready':
         return <span className="status-badge ready">Ready</span>;
       case 'Flashing...':
-      case 'Busy':
+      case 'Busy': {
+        const stepLabel = getWorkflowStepLabel(currentTask, workflowProgress);
         return (
-          <span className="status-badge flashing" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
-            <span>Flashing</span>
+          <span
+            className="status-badge flashing"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}
+            title={currentTask ? `${stepLabel}: ${currentTask}` : stepLabel}
+          >
+            <span>{stepLabel}</span>
             <ProgressRing
               progress={workflowProgress ?? 0}
               size={20}
               strokeWidth={2}
               color="currentColor"
-              title={`Workflow: ${workflowProgress ?? 0}%`}
+              title={`Workflow: ${workflowProgress ?? 0}%${currentTask ? ` - ${currentTask}` : ''}`}
             />
           </span>
         );
+      }
       case 'Pass':
         return <span className="status-badge pass">Pass</span>;
       case 'Fail':
@@ -252,7 +275,7 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                     {device.mode}
                   </span>
                 </td>
-                <td>{getStatusBadge(device.status, overallProgress)}</td>
+                <td>{getStatusBadge(device.status, overallProgress, device.currentTask)}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                     {/* Badge: Battery Level */}
