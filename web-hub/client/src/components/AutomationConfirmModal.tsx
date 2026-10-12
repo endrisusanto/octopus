@@ -120,12 +120,25 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
                   backgroundColor: 'rgba(59, 130, 246, 0.12)',
                   color: 'var(--accent-primary, #60a5fa)',
                   border: '1px solid rgba(59, 130, 246, 0.25)',
-                  padding: '0.1rem 0.35rem',
+                  padding: '0.15rem 0.45rem',
                   borderRadius: '3px',
                   fontFamily: 'var(--font-mono)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
                 }}
               >
-                {d.model} &bull; {d.serial || d.id}
+                <span>🔒 {d.model}</span>
+                <span>&bull;</span>
+                <span>Serial: {d.serial || d.id}</span>
+                <span>&bull;</span>
+                <span>Port: {d.port}</span>
+                {d.usbId && (
+                  <>
+                    <span>&bull;</span>
+                    <span>ID: {d.usbId}</span>
+                  </>
+                )}
               </span>
             ))}
           </div>

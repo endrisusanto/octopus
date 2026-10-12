@@ -402,6 +402,23 @@ export const App: React.FC = () => {
   );
 
   // Selection handlers
+  const [selectedIdsByModel, setSelectedIdsByModel] = useState<Record<string, string[]>>({});
+
+  const handleToggleSelectForModel = (modelKey: string, id: string) => {
+    setSelectedIdsByModel((prev) => {
+      const current = prev[modelKey] || [];
+      const updated = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
+      return { ...prev, [modelKey]: updated };
+    });
+  };
+
+  const handleSelectAllForModel = (modelKey: string, ids: string[]) => {
+    setSelectedIdsByModel((prev) => ({
+      ...prev,
+      [modelKey]: ids,
+    }));
+  };
+
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
@@ -412,6 +429,7 @@ export const App: React.FC = () => {
 
   const handleDeselectAll = () => {
     setSelectedIds([]);
+    setSelectedIdsByModel({});
   };
 
   // Single device actions
@@ -706,9 +724,9 @@ export const App: React.FC = () => {
               bridges={bridges}
               devices={modelDevices}
               allDevices={devices}
-              selectedIds={selectedIds}
-              onToggleSelect={handleToggleSelect}
-              onSelectAllModel={handleSelectAll}
+              selectedIds={selectedIdsByModel[mKey] || []}
+              onToggleSelect={(id) => handleToggleSelectForModel(mKey, id)}
+              onSelectAllModel={(ids) => handleSelectAllForModel(mKey, ids)}
               onRunAutomation={(targetIds, cfg, sls) => handleRunModelAutomation(targetIds, cfg, sls)}
               workflowConfig={profile.workflowConfig}
               onUpdateWorkflowConfig={(updater) => {

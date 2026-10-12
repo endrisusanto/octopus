@@ -5,6 +5,8 @@ pub struct DeviceInfo {
     pub id: String,
     pub port: String,
     pub serial: Option<String>,
+    #[serde(default, rename = "usbId")]
+    pub usb_id: Option<String>,
     pub model: String,
     pub mode: String, // "odin", "adb", "recovery", "offline"
     pub status: String, // "Ready", "Flashing...", "Pass", "Fail"

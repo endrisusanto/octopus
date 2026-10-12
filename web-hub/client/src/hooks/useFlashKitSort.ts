@@ -6,6 +6,7 @@ export interface DeviceItem {
   pcOs: 'ubuntu' | 'windows' | 'linux';
   port: string;
   serial?: string;
+  usbId?: string;
   model: string;
   mode: 'odin' | 'adb' | 'recovery' | 'offline';
   status: 'Ready' | 'Flashing...' | 'Pass' | 'Fail' | 'Busy' | 'Offline';

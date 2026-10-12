@@ -293,7 +293,15 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
   };
 
   const handleTriggerRun = () => {
-    const targetIds = selectedModelIds.length > 0 ? selectedModelIds : validDeviceIds;
+    let targetIds: string[];
+    if (selectedModelIds.length > 0) {
+      targetIds = selectedModelIds;
+    } else if (validDeviceIds.length === 1) {
+      targetIds = validDeviceIds;
+    } else {
+      alert(`Terdapat ${validDeviceIds.length} perangkat dengan model yang sama. Harap centang (pilih) perangkat target yang ingin diflash dengan binary ini untuk mencegah salah flashing.`);
+      return;
+    }
     if (targetIds.length === 0) return;
     onRunAutomation(targetIds, safeWorkflowConfig, safeSlots);
   };

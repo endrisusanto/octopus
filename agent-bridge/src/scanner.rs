@@ -18,27 +18,45 @@ pub fn silent_command<S: AsRef<std::ffi::OsStr>>(program: S) -> Command {
     cmd
 }
 
-static PORT_HISTORY: Mutex<Option<HashMap<String, (String, String, Option<String>, Option<String>)>>> = Mutex::new(None);
+// ponytail: Cache mapping of physical USB topology port to device identity (serial, model, build type, pda version, usb id)
+#[derive(Clone, Debug, Default)]
+pub struct PortHistoryEntry {
+    pub serial: String,
+    pub model: String,
+    pub build_type: Option<String>,
+    pub pda_version: Option<String>,
+    pub usb_id: Option<String>,
+}
 
-pub fn update_port_history(port: &str, serial: &str, model: &str, build_type: Option<&str>, pda_version: Option<&str>) {
+static PORT_HISTORY: Mutex<Option<HashMap<String, PortHistoryEntry>>> = Mutex::new(None);
+
+pub fn update_port_history(
+    port: &str,
+    serial: &str,
+    model: &str,
+    build_type: Option<&str>,
+    pda_version: Option<&str>,
+    usb_id: Option<&str>,
+) {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:").to_string();
     if clean.is_empty() || serial.is_empty() {
         return;
     }
     if let Ok(mut lock) = PORT_HISTORY.lock() {
         let map = lock.get_or_insert_with(HashMap::new);
-        let val = (
-            serial.to_string(),
-            model.to_string(),
-            build_type.map(|s| s.to_string()),
-            pda_version.map(|s| s.to_string()),
-        );
+        let val = PortHistoryEntry {
+            serial: serial.to_string(),
+            model: model.to_string(),
+            build_type: build_type.map(|s| s.to_string()),
+            pda_version: pda_version.map(|s| s.to_string()),
+            usb_id: usb_id.map(|s| s.to_string()),
+        };
         map.insert(clean, val.clone());
         map.insert(port.to_string(), val);
     }
 }
 
-pub fn get_port_history(port: &str) -> Option<(String, String, Option<String>, Option<String>)> {
+pub fn get_port_history(port: &str) -> Option<PortHistoryEntry> {
     let clean = port.trim().trim_start_matches("USB:").trim_start_matches("usb:");
     if let Ok(lock) = PORT_HISTORY.lock() {
         if let Some(map) = lock.as_ref() {
@@ -281,19 +299,38 @@ pub fn scan_adb_devices() -> Vec<DeviceInfo> {
 
     let mut devices = Vec::with_capacity(raw_list.len());
     for (dev, (bat_lvl, bat_temp, torch_on, build_type, pda_version)) in raw_list.into_iter().zip(health_results.into_iter()) {
-        // Lock USB topology port to serial, model, build_type, and PDA version
+        // Query USB VID:PID to establish hardware lock
+        let usb_id = {
+            let clean_p = dev.port.trim().trim_start_matches("USB:").trim_start_matches("usb:");
+            let sys_p = PathBuf::from("/sys/bus/usb/devices").join(clean_p);
+            if sys_p.exists() {
+                let vid = std::fs::read_to_string(sys_p.join("idVendor")).unwrap_or_default().trim().to_lowercase();
+                let pid = std::fs::read_to_string(sys_p.join("idProduct")).unwrap_or_default().trim().to_lowercase();
+                if !vid.is_empty() && !pid.is_empty() {
+                    Some(format!("{}:{}", vid, pid))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        // Lock USB topology port to serial, model, build_type, PDA version, and usb_id
         update_port_history(
             &dev.port,
             &dev.serial,
             &dev.model,
             build_type.as_deref(),
             pda_version.as_deref(),
+            usb_id.as_deref(),
         );
 
         devices.push(DeviceInfo {
             id: dev.serial.clone(),
             port: dev.port,
             serial: Some(dev.serial),
+            usb_id,
             model: dev.model,
             mode: if dev.state == "device" { "adb".to_string() } else { "recovery".to_string() },
             status: if dev.state == "device" { "Ready".to_string() } else { "Offline".to_string() },
@@ -423,15 +460,17 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             .unwrap_or_else(|_| "SAMSUNG (Download Mode)".to_string());
 
                         // Recover serial, model, build_type, and pda_version from port history
-                        let (hist_serial, hist_model, hist_build_type, hist_pda_version) = get_port_history(&port_id).unwrap_or_default();
-                        let final_serial = if !hist_serial.is_empty() {
-                            Some(hist_serial)
-                        } else {
-                            serial_str
-                        };
+                        let hist = get_port_history(&port_id);
+                        let final_serial = hist.as_ref().map(|h| h.serial.clone()).filter(|s| !s.is_empty()).or(serial_str);
                         let dev_id = final_serial.clone().unwrap_or_else(|| format!("odin:{}", port_id));
-                        let final_model = if !hist_model.is_empty() {
-                            hist_model
+                        let final_model = if let Some(ref h) = hist {
+                            if !h.model.is_empty() {
+                                h.model.clone()
+                            } else if !product_name.is_empty() && product_name != "SAMSUNG (Download Mode)" && product_name != "SAMSUNG USB" {
+                                product_name
+                            } else {
+                                "SAMSUNG ODIN".to_string()
+                            }
                         } else if !product_name.is_empty() && product_name != "SAMSUNG (Download Mode)" && product_name != "SAMSUNG USB" {
                             product_name
                         } else {
@@ -442,6 +481,7 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             id: dev_id,
                             port: port_id,
                             serial: final_serial,
+                            usb_id: hist.as_ref().and_then(|h| h.usb_id.clone()).or_else(|| Some(format!("{}:{}", vid, pid))),
                             model: final_model,
                             mode: "odin".to_string(),
                             status: "Ready".to_string(),
@@ -450,8 +490,8 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                             battery_level: None,
                             battery_temp: None,
                             torch_on: None,
-                            build_type: hist_build_type,
-                            pda_version: hist_pda_version,
+                            build_type: hist.as_ref().and_then(|h| h.build_type.clone()),
+                            pda_version: hist.as_ref().and_then(|h| h.pda_version.clone()),
                         });
                     }
                 }
@@ -477,10 +517,31 @@ pub fn scan_odin_devices() -> Vec<DeviceInfo> {
                         let dev_id = item.get("DeviceID").and_then(|v| v.as_str()).unwrap_or("SAMSUNG_ODIN").to_string();
                         let name = item.get("Name").and_then(|v| v.as_str()).unwrap_or("SAMSUNG Mobile USB").to_string();
 
+                        let (vid_pid, com_port) = {
+                            let vid_pid = if dev_id.contains("VID_") {
+                                let v = dev_id.split("VID_").nth(1).unwrap_or("").split('&').next().unwrap_or("04e8");
+                                let p = dev_id.split("PID_").nth(1).unwrap_or("").split('\\').next().unwrap_or("685d");
+                                format!("{}:{}", v.to_lowercase(), p.to_lowercase())
+                            } else {
+                                "04e8:685d".to_string()
+                            };
+                            let com = if let Some(s) = name.find("(COM") {
+                                if let Some(e) = name[s..].find(')') {
+                                    name[s + 1..s + e].trim().to_string()
+                                } else {
+                                    "USB".to_string()
+                                }
+                            } else {
+                                "USB".to_string()
+                            };
+                            (vid_pid, com)
+                        };
+
                         devices.push(DeviceInfo {
                             id: dev_id.clone(),
-                            port: "USB".to_string(),
+                            port: com_port,
                             serial: Some(dev_id),
+                            usb_id: Some(vid_pid),
                             model: name,
                             mode: "odin".to_string(),
                             status: "Ready".to_string(),

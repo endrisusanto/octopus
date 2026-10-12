@@ -275,10 +275,20 @@ where
     Ok(final_cached_path.to_string_lossy().to_string())
 }
 
-fn resolve_odin_devnode(port_hint: Option<&str>, odin_bin: &str) -> Option<String> {
+// ponytail: Resolve Odin devnode with strict lock on USB Port, Serial, and USB ID
+fn resolve_odin_devnode(
+    serial_hint: Option<&str>,
+    port_hint: Option<&str>,
+    _usb_id_hint: Option<&str>,
+    odin_bin: &str,
+) -> Option<String> {
     let clean_port = port_hint
         .map(|p| p.trim().trim_start_matches("USB:").trim_start_matches("usb:").trim())
-        .filter(|p| !p.is_empty());
+        .filter(|p| !p.is_empty() && *p != "USB-PORT" && *p != "USB");
+
+    let clean_serial = serial_hint
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty() && !s.starts_with("odin:"));
 
     // 1. Dapatkan daftar devnode aktif dari odin4 -l
     let active_odin_devs = silent_command(odin_bin)
@@ -299,35 +309,75 @@ fn resolve_odin_devnode(port_hint: Option<&str>, odin_bin: &str) -> Option<Strin
 
     #[cfg(target_os = "linux")]
     {
+        // Kunci 1: Cocokkan langsung berdasarkan physical USB topology port
         if let Some(target) = clean_port {
-            // Cek langsung /sys/bus/usb/devices/<target>
             let target_sys = PathBuf::from("/sys/bus/usb/devices").join(target);
-            if let (Ok(b_str), Ok(d_str)) = (
-                std::fs::read_to_string(target_sys.join("busnum")),
-                std::fs::read_to_string(target_sys.join("devnum")),
-            ) {
-                if let (Ok(b), Ok(d)) = (b_str.trim().parse::<u32>(), d_str.trim().parse::<u32>()) {
-                    let candidate = format!("/dev/bus/usb/{:03}/{:03}", b, d);
-                    if active_odin_devs.contains(&candidate) {
-                        return Some(candidate);
+            if target_sys.exists() {
+                // Pastikan perangkat di port ini memang dalam Download Mode (VID 04e8, PID 685d / 6601)
+                let vid = std::fs::read_to_string(target_sys.join("idVendor")).unwrap_or_default().trim().to_lowercase();
+                let pid = std::fs::read_to_string(target_sys.join("idProduct")).unwrap_or_default().trim().to_lowercase();
+                if vid == "04e8" && (pid == "685d" || pid == "6601") {
+                    if let (Ok(b_str), Ok(d_str)) = (
+                        std::fs::read_to_string(target_sys.join("busnum")),
+                        std::fs::read_to_string(target_sys.join("devnum")),
+                    ) {
+                        if let (Ok(b), Ok(d)) = (b_str.trim().parse::<u32>(), d_str.trim().parse::<u32>()) {
+                            let candidate = format!("/dev/bus/usb/{:03}/{:03}", b, d);
+                            if active_odin_devs.contains(&candidate) {
+                                return Some(candidate);
+                            }
+                        }
                     }
                 }
             }
 
-            // Fallback: Scan seluruh /sys/bus/usb/devices untuk mapping devnode -> port
+            // Fallback port matching: Cari di /sys/bus/usb/devices jika nama port berakhiran/sama
             if let Ok(entries) = std::fs::read_dir("/sys/bus/usb/devices") {
                 for entry in entries.flatten() {
                     let p = entry.path();
                     let port_name = entry.file_name().to_string_lossy().to_string();
                     if port_name == target || port_name.ends_with(target) || target.ends_with(&port_name) {
-                        if let (Ok(b_str), Ok(d_str)) = (
-                            std::fs::read_to_string(p.join("busnum")),
-                            std::fs::read_to_string(p.join("devnum")),
-                        ) {
-                            if let (Ok(b), Ok(d)) = (b_str.trim().parse::<u32>(), d_str.trim().parse::<u32>()) {
-                                let devnode = format!("/dev/bus/usb/{:03}/{:03}", b, d);
-                                if active_odin_devs.contains(&devnode) {
-                                    return Some(devnode);
+                        let vid = std::fs::read_to_string(p.join("idVendor")).unwrap_or_default().trim().to_lowercase();
+                        let pid = std::fs::read_to_string(p.join("idProduct")).unwrap_or_default().trim().to_lowercase();
+                        if vid == "04e8" && (pid == "685d" || pid == "6601") {
+                            if let (Ok(b_str), Ok(d_str)) = (
+                                std::fs::read_to_string(p.join("busnum")),
+                                std::fs::read_to_string(p.join("devnum")),
+                            ) {
+                                if let (Ok(b), Ok(d)) = (b_str.trim().parse::<u32>(), d_str.trim().parse::<u32>()) {
+                                    let devnode = format!("/dev/bus/usb/{:03}/{:03}", b, d);
+                                    if active_odin_devs.contains(&devnode) {
+                                        return Some(devnode);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Kunci 2: Cocokkan berdasarkan Serial / Port History Serial
+        if let Some(target_serial) = clean_serial {
+            if let Ok(entries) = std::fs::read_dir("/sys/bus/usb/devices") {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    let port_name = entry.file_name().to_string_lossy().to_string();
+                    let vid = std::fs::read_to_string(p.join("idVendor")).unwrap_or_default().trim().to_lowercase();
+                    let pid = std::fs::read_to_string(p.join("idProduct")).unwrap_or_default().trim().to_lowercase();
+                    if vid == "04e8" && (pid == "685d" || pid == "6601") {
+                        let usb_serial = std::fs::read_to_string(p.join("serial")).unwrap_or_default().trim().to_string();
+                        let hist_serial = crate::scanner::get_port_history(&port_name).map(|h| h.serial).unwrap_or_default();
+                        if usb_serial == target_serial || hist_serial == target_serial {
+                            if let (Ok(b_str), Ok(d_str)) = (
+                                std::fs::read_to_string(p.join("busnum")),
+                                std::fs::read_to_string(p.join("devnum")),
+                            ) {
+                                if let (Ok(b), Ok(d)) = (b_str.trim().parse::<u32>(), d_str.trim().parse::<u32>()) {
+                                    let candidate = format!("/dev/bus/usb/{:03}/{:03}", b, d);
+                                    if active_odin_devs.contains(&candidate) {
+                                        return Some(candidate);
+                                    }
                                 }
                             }
                         }
@@ -339,15 +389,46 @@ fn resolve_odin_devnode(port_hint: Option<&str>, odin_bin: &str) -> Option<Strin
 
     #[cfg(target_os = "windows")]
     {
-        if let Some(target) = clean_port {
-            if let Some(m) = active_odin_devs.iter().find(|d| d.contains(target)) {
-                return Some(m.clone());
+        // Pada Windows, cocokkan COM port atau PNP entity berdasarkan serial / port
+        let ps_cmd = r#"Get-CimInstance Win32_PnPEntity | Where-Object { $_.DeviceID -like '*VID_04E8&PID_685D*' -or $_.DeviceID -like '*VID_04E8&PID_6601*' } | Select-Object -Property DeviceID, Name | ConvertTo-Json -Compress"#;
+        if let Ok(output) = silent_command("powershell").args(["-NoProfile", "-Command", ps_cmd]).output() {
+            let json_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !json_str.is_empty() {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                    let items = if let Some(arr) = val.as_array() {
+                        arr.clone()
+                    } else {
+                        vec![val]
+                    };
+
+                    for item in items {
+                        let dev_id = item.get("DeviceID").and_then(|v| v.as_str()).unwrap_or("");
+                        let name = item.get("Name").and_then(|v| v.as_str()).unwrap_or("");
+
+                        let is_match = (clean_serial.is_some() && dev_id.contains(clean_serial.unwrap()))
+                            || (clean_port.is_some() && (name.contains(clean_port.unwrap()) || dev_id.contains(clean_port.unwrap())));
+
+                        if is_match {
+                            if let Some(start) = name.find("(COM") {
+                                if let Some(end) = name[start..].find(')') {
+                                    let com = name[start + 1..start + end].trim().to_string();
+                                    if active_odin_devs.iter().any(|d| d.contains(&com)) {
+                                        return Some(com);
+                                    }
+                                }
+                            }
+                            if let Some(m) = active_odin_devs.iter().find(|d| d.contains(dev_id)) {
+                                return Some(m.clone());
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Fallback: Jika tanpa port hint cocok atau hanya 1 odin device terhubung
-    if active_odin_devs.len() == 1 {
+    // PENTING: Jangan tebak sembarangan jika target port/serial ditentukan
+    if clean_port.is_none() && clean_serial.is_none() && active_odin_devs.len() == 1 {
         return Some(active_odin_devs[0].clone());
     }
 
@@ -359,6 +440,7 @@ pub async fn execute_workflow_pipeline(
     serial_hint: Option<String>,
     port_hint: Option<String>,
     mode_hint: Option<String>,
+    usb_id_hint: Option<String>,
     odin_flash: bool,
     ap_path: String,
     ap_pc_id: Option<String>,
@@ -381,8 +463,8 @@ pub async fn execute_workflow_pipeline(
     hub_url: Option<String>,
     tx: Sender<OutgoingMessage>,
 ) {
-    let target_serial = if let Some(s) = serial_hint.filter(|s| !s.is_empty() && s != "UNKNOWN") {
-        s
+    let target_serial = if let Some(s) = serial_hint.as_ref().filter(|s| !s.is_empty() && *s != "UNKNOWN") {
+        s.clone()
     } else {
         device_id.clone()
     };
@@ -508,24 +590,57 @@ pub async fn execute_workflow_pipeline(
         let odin_bin = get_odin_binary();
         let mut odin_target_dev = String::new();
 
-        send_log("info", format!("[Odin Engine] 🔍 Mencari DevNode Odin untuk Port USB: {}...", port_hint.as_deref().unwrap_or("auto")));
-        for attempt in 1..=20 {
+        send_log(
+            "info",
+            format!(
+                "[Odin Engine] 🔒 Mengunci target: Serial='{}', Port='{}', UsbId='{}'. Mencari DevNode Odin...",
+                serial_hint.as_deref().unwrap_or("auto"),
+                port_hint.as_deref().unwrap_or("auto"),
+                usb_id_hint.as_deref().unwrap_or("auto"),
+            ),
+        );
+        for attempt in 1..=25 {
             sleep(Duration::from_millis(1000)).await;
-            if let Some(devnode) = resolve_odin_devnode(port_hint.as_deref(), &odin_bin) {
+            if let Some(devnode) = resolve_odin_devnode(
+                serial_hint.as_deref(),
+                port_hint.as_deref(),
+                usb_id_hint.as_deref(),
+                &odin_bin,
+            ) {
                 odin_target_dev = devnode;
                 break;
             }
             if attempt % 4 == 0 {
                 crate::scanner::reload_udev_and_adb();
-                send_log("info", format!("[Odin Engine] ⏳ Menunggu deteksi USB Download Mode (percobaan {}/20)...", attempt));
+                send_log(
+                    "info",
+                    format!(
+                        "[Odin Engine] ⏳ Menunggu deteksi USB Download Mode untuk Port '{}' / Serial '{}' (percobaan {}/25)...",
+                        port_hint.as_deref().unwrap_or("auto"),
+                        serial_hint.as_deref().unwrap_or("auto"),
+                        attempt
+                    ),
+                );
             }
+        }
+
+        // STRICT TARGET LOCK ENFORCEMENT: Jangan pernah flash jika devnode target gagal dikunci!
+        if odin_target_dev.is_empty() {
+            let err_msg = format!(
+                "[Odin Engine] ❌ Target Device Lock GAGAL: Perangkat tidak terdeteksi di Download Mode (Serial: {}, Port: {}). Flashing DIBATALKAN demi keamanan agar tidak menimpa perangkat lain!",
+                serial_hint.as_deref().unwrap_or("N/A"),
+                port_hint.as_deref().unwrap_or("N/A")
+            );
+            send_log("error", err_msg.clone());
+            send_progress(0, Some("Fail"), Some("Target Lock Gagal"));
+            return;
         }
 
         send_log(
             "info",
             format!(
-                "[Odin Engine] 🚀 Memulai flashing binary via Odin4 (DevNode: {})...",
-                if odin_target_dev.is_empty() { "Auto-detect" } else { &odin_target_dev }
+                "[Odin Engine] 🚀 Target terkunci aman (DevNode: {}). Memulai flashing binary via Odin4...",
+                &odin_target_dev
             ),
         );
         send_progress(10, Some("Flashing..."), Some("Memulai Odin Flashing..."));

@@ -9,6 +9,7 @@ export interface DeviceInfo {
   pcOs: 'ubuntu' | 'windows' | 'linux';
   port: string;            // USB devnode or COM port
   serial?: string;
+  usbId?: string;          // USB hardware ID (e.g. 04e8:6860 / 04e8:685d)
   model: string;           // Device model name (e.g. SM-S908B, SM-A536B)
   mode: 'odin' | 'adb' | 'recovery' | 'offline';
   status: 'Ready' | 'Flashing...' | 'Pass' | 'Fail' | 'Busy' | 'Offline';
@@ -459,6 +460,7 @@ wss.on('connection', (ws, req) => {
                   pcId: bridgePcId,
                   model: matchingActive.model && matchingActive.model !== 'SAMSUNG USB' && matchingActive.model !== 'SAMSUNG ODIN' && matchingActive.model !== 'SAMSUNG (Download Mode)' ? matchingActive.model : d.model,
                   serial: matchingActive.serial || d.serial,
+                  usbId: matchingActive.usbId || d.usbId,
                   status: preserveWorkflowStatus ? 'Flashing...' : (isRebootFinished ? 'Ready' : matchingActive.status),
                   progress: preserveWorkflowStatus ? matchingActive.progress : (isRebootFinished ? 0 : matchingActive.progress),
                   currentTask: preserveWorkflowStatus ? matchingActive.currentTask : (isRebootFinished ? undefined : matchingActive.currentTask),
@@ -784,7 +786,7 @@ wss.on('connection', (ws, req) => {
 
                 const targetSerial = (matchedDev && matchedDev.serial) ? matchedDev.serial : devId;
 
-                console.log(`[Workflow Start] Triggering WORKFLOW_PIPELINE for ${devId} (${targetSerial}) on bridge ${targetPcId}`);
+                console.log(`[Workflow Start] 🔒 Locked Target Device for ${devId}: Serial=${targetSerial}, Port=${matchedDev?.port}, UsbId=${matchedDev?.usbId} on bridge ${targetPcId}`);
 
                 bridge.ws.send(JSON.stringify({
                   type: 'EXECUTE_COMMAND',
@@ -814,6 +816,7 @@ wss.on('connection', (ws, req) => {
                       torchMode,
                       serialHint: matchedDev?.serial,
                       portHint: matchedDev?.port,
+                      usbId: matchedDev?.usbId,
                       modeHint: matchedDev?.mode,
                     },
                   },

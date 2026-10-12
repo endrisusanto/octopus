@@ -1185,24 +1185,27 @@ async fn run_bridge_worker(state: AppState) {
                                                         .to_string();
 
                                                     let device_id = exec.device_id.clone();
-                                                    // Find serial and usb port if device_id is port devnode
-                                                    let (st_serial, st_port, st_mode) = {
+                                                    // Find serial, usb port, and usb_id if device_id is port devnode
+                                                    let (st_serial, st_port, st_mode, st_usb_id) = {
                                                         let st = state.status.lock().unwrap();
                                                         let dev = st.devices.iter().find(|d| d.id == device_id || d.serial.as_deref() == Some(&device_id));
                                                         (
                                                             dev.and_then(|d| d.serial.clone()),
                                                             dev.map(|d| d.port.clone()),
                                                             dev.map(|d| d.mode.clone()),
+                                                            dev.and_then(|d| d.usb_id.clone()),
                                                         )
                                                     };
 
                                                     let p_serial = exec.params.as_ref().and_then(|p| p.get("serialHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
                                                     let p_port = exec.params.as_ref().and_then(|p| p.get("portHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
                                                     let p_mode = exec.params.as_ref().and_then(|p| p.get("modeHint")).and_then(|v| v.as_str()).map(|s| s.to_string());
+                                                    let p_usb_id = exec.params.as_ref().and_then(|p| p.get("usbId")).and_then(|v| v.as_str()).map(|s| s.to_string());
 
                                                     let serial_hint = st_serial.or(p_serial);
                                                     let port_hint = st_port.or(p_port);
                                                     let mode_hint = st_mode.or(p_mode);
+                                                    let usb_id_hint = st_usb_id.or(p_usb_id);
 
                                                     let wf_hub_url = Some(current_hub_url.clone());
                                                     let tx_wf = tx.clone();
@@ -1216,6 +1219,7 @@ async fn run_bridge_worker(state: AppState) {
                                                             serial_hint,
                                                             port_hint,
                                                             mode_hint,
+                                                            usb_id_hint,
                                                             odin_flash,
                                                             ap_path,
                                                             ap_pc_id,

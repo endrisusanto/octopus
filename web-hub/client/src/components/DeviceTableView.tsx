@@ -131,9 +131,23 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                   <span className="pc-badge">{device.pcId}</span>
                 </td>
                 <td>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {device.port}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      {device.port}
+                    </span>
+                    {device.usbId && (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '0.66rem',
+                          color: 'var(--text-muted)',
+                        }}
+                        title={`USB Hardware ID: ${device.usbId}`}
+                      >
+                        ID: {device.usbId}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -202,9 +216,22 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                   </div>
                 </td>
                 <td>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                    {device.serial || device.id}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600 }}>
+                      {device.serial || device.id}
+                    </span>
+                    {isSelected && (
+                      <span
+                        style={{
+                          fontSize: '0.62rem',
+                          color: 'var(--accent-primary, #60a5fa)',
+                          fontWeight: 700,
+                        }}
+                      >
+                        🔒 TARGET LOCKED
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <span style={{ textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
