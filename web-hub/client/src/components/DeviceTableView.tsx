@@ -1,6 +1,7 @@
 import React from 'react';
 import { DeviceItem } from '../hooks/useFlashKitSort';
 import { BatteryIcon, ThermometerIcon, DotIcon } from './Icons';
+import { ProgressRing } from './ProgressRing';
 
 interface DeviceTableViewProps {
   devices: DeviceItem[];
@@ -30,12 +31,25 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
   const selectableDevices = devices.filter((d) => !sourcePcId || d.pcId === sourcePcId);
   const allSelected = selectableDevices.length > 0 && selectableDevices.every((d) => selectedIds.includes(d.id));
 
-  const getStatusBadge = (status: string) => {
+  // ponytail: render workflow progress ring inside flashing badge
+  const getStatusBadge = (status: string, workflowProgress?: number) => {
     switch (status) {
       case 'Ready':
         return <span className="status-badge ready">Ready</span>;
       case 'Flashing...':
-        return <span className="status-badge flashing">Flashing</span>;
+      case 'Busy':
+        return (
+          <span className="status-badge flashing" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap' }}>
+            <span>Flashing</span>
+            <ProgressRing
+              progress={workflowProgress ?? 0}
+              size={20}
+              strokeWidth={2}
+              color="currentColor"
+              title={`Workflow: ${workflowProgress ?? 0}%`}
+            />
+          </span>
+        );
       case 'Pass':
         return <span className="status-badge pass">Pass</span>;
       case 'Fail':
@@ -238,7 +252,7 @@ export const DeviceTableView: React.FC<DeviceTableViewProps> = ({
                     {device.mode}
                   </span>
                 </td>
-                <td>{getStatusBadge(device.status)}</td>
+                <td>{getStatusBadge(device.status, overallProgress)}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', flexWrap: 'nowrap', whiteSpace: 'nowrap' }}>
                     {/* Badge: Battery Level */}

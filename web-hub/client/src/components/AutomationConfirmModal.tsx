@@ -103,43 +103,46 @@ export const AutomationConfirmModal: React.FC<AutomationConfirmModalProps> = ({
             display: 'flex',
             flexDirection: 'column',
             gap: '0.35rem',
-            maxHeight: '95px',
-            overflowY: 'auto',
+            maxHeight: '125px',
+            overflow: 'auto',
           }}
         >
           <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
             TARGET ({count}):
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+          {/* ponytail: 2-row 2-col grid per device */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             {targetDevices.map((d) => (
-              <span
+              <div
                 key={d.id}
                 style={{
-                  fontSize: '0.68rem',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '0.2rem 0.6rem',
+                  fontSize: '0.7rem',
                   fontWeight: 600,
-                  backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
                   color: 'var(--accent-primary, #60a5fa)',
-                  border: '1px solid rgba(59, 130, 246, 0.25)',
-                  padding: '0.15rem 0.45rem',
-                  borderRadius: '3px',
-                  fontFamily: 'var(--font-mono)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
+                  border: '1px solid rgba(59, 130, 246, 0.22)',
+                  padding: '0.35rem 0.55rem',
+                  borderRadius: '4px',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  boxSizing: 'border-box',
                 }}
               >
-                <span>🔒 {d.model}</span>
-                <span>&bull;</span>
-                <span>Serial: {d.serial || d.id}</span>
-                <span>&bull;</span>
-                <span>Port: {d.port}</span>
-                {d.usbId && (
-                  <>
-                    <span>&bull;</span>
-                    <span>ID: {d.usbId}</span>
-                  </>
-                )}
-              </span>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  🔒 {d.model}
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Serial: {d.serial || d.id}
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>
+                  Port: {d.port}
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-secondary)' }}>
+                  ID: {d.usbId || 'N/A'}
+                </div>
+              </div>
             ))}
           </div>
         </div>
