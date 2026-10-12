@@ -463,7 +463,7 @@ pub async fn execute_workflow_pipeline(
     hub_url: Option<String>,
     tx: Sender<OutgoingMessage>,
 ) {
-    let target_serial = if let Some(s) = serial_hint.as_ref().filter(|s| !s.is_empty() && *s != "UNKNOWN") {
+    let mut target_serial = if let Some(s) = serial_hint.as_ref().filter(|s| !s.is_empty() && *s != "UNKNOWN") {
         s.clone()
     } else {
         device_id.clone()
@@ -857,10 +857,11 @@ pub async fn execute_workflow_pipeline(
                 let serial_boot = target_serial.clone();
                 let tx_poll = tx.clone();
                 let dev_id_poll = device_id.clone();
+                let port_hint_boot = port_hint.clone();
 
-                let adb_boot_res = tokio::task::spawn_blocking(move || {
+                let adb_boot_res: Option<String> = tokio::task::spawn_blocking(move || {
                     const MAX_ATTEMPTS: usize = 240; // 240 x 2.5s = 600s (10 menit total window)
-                    let mut found = false;
+                    let mut found_serial: Option<String> = None;
 
                     for attempt in 1..=MAX_ATTEMPTS {
                         let elapsed_sec = (attempt * 5) / 2;
@@ -888,36 +889,82 @@ pub async fn execute_workflow_pipeline(
                             });
                         }
 
-                        // Periksa status device di ADB
+                        // 1. Cek langsung dengan serial_boot
+                        let mut active_candidate: Option<String> = None;
                         let mut check_state = silent_command("adb");
                         check_state.arg("-s").arg(&serial_boot).arg("get-state");
                         if let Ok(out) = check_state.output() {
                             let state = String::from_utf8_lossy(&out.stdout).trim().to_string();
                             if state == "device" {
-                                let mut cmd = silent_command("adb");
-                                cmd.arg("-s").arg(&serial_boot).arg("shell").arg("getprop sys.boot_completed");
-                                if let Ok(prop_out) = cmd.output() {
-                                    let prop = String::from_utf8_lossy(&prop_out.stdout).trim().to_string();
-                                    if prop == "1" || !prop.is_empty() {
-                                        std::thread::sleep(Duration::from_secs(2));
-                                        found = true;
-                                        break;
+                                active_candidate = Some(serial_boot.clone());
+                            }
+                        }
+
+                        // 2. Jika tidak terdeteksi via serial_boot (umum pada model seperti SM-A055F di mana serial Odin R9NW... berbeda dengan ADB R9WW...), cocokkan via USB port topology atau kemiripan serial
+                        if active_candidate.is_none() {
+                            if let Ok(out) = silent_command("adb").args(["devices", "-l"]).output() {
+                                let text = String::from_utf8_lossy(&out.stdout);
+                                for line in text.lines().skip(1) {
+                                    let parts: Vec<&str> = line.split_whitespace().collect();
+                                    if parts.len() >= 2 && parts[1] == "device" {
+                                        let dev_s = parts[0].to_string();
+                                        let dev_port = parts.iter()
+                                            .find(|p| p.starts_with("usb:"))
+                                            .map(|p| p.replace("usb:", ""))
+                                            .unwrap_or_default();
+
+                                        let port_matched = if let Some(ref ph) = port_hint_boot {
+                                            let clean_ph = ph.trim().trim_start_matches("USB:").trim_start_matches("usb:");
+                                            !clean_ph.is_empty() && (dev_port == clean_ph || dev_port.starts_with(clean_ph) || clean_ph.starts_with(&dev_port))
+                                        } else {
+                                            false
+                                        };
+
+                                        let serial_similar = if dev_s.len() == serial_boot.len() && dev_s.len() > 6 {
+                                            let diffs = dev_s.chars().zip(serial_boot.chars()).filter(|(a, b)| a != b).count();
+                                            diffs <= 2
+                                        } else {
+                                            false
+                                        };
+
+                                        if port_matched || serial_similar {
+                                            active_candidate = Some(dev_s);
+                                            break;
+                                        }
                                     }
                                 }
-                                std::thread::sleep(Duration::from_millis(1500));
-                                found = true;
-                                break;
                             }
+                        }
+
+                        // 3. Verifikasi sys.boot_completed pada candidate
+                        if let Some(cand) = active_candidate {
+                            let mut cmd = silent_command("adb");
+                            cmd.arg("-s").arg(&cand).arg("shell").arg("getprop sys.boot_completed");
+                            if let Ok(prop_out) = cmd.output() {
+                                let prop = String::from_utf8_lossy(&prop_out.stdout).trim().to_string();
+                                if prop == "1" || !prop.is_empty() {
+                                    std::thread::sleep(Duration::from_secs(2));
+                                    found_serial = Some(cand);
+                                    break;
+                                }
+                            }
+                            std::thread::sleep(Duration::from_millis(1500));
+                            found_serial = Some(cand);
+                            break;
                         }
 
                         // Jeda polling
                         std::thread::sleep(Duration::from_millis(2500));
                     }
 
-                    found
-                }).await.unwrap_or(false);
+                    found_serial
+                }).await.unwrap_or(None);
 
-                if adb_boot_res {
+                if let Some(active_s) = adb_boot_res {
+                    if active_s != target_serial {
+                        send_log("info", format!("[Workflow] 🔄 Serial target diperbarui ke ADB serial aktif: {} (sebelumnya {})", active_s, target_serial));
+                        target_serial = active_s;
+                    }
                     send_log("info", format!("[Workflow] ✅ Perangkat {} telah menyala penuh dan siap di-provision!", target_serial));
                 } else {
                     send_log("error", format!("[Workflow Error] ❌ Device {} tidak terdeteksi setelah batas waktu 10 menit. Membatalkan workflow.", target_serial));

@@ -71,7 +71,7 @@ pub fn get_port_history(port: &str) -> Option<PortHistoryEntry> {
     None
 }
 
-// ponytail: Reload system udev rules and restart ADB server to refresh USB devices
+// ponytail: Safe reload matching FlashKit (BOW) - reload udev rules and refresh ADB without killing server
 pub fn reload_udev_and_adb() -> String {
     #[cfg(target_os = "linux")]
     {
@@ -81,9 +81,10 @@ pub fn reload_udev_and_adb() -> String {
         let _ = silent_command("udevadm").args(["trigger"]).output();
     }
 
-    let _ = silent_command("adb").arg("kill-server").output();
-    let _ = silent_command("adb").arg("start-server").output();
-    let output = silent_command("adb").arg("devices").output();
+    // Safe refresh: run adb reconnect to wake any offline/stale connections without killing server
+    let _ = silent_command("adb").arg("reconnect").output();
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let output = silent_command("adb").args(["devices", "-l"]).output();
     match output {
         Ok(out) => String::from_utf8_lossy(&out.stdout).to_string(),
         Err(e) => format!("Error refreshing ADB: {}", e),
