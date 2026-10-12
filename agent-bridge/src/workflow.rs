@@ -1014,44 +1014,11 @@ pub async fn execute_workflow_pipeline(
 
     sleep(Duration::from_millis(800)).await;
 
-    // Helper function to send AT exploit commands to Samsung modem ports
-    fn send_at_exploit_samsung() -> Vec<String> {
-        use std::io::{Read, Write};
-        let mut logs = Vec::new();
-
-        if let Ok(ports) = serialport::available_ports() {
-            for p in ports {
-                if let serialport::SerialPortType::UsbPort(info) = p.port_type {
-                    if info.vid == 0x04e8 {
-                        let port_name = p.port_name.clone();
-                        if let Ok(mut port) = serialport::new(&port_name, 115200)
-                            .timeout(Duration::from_secs(3))
-                            .open()
-                        {
-                            let _ = port.write_all(b"AT+USBDEBUG=1\r\n");
-                            std::thread::sleep(Duration::from_millis(350));
-                            let mut buf = [0u8; 512];
-                            let _ = port.read(&mut buf);
-
-                            let _ = port.write_all(b"AT+ENGMODES=1,2,0\r\n");
-                            std::thread::sleep(Duration::from_millis(350));
-                            let _ = port.read(&mut buf);
-
-                            logs.push(format!("AT Exploit terkirim ke {}", port_name));
-                        }
-                    }
-                }
-            }
-        }
-
-        logs
-    }
-
-    // Helper closure to run adb shell with automatic retry & udev reload on error: closed
+    // Helper closure to run adb shell with fast retry
     fn run_shell_with_retry(serial: &str, cmd_str: &str, logs: &mut Vec<String>) {
         let mut last_err = String::new();
 
-        for attempt in 1..=5 {
+        for _ in 1..=3 {
             let mut cmd = silent_command("adb");
             cmd.arg("-s").arg(serial).arg("shell").arg(cmd_str);
 
@@ -1069,14 +1036,7 @@ pub async fn execute_workflow_pipeline(
                 last_err = if !err_str.is_empty() { err_str } else { out_str };
             }
 
-            if last_err.contains("closed") || last_err.contains("device not found") || last_err.contains("device offline") {
-                let _ = send_at_exploit_samsung();
-                crate::scanner::reload_udev_and_adb();
-                std::thread::sleep(Duration::from_millis(800 * attempt));
-                continue;
-            } else {
-                break;
-            }
+            std::thread::sleep(Duration::from_millis(200));
         }
 
         if !last_err.is_empty() {
@@ -1095,15 +1055,7 @@ pub async fn execute_workflow_pipeline(
         let suw_res = tokio::task::spawn_blocking(move || -> Vec<String> {
             let mut logs = Vec::new();
 
-            // 1. Kirim AT Exploit ke Modem Samsung
-            let at_logs = send_at_exploit_samsung();
-            for l in at_logs {
-                logs.push(format!("[AT] {}", l));
-            }
-            std::thread::sleep(Duration::from_millis(1500));
-            crate::scanner::reload_udev_and_adb();
-
-            // 2. Pastikan ADB daemon ready
+            // 1. Pastikan ADB daemon ready
             let _ = silent_command("adb").args(["-s", &serial_suw, "wait-for-device"]).output();
 
             // 3. Install Language Helper APK jika ada (matching FlashKit)
