@@ -387,23 +387,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                         <button
                           type="button"
                           onClick={() => onOpenLogs(device.pcId, device.id)}
-                          className="btn btn-sm btn-outline-secondary"
-                          style={{
-                            padding: '0.15rem 0',
-                            fontSize: '0.68rem',
-                            fontWeight: 600,
-                            height: '22px',
-                            flex: 1,
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-medium, rgba(255, 255, 255, 0.25))',
-                            backgroundColor: 'transparent',
-                            color: 'var(--text-secondary, #cbd5e1)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.15s ease',
-                          }}
+                          className="workflow-log-btn"
                           title="Lihat live log proses perangkat ini"
                         >
                           Log
@@ -413,23 +397,7 @@ export const RunningWorkflowAccordion: React.FC<RunningWorkflowAccordionProps> =
                         <button
                           type="button"
                           onClick={() => onAbort(device.pcId, device.id)}
-                          className="btn btn-sm btn-outline-danger"
-                          style={{
-                            padding: '0.15rem 0',
-                            fontSize: '0.68rem',
-                            fontWeight: 700,
-                            height: '22px',
-                            flex: 1,
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid rgba(239, 68, 68, 0.45)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                            color: 'var(--accent-red, #ef4444)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.15s ease',
-                          }}
+                          className="workflow-abort-btn"
                           title="Hentikan / batalkan proses workflow perangkat ini"
                         >
                           Abort
