@@ -866,6 +866,11 @@ pub async fn execute_workflow_pipeline(
                     for attempt in 1..=MAX_ATTEMPTS {
                         let elapsed_sec = (attempt * 5) / 2;
 
+                        // Wake up target Samsung device modem port (first attempt, and periodically every ~15s)
+                        if attempt % 6 == 1 {
+                            crate::scanner::wake_samsung_modem(Some(&serial_boot), port_hint_boot.as_deref());
+                        }
+
                         // Kirim notifikasi progres heartbeat (tanpa mematikan/reload udev/adb secara global agar device lain tidak terputus)
                         if attempt % 5 == 1 {
                             let tx = tx_poll.clone();
@@ -951,10 +956,13 @@ pub async fn execute_workflow_pipeline(
                             cmd.arg("-s").arg(&cand).arg("shell").arg("getprop sys.boot_completed");
                             if let Ok(prop_out) = cmd.output() {
                                 let prop = String::from_utf8_lossy(&prop_out.stdout).trim().to_string();
+                                let err_str = String::from_utf8_lossy(&prop_out.stderr).trim().to_string();
                                 if prop == "1" {
                                     std::thread::sleep(Duration::from_millis(1500));
                                     found_serial = Some(cand);
                                     break;
+                                } else if prop.contains("closed") || err_str.contains("closed") {
+                                    crate::scanner::wake_samsung_modem(Some(&cand), port_hint_boot.as_deref());
                                 }
                             }
                         }
@@ -1024,7 +1032,7 @@ pub async fn execute_workflow_pipeline(
     fn run_shell_with_retry(serial: &str, cmd_str: &str, logs: &mut Vec<String>) {
         let mut last_err = String::new();
 
-        for _ in 1..=3 {
+        for attempt in 1..=3 {
             let mut cmd = silent_command("adb");
             cmd.arg("-s").arg(serial).arg("shell").arg(cmd_str);
 
@@ -1042,7 +1050,11 @@ pub async fn execute_workflow_pipeline(
                 last_err = if !err_str.is_empty() { err_str } else { out_str };
             }
 
-            std::thread::sleep(Duration::from_millis(200));
+            if last_err.contains("closed") && attempt == 1 {
+                crate::scanner::wake_samsung_modem(Some(serial), None);
+            }
+
+            std::thread::sleep(Duration::from_millis(250));
         }
 
         if !last_err.is_empty() {
@@ -1060,6 +1072,9 @@ pub async fn execute_workflow_pipeline(
         let serial_suw = target_serial.clone();
         let suw_res = tokio::task::spawn_blocking(move || -> Vec<String> {
             let mut logs = Vec::new();
+
+            // 0. Bangunkan modem Samsung agar port ADB aktif dan shell terbuka
+            crate::scanner::wake_samsung_modem(Some(&serial_suw), None);
 
             // 1. Pastikan ADB daemon ready dengan bounded polling (hindari wait-for-device tanpa batas)
             let mut is_ready = false;

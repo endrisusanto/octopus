@@ -71,7 +71,128 @@ pub fn get_port_history(port: &str) -> Option<PortHistoryEntry> {
     None
 }
 
-// ponytail: Safe reload matching FlashKit (BOW) - reload udev rules and refresh ADB without killing server
+#[derive(Clone, Debug)]
+pub struct SamsungModemPort {
+    pub port_path: String,
+    pub usb_port: String,
+    pub serial: String,
+}
+
+pub fn get_samsung_modem_ports() -> Vec<SamsungModemPort> {
+    let mut results = Vec::new();
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(entries) = std::fs::read_dir("/sys/class/tty") {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("ttyACM") {
+                    let dev_link = entry.path().join("device");
+                    if let Ok(real_path) = std::fs::canonicalize(&dev_link) {
+                        let usb_dir = real_path.parent().unwrap_or(&real_path);
+                        let vid = std::fs::read_to_string(usb_dir.join("idVendor"))
+                            .map(|s| s.trim().to_lowercase())
+                            .unwrap_or_default();
+                        if vid == "04e8" {
+                            let serial = std::fs::read_to_string(usb_dir.join("serial"))
+                                .map(|s| s.trim().to_string())
+                                .unwrap_or_default();
+                            let usb_port = usb_dir
+                                .file_name()
+                                .map(|f| f.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            results.push(SamsungModemPort {
+                                port_path: format!("/dev/{}", name),
+                                usb_port,
+                                serial,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(ports) = serialport::available_ports() {
+            for p in ports {
+                if let serialport::SerialPortType::UsbPort(info) = p.port_type {
+                    if info.vid == 0x04e8 {
+                        results.push(SamsungModemPort {
+                            port_path: p.port_name,
+                            usb_port: String::new(),
+                            serial: info.serial_number.unwrap_or_default(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    results
+}
+
+// ponytail: Safely wake Samsung device's ADB daemon via modem AT command (AT+USBDEBUG=1 and AT+ENGMODES=1,2,0)
+// Targets specific device by serial/port to avoid disturbing other devices, or concurrently wakes all on reload
+pub fn wake_samsung_modem(target_serial: Option<&str>, port_hint: Option<&str>) {
+    let clean_ph = port_hint
+        .map(|p| p.trim().trim_start_matches("USB:").trim_start_matches("usb:"))
+        .unwrap_or("");
+    let target_s = target_serial.unwrap_or("").trim();
+
+    let ports = get_samsung_modem_ports();
+    let matched: Vec<String> = ports
+        .into_iter()
+        .filter(|p| {
+            if !clean_ph.is_empty() || !target_s.is_empty() {
+                let port_match = !clean_ph.is_empty() && p.usb_port == clean_ph;
+                let serial_match = !target_s.is_empty() && (
+                    p.serial == target_s ||
+                    (p.serial.len() == target_s.len() && p.serial.len() > 6 && {
+                        let diff_indices: Vec<usize> = p.serial.char_indices()
+                            .zip(target_s.char_indices())
+                            .filter(|((_, a), (_, b))| a != b)
+                            .map(|((idx, _), _)| idx)
+                            .collect();
+                        diff_indices.len() == 1 && diff_indices[0] == 5
+                    })
+                );
+                port_match || serial_match
+            } else {
+                true
+            }
+        })
+        .map(|p| p.port_path)
+        .collect();
+
+    if matched.is_empty() {
+        return;
+    }
+
+    let mut handles = Vec::new();
+    for port_path in matched {
+        handles.push(std::thread::spawn(move || {
+            use std::io::Write;
+            if let Ok(mut port) = serialport::new(&port_path, 115200)
+                .timeout(std::time::Duration::from_millis(400))
+                .open()
+            {
+                let _ = port.write_all(b"AT+USBDEBUG=1\r\n");
+                let _ = port.flush();
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                let _ = port.write_all(b"AT+ENGMODES=1,2,0\r\n");
+                let _ = port.flush();
+            }
+        }));
+    }
+
+    for h in handles {
+        let _ = h.join();
+    }
+}
+
+// ponytail: Safe reload matching FlashKit (BOW) - wake Samsung modems, reload udev rules, and refresh ADB without killing server
 pub fn reload_udev_and_adb() -> String {
     #[cfg(target_os = "linux")]
     {
@@ -80,6 +201,9 @@ pub fn reload_udev_and_adb() -> String {
         let _ = silent_command("udevadm").args(["control", "--reload-rules"]).output();
         let _ = silent_command("udevadm").args(["trigger"]).output();
     }
+
+    // Wake Samsung modem ports (concurrently, matching FlashKit)
+    wake_samsung_modem(None, None);
 
     // Safe refresh: run adb reconnect to wake any offline/stale connections without killing server
     let _ = silent_command("adb").arg("reconnect").output();
