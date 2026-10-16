@@ -576,13 +576,13 @@ pub async fn execute_workflow_pipeline(
         };
 
         if is_adb_mode {
-            send_log("info", format!("[Odin Engine] 🔄 Me-reboot perangkat {} ke Download Mode...", target_serial));
-            send_progress(8, Some("Flashing..."), Some("Rebooting ke Download Mode..."));
+            send_log("info", format!("[Odin Engine] 🔄 Me-reboot perangkat {} ke Download Mode (menunggu 12 detik)...", target_serial));
+            send_progress(8, Some("Flashing..."), Some("Menunggu Masuk Download Mode (12s)..."));
             let mut reb = silent_command("adb");
             reb.arg("-s").arg(&target_serial).arg("reboot").arg("download");
             let _ = reb.output();
-            // Berikan jeda USB dan reload udev rules untuk refresh izin devnode
-            sleep(Duration::from_millis(1500)).await;
+            // ponytail: Grace period 12s matching FlashKit BOW untuk memastikan bootloader masuk Download Mode sepenuhnya
+            sleep(Duration::from_millis(12000)).await;
             crate::scanner::reload_udev_and_adb();
         }
 
@@ -610,8 +610,7 @@ pub async fn execute_workflow_pipeline(
                 odin_target_dev = devnode;
                 break;
             }
-            if attempt % 4 == 0 {
-                crate::scanner::reload_udev_and_adb();
+            if attempt % 5 == 0 {
                 send_log(
                     "info",
                     format!(

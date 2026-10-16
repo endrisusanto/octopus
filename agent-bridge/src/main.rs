@@ -245,24 +245,9 @@ async fn run_bridge_worker(state: AppState) {
                 let verif_counter = Arc::new(std::sync::atomic::AtomicU64::new(1));
                 let scanner_state = state.clone();
                 let tx_scanner = tx.clone();
-                let active_workflows_scanner = active_workflows.clone();
-
                 let scanner_handle = tokio::spawn(async move {
                     let mut tick: u32 = 0;
                     loop {
-                        // ponytail: Auto reload device & udev secara global jika ada proses workflow yang sedang berjalan
-                        let active_wf_count = if let Ok(lock) = active_workflows_scanner.lock() {
-                            lock.len()
-                        } else {
-                            0
-                        };
-
-                        if active_wf_count > 0 && tick % 5 == 0 {
-                            println!("[Bridge] 🔄 Auto-reloading udev & ADB ({} workflow aktif)...", active_wf_count);
-                            tokio::task::spawn_blocking(|| {
-                                scanner::reload_udev_and_adb();
-                            }).await.ok();
-                        }
 
                         let devices = scanner::scan_all_devices();
                         let dev_count = devices.len();
