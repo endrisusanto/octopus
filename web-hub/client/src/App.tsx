@@ -698,7 +698,7 @@ export const App: React.FC = () => {
         {/* =========================================================================
             PARENT ACCORDIONS PER MODEL (Wraps Firmware 5-Slot Form + Matched Devices)
             ========================================================================= */}
-        {profileEntries.map(([mKey, profile]) => {
+        {profileEntries.map(([mKey, profile], index) => {
           const apFile = profile.slots.ap?.filename;
           const detectedModel = apFile ? extractModelFromFirmware(apFile) : null;
           const targetModel = detectedModel || mKey;
@@ -717,6 +717,7 @@ export const App: React.FC = () => {
             <ModelParentAccordion
               key={mKey}
               modelKey={mKey}
+              modelIndex={index}
               slots={profile.slots}
               onUpdateSlotsBatch={(updates) => handleUpdateSlotsBatchForModel(mKey, updates)}
               onResetModel={() => handleResetModelProfile(mKey)}

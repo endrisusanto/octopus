@@ -19,6 +19,7 @@ import {
 
 interface ModelParentAccordionProps {
   modelKey: string;
+  modelIndex?: number;
   slots: FirmwareSlotsMap;
   onUpdateSlotsBatch: (updates: { slotKey: keyof FirmwareSlotsMap; fileItem: BinaryItem | null }[]) => void;
   onResetModel: () => void;
@@ -48,6 +49,28 @@ interface ModelParentAccordionProps {
   onToggleDevicesOpen?: () => void;
 }
 
+// ponytail: rotating accent palette for distinct model workflow identification
+export interface ModelAccentTheme {
+  color: string;
+  border: string;
+  bgSubtle: string;
+  badgeBg: string;
+  glow: string;
+}
+
+export const MODEL_ACCENT_PALETTES: ModelAccentTheme[] = [
+  { color: '#3b82f6', border: 'rgba(59, 130, 246, 0.45)', bgSubtle: 'rgba(59, 130, 246, 0.04)', badgeBg: 'rgba(59, 130, 246, 0.12)', glow: 'rgba(59, 130, 246, 0.15)' },
+  { color: '#8b5cf6', border: 'rgba(139, 92, 246, 0.45)', bgSubtle: 'rgba(139, 92, 246, 0.04)', badgeBg: 'rgba(139, 92, 246, 0.12)', glow: 'rgba(139, 92, 246, 0.15)' },
+  { color: '#10b981', border: 'rgba(16, 185, 129, 0.45)', bgSubtle: 'rgba(16, 185, 129, 0.04)', badgeBg: 'rgba(16, 185, 129, 0.12)', glow: 'rgba(16, 185, 129, 0.15)' },
+  { color: '#f59e0b', border: 'rgba(245, 158, 11, 0.45)', bgSubtle: 'rgba(245, 158, 11, 0.04)', badgeBg: 'rgba(245, 158, 11, 0.12)', glow: 'rgba(245, 158, 11, 0.15)' },
+  { color: '#f43f5e', border: 'rgba(244, 63, 94, 0.45)', bgSubtle: 'rgba(244, 63, 94, 0.04)', badgeBg: 'rgba(244, 63, 94, 0.12)', glow: 'rgba(244, 63, 94, 0.15)' },
+  { color: '#06b6d4', border: 'rgba(6, 182, 212, 0.45)', bgSubtle: 'rgba(6, 182, 212, 0.04)', badgeBg: 'rgba(6, 182, 212, 0.12)', glow: 'rgba(6, 182, 212, 0.15)' },
+  { color: '#d946ef', border: 'rgba(217, 70, 239, 0.45)', bgSubtle: 'rgba(217, 70, 239, 0.04)', badgeBg: 'rgba(217, 70, 239, 0.12)', glow: 'rgba(217, 70, 239, 0.15)' },
+  { color: '#6366f1', border: 'rgba(99, 102, 241, 0.45)', bgSubtle: 'rgba(99, 102, 241, 0.04)', badgeBg: 'rgba(99, 102, 241, 0.12)', glow: 'rgba(99, 102, 241, 0.15)' },
+  { color: '#f97316', border: 'rgba(249, 115, 22, 0.45)', bgSubtle: 'rgba(249, 115, 22, 0.04)', badgeBg: 'rgba(249, 115, 22, 0.12)', glow: 'rgba(249, 115, 22, 0.15)' },
+  { color: '#14b8a6', border: 'rgba(20, 184, 166, 0.45)', bgSubtle: 'rgba(20, 184, 166, 0.04)', badgeBg: 'rgba(20, 184, 166, 0.12)', glow: 'rgba(20, 184, 166, 0.15)' },
+];
+
 const SLOT_CONFIGS: { key: keyof FirmwareSlotsMap; label: string; name: string; color: string; bg: string }[] = [
   { key: 'bl', label: 'BL', name: 'Bootloader', color: 'var(--accent-amber, #f59e0b)', bg: 'rgba(245, 158, 11, 0.1)' },
   { key: 'ap', label: 'AP', name: 'System / PDA', color: 'var(--accent-primary, #3b82f6)', bg: 'rgba(59, 130, 246, 0.1)' },
@@ -58,6 +81,7 @@ const SLOT_CONFIGS: { key: keyof FirmwareSlotsMap; label: string; name: string; 
 
 export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
   modelKey,
+  modelIndex,
   slots,
   onUpdateSlotsBatch,
   onResetModel,
@@ -306,17 +330,41 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
     onRunAutomation(targetIds, safeWorkflowConfig, safeSlots);
   };
 
+  // ponytail: rotating accent palette for distinct model workflow identification
+  const accent = useMemo(() => {
+    const paletteIndex = typeof modelIndex === 'number'
+      ? modelIndex
+      : Math.abs(modelKey.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
+    return MODEL_ACCENT_PALETTES[paletteIndex % MODEL_ACCENT_PALETTES.length];
+  }, [modelIndex, modelKey]);
+
   return (
     <div
       className="card accordion-card parent-model-accordion"
       style={{
+        position: 'relative',
         marginBottom: '1.25rem',
-        border: '1.5px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-md)',
+        border: `1.5px solid ${accent.border}`,
+        boxShadow: isParentOpen ? `0 4px 18px -2px ${accent.glow}, var(--shadow-md)` : 'var(--shadow-sm)',
         overflow: 'hidden',
         backgroundColor: 'var(--bg-surface)',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
       }}
     >
+      {/* Accent spine on the left edge */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: '4px',
+          backgroundColor: accent.color,
+          zIndex: 3,
+          pointerEvents: 'none',
+        }}
+      />
+
       {/* =========================================================================
           PARENT ACCORDION HEADER (Clean Fluid Responsive Layout)
           ========================================================================= */}
@@ -326,9 +374,10 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
         style={{
           cursor: 'pointer',
           userSelect: 'none',
-          backgroundColor: 'var(--bg-subtle, rgba(255, 255, 255, 0.02))',
-          padding: '0.75rem 1rem',
-          borderBottom: isParentOpen ? '1px solid var(--border-subtle)' : 'none',
+          backgroundColor: isParentOpen ? accent.bgSubtle : 'var(--bg-subtle, rgba(255, 255, 255, 0.02))',
+          padding: '0.75rem 1rem 0.75rem 1.15rem',
+          borderBottom: isParentOpen ? `1px solid ${accent.border}` : 'none',
+          transition: 'background-color 0.2s ease, border-color 0.2s ease',
         }}
       >
         <div className="model-header-container">
@@ -348,7 +397,27 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
                 {isParentOpen ? <ChevronUpIcon size={16} /> : <ChevronDownIcon size={16} />}
               </button>
 
-              <span className="model-header-title">{displayModelName}</span>
+              <span
+                className="model-header-title"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                }}
+              >
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: accent.color,
+                    boxShadow: `0 0 6px ${accent.color}`,
+                    flexShrink: 0,
+                  }}
+                />
+                <span>{displayModelName}</span>
+              </span>
               {renderBuildBadge()}
               {apFilename && (
                 <span className="model-header-ap-filename" title={apFilename}>
@@ -429,7 +498,15 @@ export const ModelParentAccordion: React.FC<ModelParentAccordionProps> = ({
                 )}
               </button>
 
-              <span className="stat-pill active model-header-count">
+              <span
+                className="stat-pill active model-header-count"
+                style={{
+                  borderColor: accent.border,
+                  backgroundColor: accent.badgeBg,
+                  color: 'var(--text-primary)',
+                  fontWeight: 700,
+                }}
+              >
                 {selectedModelIds.length}/{devices.length} Unit
               </span>
 
